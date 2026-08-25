@@ -1,7 +1,7 @@
 # 03 · 订单与计划单域模型
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: —
 
 ## Question

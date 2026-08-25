@@ -19,6 +19,9 @@
 
 <!-- 一行一张已关闭的票：标题链接 + 一句话结论 -->
 
+- [技术栈与架构调研](issues/01-tech-stack-research.md): 从零自研——React 19 + TypeScript + Ant Design 6 / NestJS 11 / PostgreSQL 18 + Drizzle ORM；Docker Compose 单机厂内部署 + frp/WireGuard 远程穿透；ERPNext 二开仅在需要完整财务/成熟 MRP 时翻案。详见 research/01-tech-stack.md
+- [AI 接入方案调研](issues/02-ai-integration-research.md): 五项能力统一「确定性为骨、LLM 解释」——订单解析走多模态直出、查数先工具调用后受控 Text-to-SQL、排产预警走规则引擎、报表走模板+摘要；国内 API 月费约 30-300 元，不私有化。详见 research/02-ai-integration.md
+
 ## Not yet specified
 
 - 各域字段级细化与校验规则——等域模型票落地后看是否需要单独票
