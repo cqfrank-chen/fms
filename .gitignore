@@ -1,0 +1,13 @@
+# WorkBuddy session data
+.workbuddy/
+
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+
+# OS
+Thumbs.db
+.DS_Store
