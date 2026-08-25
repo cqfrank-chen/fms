@@ -1,7 +1,8 @@
 # 04 · 工序耗时数据整理
 
 Type: task
-Status: open
+Status: in_progress
+Claimed: 2026-08-26
 Blocked by: —
 
 ## Question
@@ -11,3 +12,9 @@ Blocked by: —
 - 定位材料来源：工作区文件、用户上传、资料库；工作区内没有就向用户索取
 - 整理成结构化清单：产品 × 工艺路线（工序顺序）× 每工序功能说明 × 标准耗时
 - 产出写到 `.scratch/factory-management-system/research/04-process-data.md`
+
+## Progress
+
+- 2026-08-26：材料搜索完成——会议纪要汇编-2026-08-22.html 在本地磁盘/资料库/历史会话/artifact-index 均不存在；历史会话摘要显示当时耗时台账本就「待补充」未完成
+- 2026-08-26：用户选择「先搭骨架我填数」路径；骨架已建（research/04-process-data.md）：3 个路线确认问题（验证票 03 挂起假设）+ 12 道默认工序表 + 产品×工序矩阵 + 产能瓶颈 4 问
+- 待办：用户填真实数据（可对话口述代填）→ 结构化完成 → 解锁票 05
