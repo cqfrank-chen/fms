@@ -28,6 +28,8 @@
 - [AI 能力分期](issues/10-ai-phasing.md): 三期框架——一期（订单解析全入口+利润月报摘要+查数function calling+规则预警+学习闭环，月费25-50元）；二期（数据2-3月积累后：Text-to-SQL+排产解释+预警解释，量化验收）；三期（自动排产联动+ML检测）。模型组合 DeepSeek-V4-Flash/qwen3-vl-flash/qwen3-max，统一兼容接口可切换。详见票据 Answer
 - [技术栈与架构定版](issues/11-tech-architecture-decision.md): 从零自研、TS 全栈（React19+AntD6 / NestJS11 / PG18 / Drizzle）；单机 Docker Compose；厂内 Windows 机 Docker Desktop（免费档）主部署、配置吃不消上云翻案；厂内 IP 直连免登录；双备份（每日本地+每周移动硬盘）；一键安装+升级双脚本交付；ADR-0001 落盘。详见票据 Answer 与 docs/adr/0001
 - [数据迁移与切换](issues/12-data-migration-cutover.md): 只搬活数据——主数据全量+在途单+期初库存快照；已完成旧单与旧账留 Excel 归档；系统内 Excel 导入（自动校验+人工抽检）；定点切换、备齐即切、边用边补（主数据→期初库存→在途单）。详见票据 Answer
+- [排期与工序域模型](issues/05-scheduling-process-model.md): 计划单级排期单元+工序产能池（三层：工作中心→工序→任务）+交期硬约束产能软约束+甘特图拖单（天级、工序耗时自动推算可覆盖）；已确认全进池；行级报工驱动看板状态；独立排期状态字段。详见票据 Answer
+- [工序模型定义](issues/04-process-time-data.md): 工序序列/耗时/设备/拓扑全做成可配置主数据、前端交互逐项填写；工序字典13道种子+参数模型+产品×工序序列模板；丙烷钻孔更慢分列、单班8小时。详见 research/04-process-data.md
 
 ## Not yet specified
 
