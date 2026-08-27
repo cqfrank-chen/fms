@@ -1,7 +1,7 @@
 # 04 · 工序耗时数据整理
 
 Type: task
-Status: in_progress (2026-08-27 用户确认：只定框架与数据模型，数值全部后续前端交互填写)
+Status: resolved (2026-08-27 框架与数据模型定稿；数值运行期前端配置，非本票范畴)
 Claimed: 2026-08-26
 Blocked by: —
 
