@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工厂管理系统 · 周边界面原型（仓储/账目/设置 · PROTOTYPE 一次性资产）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f5f5; color: #1f1f1f; }
+  .banner { background: #fff7e6; border-bottom: 1px solid #ffd591; padding: 8px 20px; font-size: 13px; color: #874d00; }
+  .banner strong { color: #d46b08; }
+  .app { max-width: 1180px; margin: 0 auto; padding: 16px 20px 40px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  header h1 { font-size: 20px; font-weight: 500; color: #003a8c; }
+  header .sub { font-size: 12px; color: #999; font-weight: 400; }
+  nav { display: flex; gap: 4px; background: #fff; border-radius: 8px; padding: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.06); margin-bottom: 16px; }
+  nav button { flex: 1; padding: 10px; border: none; background: transparent; border-radius: 6px; font-size: 14px; cursor: pointer; color: #666; }
+  nav button.active { background: #1677ff; color: #fff; }
+  .card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.06); margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 500; color: #1f1f1f; margin-bottom: 12px; }
+  .card h2 .tag { font-size: 11px; font-weight: 400; background: #f0f5ff; color: #1677ff; border: 1px solid #adc6ff; border-radius: 4px; padding: 1px 6px; margin-left: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #fafafa; text-align: left; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; color: #666; font-weight: 500; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  td input, td select { padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; width: 100%; }
+  .btn { padding: 6px 14px; border-radius: 4px; border: 1px solid #d9d9d9; background: #fff; cursor: pointer; font-size: 13px; }
+  .btn.primary { background: #1677ff; color: #fff; border-color: #1677ff; }
+  .btn.ghost { color: #1677ff; border-color: #adc6ff; background: #fff; }
+  .btn.danger { color: #ff4d4f; border-color: #ffa39e; background: #fff; }
+  .actions { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+  .st-ok { background: #f6ffed; color: #389e0d; }
+  .st-warn { background: #fff1f0; color: #cf1322; }
+  .st-gray { background: #f0f0f0; color: #666; }
+  .st-blue { background: #e6f4ff; color: #0958d9; }
+  .st-yellow { background: #fffbe6; color: #ad6800; }
+  .st-green { background: #f6ffed; color: #389e0d; }
+  .empty { text-align: center; padding: 30px; color: #999; font-size: 13px; }
+  .notice { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #237804; margin-bottom: 12px; }
+  .notice.warn { background: #fffbe6; border-color: #ffe58f; color: #ad6800; }
+  .notice.info { background: #e6f4ff; border-color: #91caff; color: #0958d9; }
+  .filters { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .filters select, .filters input { padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; }
+  .tabs-inline { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs-inline button { padding: 5px 12px; border: 1px solid #d9d9d9; background: #fff; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .tabs-inline button.active { background: #1677ff; color: #fff; border-color: #1677ff; }
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: #fff; border-radius: 10px; padding: 20px; width: 620px; max-width: 92vw; box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 86vh; overflow-y: auto; }
+  .modal h3 { font-size: 15px; margin-bottom: 12px; }
+  .modal .row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; border-bottom: 1px dashed #f0f0f0; }
+  .modal .row .k { color: #666; }
+  .modal .row .v { font-weight: 500; text-align: right; }
+  .modal .actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+  .field input, .field select { width: 100%; padding: 6px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; }
+  .field.full { grid-column: 1 / -1; }
+  .link { color: #1677ff; cursor: pointer; background: none; border: none; font-size: 13px; padding: 0; }
+  .link:hover { text-decoration: underline; }
+  .kpi-row { display: flex; gap: 12px; margin-bottom: 12px; }
+  .kpi { flex: 1; background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .kpi .num { font-size: 22px; font-weight: 500; color: #1f1f1f; }
+  .kpi .lbl { font-size: 12px; color: #999; margin-top: 2px; }
+  .kpi .num.warn { color: #cf1322; }
+  .kpi .num.ok { color: #389e0d; }
+  .kpi .num.blue { color: #1677ff; }
+  .bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; }
+  .fb-input-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .fb-input-row input { flex: 1; padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; }
+  .feedback { background: #fff; border: 1px dashed #d9d9d9; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 13px; }
+  .feedback h4 { font-size: 13px; color: #666; margin-bottom: 8px; }
+  .fb-log { margin-top: 8px; font-size: 12px; color: #0958d9; min-height: 16px; }
+</style>
+</head>
+<body>
+<div class="banner"><strong>PROTOTYPE · 周边界面原型</strong> — 仓储/账目/设置，事件链联动演示（报工→入库、出库→应收→收款）。预置演示数据，全部交互事件委托。反馈写在每屏底部。</div>
+<div class="app">
+  <header>
+    <h1>割嘴工厂管理系统 · 周边界面原型 <span class="sub">与核心原型（index.html）配套，演示仓储/账目/设置</span></h1>
+  </header>
+
+  <nav id="tabs">
+    <button data-tab="wh" class="active"><span class="step">①</span>仓储</button>
+    <button data-tab="acct"><span class="step">②</span>账目</button>
+    <button data-tab="cfg"><span class="step">③</span>设置</button>
+  </nav>
+
+  <!-- ============ ① 仓储 ============ -->
+  <div id="tab-wh">
+    <div class="tabs-inline" id="wh-tabs">
+      <button class="active" data-wtab="stock">库存列表</button>
+      <button data-wtab="inbound">入库确认</button>
+      <button data-wtab="outbound">出库单</button>
+      <button data-wtab="receipt">来料登记</button>
+      <button data-wtab="stocktake">盘点</button>
+    </div>
+
+    <div id="wtab-stock">
+      <div class="card">
+        <h2>成品库存 <span class="tag">安全库存标红预警</span></h2>
+        <div class="kpi-row">
+          <div class="kpi"><div class="num blue" id="stock-total">0</div><div class="lbl">库存总数量（只）</div></div>
+          <div class="kpi"><div class="num warn" id="stock-low-count">0</div><div class="lbl">低于安全库存（SKU数）</div></div>
+        </div>
+        <table>
+          <thead><tr><th>SKU</th><th>批次</th><th>库存数</th><th>安全库存</th><th>状态</th></tr></thead>
+          <tbody id="stock-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="wtab-inbound" style="display:none">
+      <div class="card">
+        <h2>入库单确认 <span class="tag">报工自动触发草稿，仓管确认入账</span></h2>
+        <div class="notice info">演示联动：计划单行报工达到 1000 只 → 自动生成入库单草稿（预填产品/数量/批次）→ 仓管核实物数后确认入账，库存 +1000。</div>
+        <table>
+          <thead><tr><th>入库单号</th><th>来源计划单</th><th>产品</th><th>数量</th><th>批次</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="inbound-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="wtab-outbound" style="display:none">
+      <div class="card">
+        <h2>出库单 <span class="tag">挂订单 · OQC 先检后出 · 分批</span></h2>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="btn primary" id="new-outbound">+ 新建出库单</button>
+        </div>
+        <div id="outbound-notice"></div>
+        <table>
+          <thead><tr><th>出库单号</th><th>订单</th><th>客户</th><th>产品行</th><th>OQC状态</th><th>单据状态</th><th>操作</th></tr></thead>
+          <tbody id="outbound-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="wtab-receipt" style="display:none">
+      <div class="card">
+        <h2>来料登记单 <span class="tag">铜料批次追溯 + IQC 挂点（一期线下纸质）</span></h2>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="btn primary" id="new-receipt">+ 来料登记</button>
+        </div>
+        <table>
+          <thead><tr><th>登记单号</th><th>日期</th><th>供应商</th><th>物料</th><th>数量</th><th>批次号</th><th>检验状态（预留）</th></tr></thead>
+          <tbody id="receipt-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="wtab-stocktake" style="display:none">
+      <div class="card">
+        <h2>盘点单 <span class="tag">盘点→差异→盘盈/盘亏调整单</span></h2>
+        <table>
+          <thead><tr><th>盘点单号</th><th>SKU</th><th>账面数</th><th>实盘数</th><th>差异</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="stocktake-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="feedback">
+      <h4>反馈：仓储界面</h4>
+      <div class="fb-input-row">
+        <input id="fb-wh-input" placeholder="直接输入反馈内容…（回车提交）">
+        <button class="btn primary fb-submit" data-screen="wh">提交</button>
+      </div>
+      <div class="fb-log" id="fb-wh"></div>
+    </div>
+  </div>
+
+  <!-- ============ ② 账目 ============ -->
+  <div id="tab-acct" style="display:none">
+    <div class="tabs-inline" id="acct-tabs">
+      <button class="active" data-atab="profit">利润视图</button>
+      <button data-atab="receivable">应收</button>
+      <button data-atab="collect">收款单</button>
+      <button data-atab="payable">应付</button>
+      <button data-atab="pay">付款单</button>
+      <button data-atab="statement">对账单</button>
+      <button data-atab="cost">月度成本</button>
+    </div>
+
+    <div id="atab-profit">
+      <div class="card">
+        <h2>月度利润总览 <span class="tag">现金收付制 · 期间成本</span></h2>
+        <div class="kpi-row">
+          <div class="kpi"><div class="num blue">¥<span id="profit-rev">0</span></div><div class="lbl">营收（当月收款核销）</div></div>
+          <div class="kpi"><div class="num">¥<span id="profit-cost">0</span></div><div class="lbl">成本（材料+人工+制费）</div></div>
+          <div class="kpi"><div class="num" id="profit-net">¥0</div><div class="lbl">利润</div></div>
+        </div>
+        <div class="bar" style="height:18px">
+          <i style="width:70%;background:#1677ff"></i>
+          <i style="width:30%;background:#ff4d4f"></i>
+        </div>
+        <div style="font-size:11px;color:#999;margin-top:4px">蓝=营收 红=成本</div>
+        <h2 style="margin-top:16px">营收按客户下钻</h2>
+        <table>
+          <thead><tr><th>客户</th><th>当月营收</th><th>占比</th></tr></thead>
+          <tbody id="profit-cust"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="atab-receivable" style="display:none">
+      <div class="card">
+        <h2>应收记录 <span class="tag">出库自动生成 · 账龄分桶</span></h2>
+        <table>
+          <thead><tr><th>应收号</th><th>客户</th><th>来源出库单</th><th>金额</th><th>到期日</th><th>账龄</th><th>已核销</th><th>操作</th></tr></thead>
+          <tbody id="receivable-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="atab-collect" style="display:none">
+      <div class="card">
+        <h2>收款单 <span class="tag">核销 + 预收双模式</span></h2>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="btn primary" id="new-collect">+ 新建收款单</button>
+        </div>
+        <table>
+          <thead><tr><th>收款单号</th><th>客户</th><th>模式</th><th>金额</th><th>核销对象</th><th>状态</th></tr></thead>
+          <tbody id="collect-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="atab-payable" style="display:none">
+      <div class="card">
+        <h2>应付记录 <span class="tag">来料登记自动生成</span></h2>
+        <table>
+          <thead><tr><th>应付号</th><th>供应商</th><th>来源来料单</th><th>金额</th><th>已核销</th><th>操作</th></tr></thead>
+          <tbody id="payable-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="atab-pay" style="display:none">
+      <div class="card">
+        <h2>付款单 <span class="tag">核销 + 预付双模式</span></h2>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="btn primary" id="new-pay">+ 新建付款单</button>
+        </div>
+        <table>
+          <thead><tr><th>付款单号</th><th>供应商</th><th>模式</th><th>金额</th><th>核销对象</th><th>状态</th></tr></thead>
+          <tbody id="pay-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="atab-statement" style="display:none">
+      <div class="card">
+        <h2>对账单 <span class="tag">按客户 · 账龄分桶标红</span></h2>
+        <table>
+          <thead><tr><th>客户</th><th>期初</th><th>本期出库</th><th>本期收款</th><th>期末余额</th><th>账龄分桶</th></tr></thead>
+          <tbody id="statement-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="atab-cost" style="display:none">
+      <div class="card">
+        <h2>月度成本填写 <span class="tag">固定六类枚举</span></h2>
+        <p style="font-size:13px;color:#666;margin-bottom:10px">每月每类填一笔金额，材料采购自动从来料登记单汇总（本次演示仅人工+制费手填）。</p>
+        <table>
+          <thead><tr><th>类别</th><th>金额（元）</th><th>说明</th></tr></thead>
+          <tbody id="cost-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="feedback">
+      <h4>反馈：账目界面</h4>
+      <div class="fb-input-row">
+        <input id="fb-acct-input" placeholder="直接输入反馈内容…（回车提交）">
+        <button class="btn primary fb-submit" data-screen="acct">提交</button>
+      </div>
+      <div class="fb-log" id="fb-acct"></div>
+    </div>
+  </div>
+
+  <!-- ============ ③ 设置 ============ -->
+  <div id="tab-cfg" style="display:none">
+    <div class="card">
+      <h2>产品目录 <span class="tag">主数据 · 默认工序路线/包装</span></h2>
+      <table>
+        <thead><tr><th>产品</th><th>类型</th><th>默认包装</th><th>默认工序路线</th><th>安全库存</th></tr></thead>
+        <tbody id="cfg-catalog"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>客户档案 <span class="tag">轻量主数据</span></h2>
+      <table>
+        <thead><tr><th>客户</th><th>联系人</th><th>结算方式</th><th>账期（天）</th></tr></thead>
+        <tbody id="cfg-customer"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>供应商档案 <span class="tag">与客户同构</span></h2>
+      <table>
+        <thead><tr><th>供应商</th><th>联系人</th><th>结算方式</th></tr></thead>
+        <tbody id="cfg-supplier"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>操作人 / PC 绑定 <span class="tag">票07：免登录 · 固定名单 · 每台PC绑默认操作人</span></h2>
+      <table>
+        <thead><tr><th>PC</th><th>绑定操作人</th><th>备注</th></tr></thead>
+        <tbody id="cfg-pc"></tbody>
+      </table>
+    </div>
+    <div class="feedback">
+      <h4>反馈：设置界面</h4>
+      <div class="fb-input-row">
+        <input id="fb-cfg-input" placeholder="直接输入反馈内容…（回车提交）">
+        <button class="btn primary fb-submit" data-screen="cfg">提交</button>
+      </div>
+      <div class="fb-log" id="fb-cfg"></div>
+    </div>
+  </div>
+
+  <div class="notice warn" style="margin-top:16px" id="global-state"></div>
+</div>
+
+<!-- 出库单新建弹窗 -->
+<div class="modal-mask" id="outbound-modal">
+  <div class="modal">
+    <h3>新建出库单（挂订单 · 可分批）</h3>
+    <div class="form-grid">
+      <div class="field full"><label>选择订单</label>
+        <select id="ob-order"><option value="">选择已确认订单</option></select>
+      </div>
+      <div class="field full"><label>出库数量（本批发货，可少于订单总量=分批）</label><input id="ob-qty" type="number" value="1000" min="1"></div>
+    </div>
+    <div class="notice info">演示联动：确认出库 → OQC 待检 → 放行 → 库存扣减 + 自动生成应收记录（票06/08 事件链）。</div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="outbound-modal">取消</button>
+      <button class="btn primary" id="ob-confirm">确认出库（生成OQC待检）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 收款单新建弹窗 -->
+<div class="modal-mask" id="collect-modal">
+  <div class="modal">
+    <h3>新建收款单（核销 / 预收双模式）</h3>
+    <div class="form-grid">
+      <div class="field"><label>客户</label><select id="cl-customer"></select></div>
+      <div class="field"><label>模式</label>
+        <select id="cl-mode"><option value="verify">核销（冲抵应收）</option><option value="prepay">预收（挂余额，出库后核销）</option></select>
+      </div>
+      <div class="field full"><label>金额（元）</label><input id="cl-amount" type="number" value="10000" min="1"></div>
+    </div>
+    <div class="notice info">演示联动：核销式 → 冲抵该客户最早一笔未核销应收；预收式 → 挂客户预收余额（30%定金场景）。</div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="collect-modal">取消</button>
+      <button class="btn primary" id="cl-confirm">确认收款（一步生效）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 付款单新建弹窗 -->
+<div class="modal-mask" id="pay-modal">
+  <div class="modal">
+    <h3>新建付款单（核销 / 预付双模式）</h3>
+    <div class="form-grid">
+      <div class="field"><label>供应商</label><select id="py-supplier"></select></div>
+      <div class="field"><label>模式</label>
+        <select id="py-mode"><option value="verify">核销（冲抵应付）</option><option value="prepay">预付（挂余额）</option></select>
+      </div>
+      <div class="field full"><label>金额（元）</label><input id="py-amount" type="number" value="5000" min="1"></div>
+    </div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="pay-modal">取消</button>
+      <button class="btn primary" id="py-confirm">确认付款（一步生效）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 来料登记弹窗 -->
+<div class="modal-mask" id="receipt-modal">
+  <div class="modal">
+    <h3>来料登记单</h3>
+    <div class="form-grid">
+      <div class="field"><label>供应商</label><select id="rc-supplier"></select></div>
+      <div class="field"><label>物料</label><select id="rc-material"><option>黄铜棒 φ20</option><option>黄铜棒 φ25</option><option>包装盒</option><option>不干胶</option></select></div>
+      <div class="field"><label>数量</label><input id="rc-qty" type="number" value="500" min="1"></div>
+      <div class="field"><label>金额（元，生成应付）</label><input id="rc-amount" type="number" value="8000" min="1"></div>
+      <div class="field"><label>批次号</label><input id="rc-batch" placeholder="如 B20260828-01"></div>
+      <div class="field"><label>检验状态（预留IQC）</label><select><option>待检（线下纸质）</option></select></div>
+    </div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="receipt-modal">取消</button>
+      <button class="btn primary" id="rc-confirm">登记（生成应付）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 盘点弹窗 -->
+<div class="modal-mask" id="stocktake-modal">
+  <div class="modal">
+    <h3>盘点确认</h3>
+    <div id="stocktake-body-modal"></div>
+    <div class="notice info">确认后按差异生成盘盈/盘亏调整单，库存校准，全程留痕。</div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="stocktake-modal">取消</button>
+      <button class="btn primary" id="st-confirm">确认盘点（校准库存）</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ 预置数据 ============
+const catalogCfg = [
+  { prod: 'ANM 1/32" 乙炔', type: '英式乙炔', pack: '包装盒×50+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 2000 },
+  { prod: 'PNM 3/32" 丙烷', type: '英式丙烷', pack: '定制盒×25+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 1500 },
+  { prod: '6290 1/4" 美式', type: '美式乙炔', pack: '包装盒×100+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 1000 },
+  { prod: '101 3/8" 美式', type: '美式丙烷', pack: '包装盒×100+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 800 },
+];
+const customers = [
+  { name: 'Weldclass（澳洲）', contact: 'John', settle: '30%定金+70%发货前', aging: 30 },
+  { name: 'Parweld（英国）', contact: 'Sarah', settle: '月结30天', aging: 30 },
+  { name: 'SWP（英国）', contact: 'Mike', settle: '月结60天', aging: 60 },
+  { name: 'Zaker Trading（中东）', contact: 'Ali', settle: '发货前付清', aging: 0 },
+];
+const suppliers = [
+  { name: '桐乡铜业', contact: '王经理', settle: '预付30%' },
+  { name: '本地纸箱厂', contact: '李老板', settle: '月结' },
+  { name: '气体供应站', contact: '—', settle: '现结' },
+];
+
+// 库存（SKU × 批次）
+let stocks = [
+  { sku: 'ANM 1/32" 乙炔', batch: 'FG-20260826-01', qty: 1800, safety: 2000 },
+  { sku: 'ANM 1/32" 乙炔', batch: 'FG-20260827-02', qty: 2500, safety: 2000 },
+  { sku: 'PNM 3/32" 丙烷', batch: 'FG-20260826-03', qty: 1200, safety: 1500 },
+  { sku: '6290 1/4" 美式', batch: 'FG-20260825-04', qty: 900, safety: 1000 },
+  { sku: '101 3/8" 美式', batch: 'FG-20260827-05', qty: 1500, safety: 800 },
+];
+
+// 入库单（报工触发草稿）
+let inbounds = [
+  { id: 'IN-20260828-01', plan: 'PS-2026-002', prod: 'ANM 1/32" 乙炔', qty: 1000, batch: 'FG-20260828-06', status: 'draft' },
+];
+
+// 出库单（挂订单，OQC 状态）
+let outbounds = [
+  { id: 'OUT-20260827-01', order: 'SO-2026-001', customer: 'Weldclass（澳洲）', lines: 'ANM 1/32"×1000', oqc: '放行', status: 'confirmed', amt: 3500 },
+];
+
+// 来料登记
+let receipts = [
+  { id: 'MR-20260826-01', date: '2026-08-26', supplier: '桐乡铜业', mat: '黄铜棒 φ20', qty: 500, batch: 'B20260826-01', amt: 8000 },
+];
+
+// 应收（出库生成）
+let receivables = [
+  { id: 'AR-001', customer: 'Weldclass（澳洲）', src: 'OUT-20260827-01', amt: 3500, due: '2026-09-26', paid: 0 },
+];
+let collections = [
+  { id: 'RC-20260827-01', customer: 'Weldclass（澳洲）', mode: 'verify', amt: 2000, target: 'AR-001', status: '已核销2000' },
+];
+
+// 应付（来料生成）
+let payables = [
+  { id: 'AP-001', supplier: '桐乡铜业', src: 'MR-20260826-01', amt: 8000, paid: 0 },
+];
+let payments = [];
+
+// 盘点
+let stocktakes = [
+  { id: 'ST-20260828-01', sku: 'ANM 1/32" 乙炔', book: 2500, actual: '', diff: '', status: '待录入' },
+];
+
+// 月度成本
+const costItems = [
+  { cat: '人工', val: 30000, note: '全厂工资+社保' },
+  { cat: '电费', val: 5000, note: '机器运转用电' },
+  { cat: '燃气', val: 0, note: '按瓶采购走来料登记单，不重复填' },
+  { cat: '房租', val: 8000, note: '厂房租金' },
+  { cat: '折旧', val: 3000, note: '设备折旧摊销' },
+  { cat: '其他', val: 2000, note: '维修/刀具/耗材/物流' },
+];
+
+let seq = 100;
+const feedbacks = [];
+
+// ============ Tab 切换 ============
+document.addEventListener('click', function (e) {
+  if (e.target.classList && e.target.classList.contains('modal-mask')) { e.target.style.display = 'none'; return; }
+  const closeBtn = e.target.closest('.modal-close');
+  if (closeBtn) { document.getElementById(closeBtn.dataset.modal).style.display = 'none'; return; }
+  const tabBtn = e.target.closest('#tabs button[data-tab]');
+  if (tabBtn) { switchTab(tabBtn.dataset.tab); return; }
+  const wTab = e.target.closest('#wh-tabs button[data-wtab]');
+  if (wTab) { switchSub('wh', wTab.dataset.wtab); return; }
+  const aTab = e.target.closest('#acct-tabs button[data-atab]');
+  if (aTab) { switchSub('acct', aTab.dataset.atab); return; }
+  if (e.target.closest('#new-outbound')) { openOutbound(); return; }
+  if (e.target.closest('#new-collect')) { openCollect(); return; }
+  if (e.target.closest('#new-pay')) { openPay(); return; }
+  if (e.target.closest('#new-receipt')) { openReceipt(); return; }
+  if (e.target.closest('#ob-confirm')) { confirmOutbound(); return; }
+  if (e.target.closest('#cl-confirm')) { confirmCollect(); return; }
+  if (e.target.closest('#py-confirm')) { confirmPay(); return; }
+  if (e.target.closest('#rc-confirm')) { confirmReceipt(); return; }
+  if (e.target.closest('#st-confirm')) { confirmStocktake(); return; }
+  const oqcBtn = e.target.closest('.do-oqc');
+  if (oqcBtn) { doOqc(oqcBtn.dataset.id); return; }
+  const stBtn = e.target.closest('.do-stocktake');
+  if (stBtn) { openStocktake(stBtn.dataset.sku); return; }
+  const fbSub = e.target.closest('.fb-submit');
+  if (fbSub) { submitFb(fbSub.dataset.screen); return; }
+});
+
+function switchTab(tab) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#tabs button[data-tab="' + tab + '"]').classList.add('active');
+  ['wh','acct','cfg'].forEach(t => document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
+  renderAll();
+}
+function switchSub(domain, sub) {
+  const tabId = domain === 'wh' ? 'wh-tabs' : 'acct-tabs';
+  const prefix = domain === 'wh' ? 'wtab-' : 'atab-';
+  document.querySelectorAll('#' + tabId + ' button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#' + tabId + ' button[data-' + (domain==='wh'?'wtab':'atab') + '="' + sub + '"]').classList.add('active');
+  document.querySelectorAll('#' + tabId + ' ~ div[id^="' + prefix + '"]').forEach(d => d.style.display = 'none');
+  document.getElementById(prefix + sub).style.display = '';
+  renderAll();
+}
+
+// ============ 渲染 ============
+function renderAll() {
+  renderStock(); renderInbound(); renderOutbound(); renderReceipt(); renderStocktake();
+  renderProfit(); renderReceivable(); renderCollect(); renderPayable(); renderPay(); renderStatement(); renderCost();
+  renderCfg(); renderGlobalState();
+}
+
+function renderStock() {
+  const total = stocks.reduce((s, x) => s + x.qty, 0);
+  const low = stocks.filter(x => x.qty < x.safety).length;
+  document.getElementById('stock-total').textContent = total;
+  document.getElementById('stock-low-count').textContent = low;
+  document.getElementById('stock-body').innerHTML = stocks.map(s => `
+    <tr>
+      <td>${s.sku}</td><td>${s.batch}</td>
+      <td style="color:${s.qty < s.safety ? '#cf1322' : '#1f1f1f'};font-weight:${s.qty < s.safety ? '600' : '400'}">${s.qty}</td>
+      <td>${s.safety}</td>
+      <td><span class="status-badge ${s.qty < s.safety ? 'st-warn' : 'st-ok'}">${s.qty < s.safety ? '⚠ 低于安全库存' : '正常'}</span></td>
+    </tr>`).join('');
+}
+
+function renderInbound() {
+  document.getElementById('inbound-body').innerHTML = inbounds.map(x => `
+    <tr>
+      <td>${x.id}</td><td>${x.plan}</td><td>${x.prod}</td><td>${x.qty}</td><td>${x.batch}</td>
+      <td><span class="status-badge ${x.status === 'confirmed' ? 'st-ok' : 'st-yellow'}">${x.status === 'confirmed' ? '已入账' : '草稿待确认'}</span></td>
+      <td>${x.status === 'draft' ? `<button class="btn primary confirm-inbound" data-id="${x.id}">仓管确认入账</button>` : '<span style="font-size:12px;color:#999">已确认</span>'}</td>
+    </tr>`).join('');
+}
+
+document.addEventListener('click', function (e) {
+  const ci = e.target.closest('.confirm-inbound');
+  if (!ci) return;
+  const x = inbounds.find(i => i.id === ci.dataset.id);
+  if (x) { x.status = 'confirmed'; stocks.push({ sku: x.prod, batch: x.batch, qty: x.qty, safety: catalogCfg.find(c=>c.prod===x.prod)?.safety || 1000 }); }
+  renderAll();
+});
+
+function renderOutbound() {
+  document.getElementById('outbound-body').innerHTML = outbounds.map(x => `
+    <tr>
+      <td>${x.id}</td><td>${x.order}</td><td>${x.customer}</td><td>${x.lines}</td>
+      <td><span class="status-badge ${x.oqc === '放行' ? 'st-ok' : 'st-yellow'}">${x.oqc === '放行' ? '✅ 合格放行' : '⏳ 待检'}</span></td>
+      <td><span class="status-badge ${x.status === 'confirmed' ? 'st-ok' : 'st-blue'}">${x.status === 'confirmed' ? '已确认' : '待确认'}</span></td>
+      <td>${x.oqc !== '放行' ? `<button class="btn primary do-oqc" data-id="${x.id}">OQC 放行</button>` : ''}</td>
+    </tr>`).join('');
+}
+
+function doOqc(id) {
+  const x = outbounds.find(o => o.id === id);
+  if (x) { x.oqc = '放行'; x.status = 'confirmed';
+    // 出库→库存扣减
+    const sku = x.lines.split('×')[0];
+    const qty = +x.lines.split('×')[1];
+    const st = stocks.filter(s => s.sku === sku).sort((a,b)=>b.qty-a.qty);
+    if (st.length) { st[0].qty = Math.max(0, st[0].qty - qty); }
+    // 出库→自动生成应收
+    const arId = 'AR-' + String(seq++);
+    receivables.push({ id: arId, customer: x.customer, src: x.id, amt: x.amt, due: '2026-09-28', paid: 0 });
+    const note = document.getElementById('outbound-notice');
+    note.className = 'notice';
+    note.textContent = 'OQC 放行 → 出库确认 → 库存已扣减 + 自动生成应收 ' + arId + '（' + x.amt + ' 元）';
+  }
+  renderAll();
+}
+
+function renderReceipt() {
+  document.getElementById('receipt-body').innerHTML = receipts.map(r => `
+    <tr><td>${r.id}</td><td>${r.date}</td><td>${r.supplier}</td><td>${r.mat}</td><td>${r.qty}</td><td>${r.batch}</td><td><span class="status-badge st-gray">待检（线下）</span></td></tr>`).join('');
+}
+
+function renderStocktake() {
+  document.getElementById('stocktake-body').innerHTML = stocktakes.map(s => `
+    <tr>
+      <td>${s.id}</td><td>${s.sku}</td><td>${s.book}</td><td>${s.actual || '—'}</td>
+      <td style="color:${s.diff > 0 ? '#389e0d' : s.diff < 0 ? '#cf1322' : '#999'}">${s.diff ? (s.diff > 0 ? '+' + s.diff : s.diff) : '—'}</td>
+      <td><span class="status-badge ${s.status === '已调整' ? 'st-ok' : 'st-yellow'}">${s.status}</span></td>
+      <td>${s.status !== '已调整' ? `<button class="btn primary do-stocktake" data-sku="${s.sku}">录入实盘</button>` : ''}</td>
+    </tr>`).join('');
+}
+
+function openStocktake(sku) {
+  const s = stocktakes.find(x => x.sku === sku);
+  const st = stocks.filter(x => x.sku === sku).reduce((a, x) => a + x.qty, 0);
+  document.getElementById('stocktake-body-modal').innerHTML = `
+    <div class="row"><span class="k">SKU</span><span class="v">${sku}</span></div>
+    <div class="row"><span class="k">账面数</span><span class="v">${st}</span></div>
+    <div class="row"><span class="k">实盘数</span><span class="v"><input id="st-actual" type="number" value="${st}" style="width:100px;padding:4px;border:1px solid #d9d9d9;border-radius:4px"></span></div>`;
+  document.getElementById('stocktake-modal').style.display = 'flex';
+  window._stocktakeSku = sku;
+}
+
+function confirmStocktake() {
+  const sku = window._stocktakeSku;
+  const actual = +document.getElementById('st-actual').value;
+  const st = stocks.filter(x => x.sku === sku).reduce((a, x) => a + x.qty, 0);
+  const diff = actual - st;
+  const s = stocktakes.find(x => x.sku === sku);
+  if (s) { s.actual = actual; s.diff = diff; s.status = '已调整'; }
+  // 按差异调整库存（调整到第一个批次上，演示）
+  if (diff !== 0) {
+    const target = stocks.find(x => x.sku === sku);
+    if (target) target.qty = Math.max(0, target.qty + diff);
+  }
+  document.getElementById('stocktake-modal').style.display = 'none';
+  renderAll();
+}
+
+// ============ 账目 ============
+function renderProfit() {
+  const rev = collections.filter(c => c.mode === 'verify').reduce((s, c) => s + c.amt, 0);
+  const cost = costItems.reduce((s, c) => s + c.val, 0) + receipts.reduce((s, r) => s + r.amt, 0);
+  document.getElementById('profit-rev').textContent = rev;
+  document.getElementById('profit-cost').textContent = cost;
+  document.getElementById('profit-net').textContent = '¥' + (rev - cost);
+  document.getElementById('profit-net').className = (rev - cost) >= 0 ? 'num ok' : 'num warn';
+  const byCust = {};
+  collections.forEach(c => { byCust[c.customer] = (byCust[c.customer] || 0) + c.amt; });
+  const rows = Object.entries(byCust).sort((a, b) => b[1] - a[1]);
+  document.getElementById('profit-cust').innerHTML = rows.length ? rows.map(r => `
+    <tr><td>${r[0]}</td><td>¥${r[1]}</td><td>${rev ? Math.round(r[1]/rev*100) : 0}%</td></tr>`).join('') : '<tr><td colspan="3"><div class="empty">暂无收款</div></td></tr>';
+}
+
+function renderReceivable() {
+  document.getElementById('receivable-body').innerHTML = receivables.map(r => {
+    const remaining = r.amt - r.paid;
+    const aging = Math.max(0, Math.floor((new Date('2026-08-28') - new Date(r.due)) / 86400000));
+    const bucket = aging > 90 ? '90+天' : aging > 60 ? '60-90天' : aging > 30 ? '30-60天' : aging > 0 ? '1-30天' : '未到期';
+    const badge = aging > 30 ? 'st-warn' : 'st-ok';
+    return `
+    <tr>
+      <td>${r.id}</td><td>${r.customer}</td><td>${r.src}</td><td>¥${r.amt}</td><td>${r.due}</td>
+      <td><span class="status-badge ${badge}">${aging > 0 ? '逾期' + aging + '天' : '未到期'}</span> <span style="font-size:11px;color:#999">${bucket}</span></td>
+      <td>¥${r.paid} / ¥${r.amt}</td>
+      <td><span style="font-size:12px;color:${remaining > 0 ? '#1677ff' : '#389e0d'}">${remaining > 0 ? '待收 ¥' + remaining : '已结清'}</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8"><div class="empty">暂无应收</div></td></tr>';
+}
+
+function renderCollect() {
+  document.getElementById('collect-body').innerHTML = collections.map(c => `
+    <tr><td>${c.id}</td><td>${c.customer}</td><td>${c.mode === 'verify' ? '核销' : '预收'}</td><td>¥${c.amt}</td><td>${c.target || '预收余额'}</td><td><span class="status-badge st-ok">已生效</span></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">暂无收款单</div></td></tr>';
+}
+
+function renderPayable() {
+  document.getElementById('payable-body').innerHTML = payables.map(p => `
+    <tr><td>${p.id}</td><td>${p.supplier}</td><td>${p.src}</td><td>¥${p.amt}</td><td>¥${p.paid} / ¥${p.amt}</td><td><span style="font-size:12px;color:${p.amt - p.paid > 0 ? '#1677ff' : '#389e0d'}">${p.amt - p.paid > 0 ? '待付 ¥' + (p.amt - p.paid) : '已结清'}</span></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">暂无应付</div></td></tr>';
+}
+
+function renderPay() {
+  document.getElementById('pay-body').innerHTML = payments.map(p => `
+    <tr><td>${p.id}</td><td>${p.supplier}</td><td>${p.mode === 'verify' ? '核销' : '预付'}</td><td>¥${p.amt}</td><td>${p.target || '预付余额'}</td><td><span class="status-badge st-ok">已生效</span></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">暂无付款单</div></td></tr>';
+}
+
+function renderStatement() {
+  document.getElementById('statement-body').innerHTML = customers.map(c => {
+    const receiv = receivables.filter(r => r.customer === c.name).reduce((s, r) => s + (r.amt - r.paid), 0);
+    return `
+    <tr>
+      <td>${c.name}</td><td>¥0</td>
+      <td>¥${receivables.filter(r => r.customer === c.name).reduce((s, r) => s + r.amt, 0)}</td>
+      <td>¥${collections.filter(x => x.customer === c.name).reduce((s, x) => s + x.amt, 0)}</td>
+      <td style="font-weight:600;color:${receiv > 0 ? '#cf1322' : '#1f1f1f'}">¥${receiv}</td>
+      <td>${receiv > 0 ? '<span class="status-badge st-warn">有余额 · 查看账龄</span>' : '<span class="status-badge st-ok">已结清</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCost() {
+  document.getElementById('cost-body').innerHTML = costItems.map(c => `
+    <tr><td>${c.cat}</td><td>¥<span id="cost-${c.cat}">${c.val}</span></td><td style="color:#999;font-size:12px">${c.note}</td></tr>`).join('');
+}
+
+// ============ 设置 ============
+function renderCfg() {
+  document.getElementById('cfg-catalog').innerHTML = catalogCfg.map(c => `
+    <tr><td>${c.prod}</td><td>${c.type}</td><td>${c.pack}</td><td style="font-size:11px;color:#666">${c.route}</td><td>${c.safety}</td></tr>`).join('');
+  document.getElementById('cfg-customer').innerHTML = customers.map(c => `
+    <tr><td>${c.name}</td><td>${c.contact}</td><td>${c.settle}</td><td>${c.aging} 天</td></tr>`).join('');
+  document.getElementById('cfg-supplier').innerHTML = suppliers.map(s => `
+    <tr><td>${s.name}</td><td>${s.contact}</td><td>${s.settle}</td></tr>`).join('');
+  document.getElementById('cfg-pc').innerHTML = `
+    <tr><td>办公室 1 号机</td><td>文员</td><td>订单录入/计划单审核</td></tr>
+    <tr><td>办公室 2 号机</td><td>仓管/财务</td><td>出入库/收付款</td></tr>
+    <tr><td>老板办公室</td><td>老板</td><td>看数（利润/对账）</td></tr>`;
+}
+
+// ============ 弹窗：出库 ============
+function openOutbound() {
+  const sel = document.getElementById('ob-order');
+  const confirmedOrders = ['SO-2026-001（Weldclass·ANM×3000）', 'SO-2026-002（Parweld·PNM×2000）'];
+  sel.innerHTML = confirmedOrders.map(o => `<option>${o}</option>`).join('');
+  document.getElementById('outbound-modal').style.display = 'flex';
+}
+function confirmOutbound() {
+  const orderVal = document.getElementById('ob-order').value;
+  if (!orderVal) return;
+  const qty = +document.getElementById('ob-qty').value;
+  const custMatch = orderVal.match(/（(.+?)·/);
+  const customer = custMatch ? custMatch[1] : '客户';
+  const prodMatch = orderVal.match(/·(.+?)×/);
+  const prod = prodMatch ? prodMatch[1] : '产品';
+  const id = 'OUT-2026' + String(seq++).slice(-4);
+  outbounds.push({ id, order: orderVal.split('（')[0], customer, lines: prod + '×' + qty, oqc: '待检', status: '待确认', amt: qty * 3.5 });
+  document.getElementById('outbound-modal').style.display = 'none';
+  const note = document.getElementById('outbound-notice');
+  note.className = 'notice info';
+  note.textContent = '出库单 ' + id + ' 已创建（' + prod + '×' + qty + '，OQC 待检）→ 点「OQC 放行」走完事件链';
+  renderAll();
+}
+
+// ============ 弹窗：收款 ============
+function openCollect() {
+  document.getElementById('cl-customer').innerHTML = customers.map(c => `<option>${c.name}</option>`).join('');
+  document.getElementById('collect-modal').style.display = 'flex';
+}
+function confirmCollect() {
+  const customer = document.getElementById('cl-customer').value;
+  const mode = document.getElementById('cl-mode').value;
+  const amt = +document.getElementById('cl-amount').value;
+  const id = 'RC-2026' + String(seq++).slice(-4);
+  if (mode === 'verify') {
+    // 核销最早未结清应收
+    const ar = receivables.find(r => r.customer === customer && r.amt - r.paid > 0);
+    if (ar) { ar.paid = Math.min(ar.amt, ar.paid + amt); }
+    collections.push({ id, customer, mode, amt, target: ar ? ar.id : '无待核应收', status: '已生效' });
+  } else {
+    collections.push({ id, customer, mode, amt, target: '预收余额', status: '已生效' });
+  }
+  document.getElementById('collect-modal').style.display = 'none';
+  renderAll();
+}
+
+// ============ 弹窗：付款 ============
+function openPay() {
+  document.getElementById('py-supplier').innerHTML = suppliers.map(s => `<option>${s.name}</option>`).join('');
+  document.getElementById('pay-modal').style.display = 'flex';
+}
+function confirmPay() {
+  const supplier = document.getElementById('py-supplier').value;
+  const mode = document.getElementById('py-mode').value;
+  const amt = +document.getElementById('py-amount').value;
+  const id = 'PAY-2026' + String(seq++).slice(-4);
+  if (mode === 'verify') {
+    const ap = payables.find(p => p.supplier === supplier && p.amt - p.paid > 0);
+    if (ap) { ap.paid = Math.min(ap.amt, ap.paid + amt); }
+    payments.push({ id, supplier, mode, amt, target: ap ? ap.id : '无待核应付', status: '已生效' });
+  } else {
+    payments.push({ id, supplier, mode, amt, target: '预付余额', status: '已生效' });
+  }
+  document.getElementById('pay-modal').style.display = 'none';
+  renderAll();
+}
+
+// ============ 弹窗：来料登记 ============
+function openReceipt() {
+  document.getElementById('rc-supplier').innerHTML = suppliers.map(s => `<option>${s.name}</option>`).join('');
+  document.getElementById('receipt-modal').style.display = 'flex';
+}
+function confirmReceipt() {
+  const supplier = document.getElementById('rc-supplier').value;
+  const mat = document.getElementById('rc-material').value;
+  const qty = +document.getElementById('rc-qty').value;
+  const amt = +document.getElementById('rc-amount').value;
+  const batch = document.getElementById('rc-batch').value || ('B2026' + String(seq++));
+  const id = 'MR-2026' + String(seq++).slice(-4);
+  receipts.push({ id, date: '2026-08-28', supplier, mat, qty, batch, amt });
+  payables.push({ id: 'AP-' + String(seq++), supplier, src: id, amt, paid: 0 });
+  document.getElementById('receipt-modal').style.display = 'none';
+  renderAll();
+}
+
+// ============ 反馈 ============
+function submitFb(screen) {
+  const input = document.getElementById('fb-' + screen + '-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const screenName = { wh: '仓储', acct: '账目', cfg: '设置' }[screen];
+  feedbacks.push({ screen: screenName, text, time: new Date().toLocaleTimeString() });
+  input.value = '';
+  document.getElementById('fb-' + screen).textContent = '已记录反馈：' + screenName + ' - ' + text + '（' + new Date().toLocaleTimeString() + '）';
+  document.getElementById('fb-' + screen).style.color = '#52c41a';
+  renderGlobalState();
+}
+['wh','acct','cfg'].forEach(s => {
+  document.getElementById('fb-' + s + '-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') submitFb(s);
+  });
+});
+
+function renderGlobalState() {
+  const el = document.getElementById('global-state');
+  const stockTotal = stocks.reduce((s, x) => s + x.qty, 0);
+  const arTotal = receivables.reduce((s, r) => s + (r.amt - r.paid), 0);
+  const apTotal = payables.reduce((s, p) => s + (p.amt - p.paid), 0);
+  el.textContent = '库存 ' + stockTotal + ' 只（低库存 ' + stocks.filter(x=>x.qty<x.safety).length + ' SKU）｜ 应收未收 ¥' + arTotal + ' ｜ 应付未付 ¥' + apTotal + ' ｜ 反馈 ' + feedbacks.length + ' 条';
+}
+
+renderAll();
+</script>
+</body>
+</html>
