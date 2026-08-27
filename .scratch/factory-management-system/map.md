@@ -25,6 +25,7 @@
 - [仓储域模型与质检接缝](issues/06-warehouse-model-qc-seam.md): 只管成品（原料由来料登记单轻登记+批次追溯）；成品批次=一计划单一批次；报工即触发入库草稿+仓管确认；出库挂订单可分批+OQC先检后出；盘点单+冲销纠错；安全库存标红预警；允许负库存。详见票据 Answer
 - [账目口径建模](issues/08-accounting-scope-model.md): 现金收付制营收（收款=营收）+期间制成本（材料按采购月汇总+六类月填）；应收挂出库、应付挂来料登记单；收付款单核销双模式（核销+预收/预付）；四表导出给外部做账；一期单币种RMB。详见票据 Answer
 - [用户角色与端形态](issues/07-roles-and-clients.md): 一级全管理员（无角色区分）+免登录；2-3台PC各绑默认操作人（固定名单+下拉可覆盖）做操作留痕；报工办公室PC代录；一期纯PC、不开放远程。详见票据 Answer
+- [AI 能力分期](issues/10-ai-phasing.md): 三期框架——一期（订单解析全入口+利润月报摘要+查数function calling+规则预警+学习闭环，月费25-50元）；二期（数据2-3月积累后：Text-to-SQL+排产解释+预警解释，量化验收）；三期（自动排产联动+ML检测）。模型组合 DeepSeek-V4-Flash/qwen3-vl-flash/qwen3-max，统一兼容接口可切换。详见票据 Answer
 
 ## Not yet specified
 
