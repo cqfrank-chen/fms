@@ -59,8 +59,9 @@
   .gantt { min-width: 980px; }
   .gantt-row { display: flex; border-bottom: 1px solid #f0f0f0; }
   .gantt-label { width: 170px; padding: 10px 8px; font-size: 13px; font-weight: 500; flex-shrink: 0; }
-  .gantt-track { flex: 1; height: 44px; background: #fafafa; position: relative; border-left: 1px solid #f0f0f0; }
-  .gantt-bar { position: absolute; top: 8px; height: 28px; border-radius: 4px; background: #1677ff; color: #fff; font-size: 11px; display: flex; align-items: center; padding: 0 8px; white-space: nowrap; overflow: hidden; }
+  .gantt-track { flex: 1; background: #fafafa; position: relative; border-left: 1px solid #f0f0f0; min-height: 44px; }
+  .gantt-bar { position: absolute; height: 26px; border-radius: 4px; background: #1677ff; color: #fff; font-size: 11px; display: flex; align-items: center; padding: 0 8px; white-space: nowrap; overflow: hidden; cursor: pointer; }
+  .gantt-bar:hover { filter: brightness(1.15); }
   .gantt-bar.done { background: #52c41a; }
   .gantt-bar.overdue { background: #ff4d4f; }
   .gantt-bar.wip { background: #faad14; }
@@ -430,9 +431,12 @@ document.addEventListener('click', function (e) {
   // 计划单审核
   const cfmBtn = e.target.closest('.confirm-plan');
   if (cfmBtn) { confirmPlan(cfmBtn.dataset.pid); return; }
-  // 排期任务点击
+  // 排期任务点击（待排区）
   const task = e.target.closest('.task[data-key]');
   if (task) { openSchedModal(task.dataset.key); return; }
+  // 时间槽任务块点击（看订单简介）
+  const gbar = e.target.closest('.gantt-bar[data-key]');
+  if (gbar) { viewSchedBar(gbar.dataset.key, gbar.dataset.wc); return; }
   // 报工
   const repBtn = e.target.closest('.do-report');
   if (repBtn) { doReport(repBtn.dataset.key); return; }
@@ -722,6 +726,35 @@ document.getElementById('ai-file').addEventListener('change', function (e) {
   }, 800);
 });
 
+// ============ 时间槽任务简介弹窗 ============
+function viewSchedBar(key, wc) {
+  const parts = key.split('|');
+  const pid = parts[0], li = +parts[1];
+  const p = plans.find(x => x.id === pid);
+  if (!p || !p.lines[li]) return;
+  const line = p.lines[li];
+  const sched = line.sched || {};
+  document.getElementById('order-modal-title').textContent = '排期任务简介 ' + p.id + ' 行' + (li+1);
+  document.getElementById('order-modal-body').innerHTML = `
+    <div class="detail-grid">
+      <div class="di"><div class="k">客户</div><div class="v">${p.customer}</div></div>
+      <div class="di"><div class="k">产品</div><div class="v">${line.prod}</div></div>
+      <div class="di"><div class="k">数量</div><div class="v">${line.qty} 只</div></div>
+      <div class="di"><div class="k">交期</div><div class="v">${p.due}</div></div>
+      <div class="di"><div class="k">刻字需求</div><div class="v">${line.engrave || '—'}</div></div>
+      <div class="di"><div class="k">包装要求</div><div class="v" style="font-size:12px">${packSummary(line.pack)}</div></div>
+      <div class="di"><div class="k">排入工序</div><div class="v">${VERIFY_WC[wc || sched.wc] || '—'}</div></div>
+      <div class="di"><div class="k">开始/工期</div><div class="v">${sched.start || '—'} 起 ${catalog[line.prod] ? catalog[line.prod].days : 2} 天</div></div>
+      <div class="di"><div class="k">报工进度</div><div class="v">${line.reported} / ${line.qty}</div></div>
+      <div class="di"><div class="k">来源订单</div><div class="v">${p.orderId}</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost view-order" data-oid="${p.orderId}">查看完整订单</button>
+      <button class="btn modal-close" data-modal="order-modal">关闭</button>
+    </div>`;
+  openModal('order-modal');
+}
+
 // ============ 订单详情弹窗 ============
 function viewOrder(id) {
   const o = orders.find(x => x.id === id);
@@ -843,20 +876,52 @@ function renderSchedule() {
 
   const daysEl = document.getElementById('gantt-days');
   daysEl.innerHTML = DAYS.map(d => `<div>${d}</div>`).join('');
-  document.querySelectorAll('.gantt-track').forEach(track => { track.innerHTML = ''; });
+  document.querySelectorAll('.gantt-track').forEach(track => { track.innerHTML = ''; track.style.height = '44px'; });
 
-  allTaskLines().filter(t => t.l.sched).forEach(t => {
-    const track = document.querySelector(`.gantt-track[data-wc="${t.l.sched.wc}"]`);
+  // 按工序分组，分层排版：重叠任务向下错开
+  const sched = allTaskLines().filter(t => t.l.sched);
+  const byWc = {};
+  sched.forEach(t => {
+    const wc = t.l.sched.wc;
+    if (!byWc[wc]) byWc[wc] = [];
+    byWc[wc].push(t);
+  });
+  Object.keys(byWc).forEach(wc => {
+    const tasks = byWc[wc];
+    // 按开始日排序
+    tasks.sort((a, b) => DAYS.indexOf(a.l.sched.start) - DAYS.indexOf(b.l.sched.start));
+    // 贪心分层：每层记录该层最后一个任务的结束索引
+    const layers = []; // 每层 = 最后占用到的结束索引
+    tasks.forEach(t => {
+      const startIdx = DAYS.indexOf(t.l.sched.start);
+      const days = catalog[t.l.prod] ? catalog[t.l.prod].days : 2;
+      const endIdx = Math.min(DAYS.length - 1, startIdx + days - 1);
+      let placed = -1;
+      for (let li = 0; li < layers.length; li++) {
+        if (startIdx > layers[li]) { placed = li; layers[li] = endIdx; break; }
+      }
+      if (placed === -1) { placed = layers.length; layers.push(endIdx); }
+      t._layer = placed;
+      t._days = days;
+      t._startIdx = startIdx;
+      t._endIdx = endIdx;
+    });
+    const track = document.querySelector(`.gantt-track[data-wc="${wc}"]`);
     if (!track) return;
-    const bar = document.createElement('div');
-    bar.className = 'gantt-bar ' + (t.l.reported >= t.l.qty ? 'done' : t.l.reported > 0 ? 'wip' : '') + (isOverdue(t) && t.l.reported < t.l.qty ? ' overdue' : '');
-    const startIdx = DAYS.indexOf(t.l.sched.start);
-    const days = catalog[t.l.prod] ? catalog[t.l.prod].days : 2;
-    bar.style.left = `calc(${startIdx} * 9.09% + 2px)`;
-    bar.style.width = `calc(${days} * 9.09% - 4px)`;
-    bar.textContent = t.p.id + ' 行' + (t.li+1) + (t.l.reported ? ' ' + t.l.reported + '/' + t.l.qty : '');
-    bar.title = t.p.id + ' 行' + (t.li+1) + ' ' + t.l.prod + '\n' + t.l.reported + '/' + t.l.qty + ' 完成';
-    track.appendChild(bar);
+    const maxLayer = layers.length - 1;
+    track.style.height = (44 + maxLayer * 30) + 'px';
+    tasks.forEach(t => {
+      const bar = document.createElement('div');
+      bar.className = 'gantt-bar ' + (t.l.reported >= t.l.qty ? 'done' : t.l.reported > 0 ? 'wip' : '') + (isOverdue(t) && t.l.reported < t.l.qty ? ' overdue' : '');
+      bar.style.left = `calc(${t._startIdx} * 9.09% + 2px)`;
+      bar.style.width = `calc(${t._days} * 9.09% - 4px)`;
+      bar.style.top = (8 + t._layer * 30) + 'px';
+      bar.textContent = t.p.id + ' 行' + (t.li+1) + (t.l.reported ? ' ' + t.l.reported + '/' + t.l.qty : '');
+      bar.title = t.p.id + ' 行' + (t.li+1) + ' ' + t.l.prod + '\n' + t.l.reported + '/' + t.l.qty + ' 完成';
+      bar.dataset.key = t.p.id + '|' + t.li; // 点击看订单简介
+      bar.dataset.wc = wc;
+      track.appendChild(bar);
+    });
   });
 
   renderReportArea();
