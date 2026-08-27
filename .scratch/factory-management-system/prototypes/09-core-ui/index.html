@@ -78,7 +78,11 @@
   .feedback { background: #fff; border: 1px dashed #d9d9d9; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 13px; }
   .feedback h4 { font-size: 13px; color: #666; margin-bottom: 8px; }
   .feedback .fb-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .fb-input-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .fb-input-row input { flex: 1; padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; }
   .fb-log { margin-top: 8px; font-size: 12px; color: #0958d9; min-height: 16px; }
+  .fb-history { margin-top: 6px; font-size: 12px; color: #666; max-height: 90px; overflow-y: auto; }
+  .fb-history div { padding: 2px 0; border-bottom: 1px dashed #f0f0f0; }
   .flow-indicator { display: flex; align-items: center; gap: 6px; background: #fff; border-radius: 8px; padding: 10px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.06); margin-bottom: 12px; font-size: 13px; color: #666; }
   .flow-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: #d9d9d9; }
   .flow-indicator .dot.on { background: #52c41a; }
@@ -224,7 +228,12 @@
         <button class="btn fb-btn" data-fb="order-awkward">交互别扭</button>
         <button class="btn fb-btn" data-fb="order-other">其他问题</button>
       </div>
+      <div class="fb-input-row">
+        <input id="fb-order-input" placeholder="直接输入反馈内容…（可选，输入后回车提交）">
+        <button class="btn primary" onclick="submitFbText('order')">提交</button>
+      </div>
       <div class="fb-log" id="fb-order"></div>
+      <div class="fb-history" id="fb-order-hist"></div>
     </div>
   </div>
 
@@ -256,7 +265,12 @@
         <button class="btn fb-btn" data-fb="plan-awkward">交互别扭</button>
         <button class="btn fb-btn" data-fb="plan-other">其他问题</button>
       </div>
+      <div class="fb-input-row">
+        <input id="fb-plan-input" placeholder="直接输入反馈内容…（可选，输入后回车提交）">
+        <button class="btn primary" onclick="submitFbText('plan')">提交</button>
+      </div>
       <div class="fb-log" id="fb-plan"></div>
+      <div class="fb-history" id="fb-plan-hist"></div>
     </div>
   </div>
 
@@ -324,7 +338,12 @@
         <button class="btn fb-btn" data-fb="sched-awkward">拖拽别扭</button>
         <button class="btn fb-btn" data-fb="sched-other">其他问题</button>
       </div>
+      <div class="fb-input-row">
+        <input id="fb-sched-input" placeholder="直接输入反馈内容…（可选，输入后回车提交）">
+        <button class="btn primary" onclick="submitFbText('sched')">提交</button>
+      </div>
       <div class="fb-log" id="fb-sched"></div>
+      <div class="fb-history" id="fb-sched-hist"></div>
     </div>
   </div>
 
@@ -770,12 +789,41 @@ document.querySelectorAll('.fb-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const fb = btn.dataset.fb;
     const screen = fb.split('-')[0];
-    const area = document.getElementById('fb-' + screen);
     const screenName = { order: '订单', plan: '计划单', sched: '排程看板' }[screen];
-    feedbacks.push({ screen: screenName, type: fb, time: new Date().toLocaleTimeString() });
-    area.textContent = `已记录反馈：${screenName} - ${btn.textContent}（${new Date().toLocaleTimeString()}）`;
-    area.style.color = '#52c41a';
-    renderGlobalState();
+    feedbacks.push({ screen: screenName, type: fb, text: btn.textContent, time: new Date().toLocaleTimeString() });
+    renderFbLog(screen);
+  });
+});
+
+function submitFbText(screen) {
+  const input = document.getElementById('fb-' + screen + '-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const screenName = { order: '订单', plan: '计划单', sched: '排程看板' }[screen];
+  feedbacks.push({ screen: screenName, type: 'text', text, time: new Date().toLocaleTimeString() });
+  input.value = '';
+  renderFbLog(screen);
+  renderGlobalState();
+}
+
+function renderFbLog(screen) {
+  const screenName = { order: '订单', plan: '计划单', sched: '排程看板' }[screen];
+  const mine = feedbacks.filter(f => f.screen === screenName);
+  const logEl = document.getElementById('fb-' + screen);
+  const histEl = document.getElementById('fb-' + screen + '-hist');
+  if (mine.length) {
+    const last = mine[mine.length - 1];
+    logEl.textContent = `已记录反馈：${last.screen} - ${last.text}（${last.time}）`;
+    logEl.style.color = '#52c41a';
+  }
+  histEl.innerHTML = mine.map(f => `<div>${f.time} · ${f.type === 'text' ? '💬' : '▸'} ${f.text}</div>`).join('');
+  renderGlobalState();
+}
+
+['order','plan','sched'].forEach(s => {
+  const input = document.getElementById('fb-' + s + '-input');
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitFbText(s);
   });
 });
 
