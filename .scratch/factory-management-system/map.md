@@ -22,6 +22,7 @@
 - [技术栈与架构调研](issues/01-tech-stack-research.md): 从零自研——React 19 + TypeScript + Ant Design 6 / NestJS 11 / PostgreSQL 18 + Drizzle ORM；Docker Compose 单机厂内部署 + frp/WireGuard 远程穿透；ERPNext 二开仅在需要完整财务/成熟 MRP 时翻案。详见 research/01-tech-stack.md
 - [AI 接入方案调研](issues/02-ai-integration-research.md): 五项能力统一「确定性为骨、LLM 解释」——订单解析走多模态直出、查数先工具调用后受控 Text-to-SQL、排产预警走规则引擎、报表走模板+摘要；国内 API 月费约 30-300 元，不私有化。详见 research/02-ai-integration.md
 - [订单与计划单域模型](issues/03-order-plan-domain-model.md): 产品目录+客户档案做主数据；订单一单多产品（行含单价+币种+行级包装要求）、单头交期+客户PO号；一单一计划单、订单确认自动生成草稿+人工审核；双五态状态机、进度自动推导；变更联动草稿重生成/确认后人工。详见票据 Answer
+- [仓储域模型与质检接缝](issues/06-warehouse-model-qc-seam.md): 只管成品（原料由来料登记单轻登记+批次追溯）；成品批次=一计划单一批次；报工即触发入库草稿+仓管确认；出库挂订单可分批+OQC先检后出；盘点单+冲销纠错；安全库存标红预警；允许负库存。详见票据 Answer
 
 ## Not yet specified
 

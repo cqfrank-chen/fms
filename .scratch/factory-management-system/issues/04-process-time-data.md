@@ -1,7 +1,7 @@
 # 04 · 工序耗时数据整理
 
 Type: task
-Status: in_progress
+Status: in_progress (paused 2026-08-27，用户跳过，待提供车间实际耗时数据后继续)
 Claimed: 2026-08-26
 Blocked by: —
 
