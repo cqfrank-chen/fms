@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>工厂管理系统 · 核心界面原型 v2.2（PROTOTYPE 一次性资产）</title>
+<title>工厂管理系统 · 核心界面原型 v2.3（PROTOTYPE 一次性资产）</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f5f5; color: #1f1f1f; }
@@ -79,8 +79,8 @@
   .fb-log { margin-top: 8px; font-size: 12px; color: #0958d9; min-height: 16px; }
   .fb-history { margin-top: 6px; font-size: 12px; color: #666; max-height: 90px; overflow-y: auto; }
   .fb-history div { padding: 2px 0; border-bottom: 1px dashed #f0f0f0; }
-  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
-  .modal { background: #fff; border-radius: 10px; padding: 20px; width: 600px; max-width: 92vw; box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 86vh; overflow-y: auto; }
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: #fff; border-radius: 10px; padding: 20px; width: 620px; max-width: 92vw; box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 86vh; overflow-y: auto; }
   .modal h3 { font-size: 15px; margin-bottom: 12px; }
   .modal .row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; border-bottom: 1px dashed #f0f0f0; }
   .modal .row .k { color: #666; }
@@ -111,25 +111,22 @@
   .detail-grid .di .k { color: #666; font-size: 12px; }
   .detail-grid .di .v { font-weight: 500; }
   .pack-summary { font-size: 12px; color: #666; }
+  .ai-zone { border: 2px dashed #91caff; border-radius: 8px; padding: 16px; text-align: center; color: #0958d9; font-size: 13px; cursor: pointer; margin-bottom: 12px; background: #e6f4ff; }
+  .ai-zone:hover { background: #d6ebff; }
+  .ai-zone .big { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .ai-result { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #237804; margin-bottom: 12px; }
+  .ai-result b { color: #389e0d; }
 </style>
 </head>
 <body>
-<div class="banner"><strong>PROTOTYPE v2.2 · 一次性原型</strong> — 修复：详情/反查/上传弹窗全部自绘（不再依赖系统 alert/prompt）；排程改为点击任务弹排期面板（不依赖 HTML5 拖放）；包装改复合勾选。反馈用每屏底部输入框。</div>
+<div class="banner"><strong>PROTOTYPE v2.3 · 一次性原型</strong> — 全部交互改事件委托（不再依赖内联 onclick，修复预览环境点击失效）；新增图片识别导入与刻字字段。反馈用每屏底部输入框。</div>
 <div class="app">
   <header>
-    <h1>割嘴工厂管理系统 · 原型 v2.2</h1>
+    <h1>割嘴工厂管理系统 · 原型 v2.3</h1>
     <div class="opbar">
       <span>当前操作人：<select id="operator"><option>老板</option><option selected>文员</option><option>计划员</option><option>仓管</option><option>财务</option></select></span>
     </div>
   </header>
-
-  <div class="flow-indicator" id="flow">
-    <span class="dot on"></span> 录单
-    <span class="arrow">→</span>
-    <span class="dot on"></span> 计划单
-    <span class="arrow">→</span>
-    <span class="dot" id="flow-dot3"></span> 排期
-  </div>
 
   <nav id="tabs">
     <button data-tab="order" class="active"><span class="step">①</span>订单</button>
@@ -146,6 +143,12 @@
     </div>
 
     <div id="otab-new">
+      <div class="ai-zone" id="ai-import">
+        <div class="big">📷 图片识别导入订单（AI）</div>
+        <div style="font-size:12px">上传客户邮件/微信传单/拍照图片，AI 自动识别客户与产品行——模拟票10「订单解析」能力</div>
+      </div>
+      <div id="ai-result-wrap"></div>
+
       <div class="card">
         <h2>新建订单 <span class="tag">草稿</span></h2>
         <div class="form-grid">
@@ -163,12 +166,13 @@
         <table>
           <thead>
             <tr>
-              <th style="width:16%">产品（目录）</th>
+              <th style="width:15%">产品（目录）</th>
               <th style="width:8%">数量</th>
-              <th style="width:9%">单价</th>
-              <th style="width:7%">币种</th>
-              <th style="width:44%">包装要求（可多选）</th>
-              <th style="width:8%"></th>
+              <th style="width:8%">单价</th>
+              <th style="width:6%">币种</th>
+              <th style="width:14%">刻字需求</th>
+              <th style="width:33%">包装要求（可多选）</th>
+              <th style="width:6%"></th>
             </tr>
           </thead>
           <tbody id="order-lines"></tbody>
@@ -222,7 +226,7 @@
       </div>
       <div class="fb-input-row">
         <input id="fb-order-input" placeholder="直接输入反馈内容…（回车提交）">
-        <button class="btn primary" onclick="submitFbText('order')">提交</button>
+        <button class="btn primary fb-submit" data-screen="order">提交</button>
       </div>
       <div class="fb-log" id="fb-order"></div>
       <div class="fb-history" id="fb-order-hist"></div>
@@ -255,7 +259,7 @@
       </div>
       <div class="fb-input-row">
         <input id="fb-plan-input" placeholder="直接输入反馈内容…（回车提交）">
-        <button class="btn primary" onclick="submitFbText('plan')">提交</button>
+        <button class="btn primary fb-submit" data-screen="plan">提交</button>
       </div>
       <div class="fb-log" id="fb-plan"></div>
       <div class="fb-history" id="fb-plan-hist"></div>
@@ -309,7 +313,7 @@
       </div>
       <div class="fb-input-row">
         <input id="fb-sched-input" placeholder="直接输入反馈内容…（回车提交）">
-        <button class="btn primary" onclick="submitFbText('sched')">提交</button>
+        <button class="btn primary fb-submit" data-screen="sched">提交</button>
       </div>
       <div class="fb-log" id="fb-sched"></div>
       <div class="fb-history" id="fb-sched-hist"></div>
@@ -320,16 +324,16 @@
 </div>
 
 <!-- 订单详情弹窗 -->
-<div class="modal-mask" id="order-modal" style="display:none">
+<div class="modal-mask" id="order-modal">
   <div class="modal">
     <h3 id="order-modal-title">订单详情</h3>
     <div id="order-modal-body"></div>
-    <div class="actions"><button class="btn" onclick="closeModalById('order-modal')">关闭</button></div>
+    <div class="actions"><button class="btn modal-close" data-modal="order-modal">关闭</button></div>
   </div>
 </div>
 
 <!-- 排期面板 -->
-<div class="modal-mask" id="sched-modal" style="display:none">
+<div class="modal-mask" id="sched-modal">
   <div class="modal">
     <h3>排期 <span style="font-size:12px;color:#999;font-weight:400" id="sched-modal-plan"></span></h3>
     <div class="form-grid" style="margin-bottom:12px">
@@ -343,38 +347,27 @@
           <option value="pack">测试/包装</option>
         </select>
       </div>
-      <div class="field"><label>开始日期</label>
-        <select id="sched-start">${''}</select>
-      </div>
+      <div class="field"><label>开始日期</label><select id="sched-start"></select></div>
     </div>
     <div id="sched-verify"></div>
     <div class="actions">
-      <button class="btn" onclick="closeModalById('sched-modal')">取消</button>
-      <button class="btn primary" onclick="confirmSchedule()">确认排期</button>
+      <button class="btn modal-close" data-modal="sched-modal">取消</button>
+      <button class="btn primary" id="sched-confirm">确认排期</button>
     </div>
   </div>
 </div>
 
-<!-- 上传包装模板弹窗 -->
-<div class="modal-mask" id="pack-upload-modal" style="display:none">
-  <div class="modal" style="width:460px">
-    <h3>保存包装模板</h3>
-    <div class="form-grid">
-      <div class="field"><label>模板名称 *</label><input id="pu-name" placeholder="如：Weldclass 定制盒"></div>
-      <div class="field"><label>类型</label>
-        <select id="pu-type"><option>包装盒</option><option>不干胶</option><option>纸箱</option><option>套袋</option><option>其他</option></select>
-      </div>
-      <div class="field full"><label>规格说明</label><input id="pu-meta" placeholder="如：×30只/盒，含LOGO印刷"></div>
-      <div class="field full"><label>样式图上传（演示：模拟）</label>
-        <div style="border:1px dashed #d9d9d9;border-radius:6px;padding:14px;text-align:center;color:#999;font-size:12px;cursor:pointer" onclick="document.getElementById('pu-file').click()">
-          点击选择图片（演示环境仅模拟，正式系统接文件上传）
-          <input type="file" id="pu-file" accept="image/*" style="display:none" onchange="puFileChosen(this)">
-        </div>
-      </div>
+<!-- 图片识别导入弹窗 -->
+<div class="modal-mask" id="ai-modal">
+  <div class="modal" style="width:520px">
+    <h3>图片识别导入订单（AI）</h3>
+    <div style="border:2px dashed #91caff;border-radius:8px;padding:20px;text-align:center;color:#0958d9;font-size:13px;cursor:pointer;background:#e6f4ff" id="ai-pick">
+      <div style="font-size:16px;font-weight:500">点击选择图片</div>
+      <div style="font-size:12px;margin-top:4px">（演示环境：点击后模拟 AI 识别结果——正式系统上传客户邮件/微信传单/拍照，AI 自动抽取）</div>
+      <input type="file" id="ai-file" accept="image/*" style="display:none">
     </div>
     <div class="actions">
-      <button class="btn" onclick="closeModalById('pack-upload-modal')">取消</button>
-      <button class="btn primary" onclick="savePackTemplate()">保存模板</button>
+      <button class="btn modal-close" data-modal="ai-modal">取消</button>
     </div>
   </div>
 </div>
@@ -402,36 +395,82 @@ let seq = 1;
 const orders = [];
 const plans = [];
 const feedbacks = [];
-let schedTarget = null; // {p, line, li}
+let schedTarget = null;
+let packTargetCell = null;
+let packUploadCell = null;
 
-// ============ Tab 切换 ============
-document.querySelectorAll('#tabs button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    ['order','plan','schedule'].forEach(t => document.getElementById('tab-' + t).style.display = t === btn.dataset.tab ? '' : 'none');
-    if (btn.dataset.tab === 'schedule') renderSchedule();
-    if (btn.dataset.tab === 'plan') renderPlans();
-    if (btn.dataset.tab === 'order') { renderOrderList(); renderArchive(); }
-  });
+// ============ 事件委托（统一绑定，不依赖内联 onclick） ============
+document.addEventListener('click', function (e) {
+  // 模态框点击外部关闭
+  if (e.target.classList && e.target.classList.contains('modal-mask')) {
+    e.target.style.display = 'none';
+    return;
+  }
+  // 模态框关闭按钮
+  const closeBtn = e.target.closest('.modal-close');
+  if (closeBtn) {
+    document.getElementById(closeBtn.dataset.modal).style.display = 'none';
+    return;
+  }
+  // Tab 切换
+  const tabBtn = e.target.closest('#tabs button[data-tab]');
+  if (tabBtn) { switchTab(tabBtn.dataset.tab); return; }
+  const oTab = e.target.closest('#order-tabs button[data-otab]');
+  if (oTab) { switchOrderTab(oTab.dataset.otab); return; }
+  // 订单行删除
+  const delBtn = e.target.closest('.del-line');
+  if (delBtn) { delBtn.closest('tr').remove(); return; }
+  // 模板库/上传
+  if (e.target.closest('[data-act="pack-tpl"]')) { openPackTemplates(e.target.closest('[data-act="pack-tpl"]')); return; }
+  if (e.target.closest('[data-act="pack-upload"]')) { openPackUpload(e.target.closest('[data-act="pack-upload"]')); return; }
+  if (e.target.closest('.pack-card-pick')) { applyPackTemplate(e.target.closest('.pack-card-pick').dataset.tid); return; }
+  // 订单详情/反查/打开
+  const viewBtn = e.target.closest('.view-order');
+  if (viewBtn) { viewOrder(viewBtn.dataset.oid); return; }
+  // 计划单审核
+  const cfmBtn = e.target.closest('.confirm-plan');
+  if (cfmBtn) { confirmPlan(cfmBtn.dataset.pid); return; }
+  // 排期任务点击
+  const task = e.target.closest('.task[data-key]');
+  if (task) { openSchedModal(task.dataset.key); return; }
+  // 报工
+  const repBtn = e.target.closest('.do-report');
+  if (repBtn) { doReport(repBtn.dataset.key); return; }
+  // 反馈按钮
+  const fbBtn = e.target.closest('.fb-btn');
+  if (fbBtn) { recordFb(fbBtn.dataset.fb); return; }
+  const fbSub = e.target.closest('.fb-submit');
+  if (fbSub) { submitFbText(fbSub.dataset.screen); return; }
+  // 筛选重置
+  if (e.target.closest('#of-reset')) { ['of-status','of-customer','of-kw'].forEach(id => document.getElementById(id).value=''); renderOrderList(); return; }
+  if (e.target.closest('#pf-reset')) { ['pf-status','pf-customer','pf-kw'].forEach(id => document.getElementById(id).value=''); renderPlans(); return; }
+  // AI 导入
+  if (e.target.closest('#ai-import')) { openModal('ai-modal'); return; }
+  if (e.target.closest('#ai-pick')) { document.getElementById('ai-file').click(); return; }
 });
 
-document.querySelectorAll('#order-tabs button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#order-tabs button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    ['new','list','archive'].forEach(t => document.getElementById('otab-' + t).style.display = t === btn.dataset.otab ? '' : 'none');
-    if (btn.dataset.otab === 'list') renderOrderList();
-    if (btn.dataset.otab === 'archive') renderArchive();
+function switchTab(tab) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#tabs button[data-tab="' + tab + '"]').classList.add('active');
+  ['order','plan','schedule'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
   });
-});
+  if (tab === 'schedule') renderSchedule();
+  if (tab === 'plan') renderPlans();
+  if (tab === 'order') { renderOrderList(); renderArchive(); }
+}
 
-// ============ 通用弹窗 ============
+function switchOrderTab(otab) {
+  document.querySelectorAll('#order-tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#order-tabs button[data-otab="' + otab + '"]').classList.add('active');
+  ['new','list','archive'].forEach(t => {
+    document.getElementById('otab-' + t).style.display = t === otab ? '' : 'none';
+  });
+  if (otab === 'list') renderOrderList();
+  if (otab === 'archive') renderArchive();
+}
+
 function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-function closeModalById(id) { document.getElementById(id).style.display = 'none'; }
-document.querySelectorAll('.modal-mask').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
-});
 
 // ============ ① 订单录入 ============
 function packComboHTML(pack) {
@@ -443,12 +482,12 @@ function packComboHTML(pack) {
         ${PACK_NAMES[t]}
         ${p[t] ? `<span class="pack-spec"><input data-spec="${t}" value="${p[t]}" placeholder="规格/数量"></span>` : ''}
       </label>`).join('')}
-    <button class="btn ghost" type="button" style="padding:2px 8px;font-size:12px" onclick="openPackTemplates(this)">模板库</button>
-    <button class="btn ghost" type="button" style="padding:2px 8px;font-size:12px" onclick="openPackUpload(this)">+ 保存模板</button>
+    <button class="btn ghost" type="button" style="padding:2px 8px;font-size:12px" data-act="pack-tpl">模板库</button>
+    <button class="btn ghost" type="button" style="padding:2px 8px;font-size:12px" data-act="pack-upload">+ 保存模板</button>
   </div>`;
 }
 
-function makeLineRow(prod) {
+function makeLineRow(prod, engrave) {
   const tr = document.createElement('tr');
   const defaultPack = prod && catalog[prod] ? catalog[prod].defaultPack : {};
   tr.innerHTML = `
@@ -458,6 +497,7 @@ function makeLineRow(prod) {
     <td><input class="qty" type="number" value="1000" min="1"></td>
     <td><input class="price" type="number" value="3.5" step="0.1"></td>
     <td><select class="cur"><option>USD</option><option>RMB</option></select></td>
+    <td><input class="engrave" placeholder="刻字内容（如 LOGO/型号/批次）" value="${engrave || ''}"></td>
     <td class="pack-cell">${packComboHTML(defaultPack)}</td>
     <td><button class="btn danger del-line">删</button></td>`;
   if (prod) tr.querySelector('.prod').value = prod;
@@ -466,33 +506,34 @@ function makeLineRow(prod) {
 }
 
 function bindLineEvents(tr) {
-  tr.querySelector('.prod').addEventListener('change', e => {
+  tr.querySelector('.prod').addEventListener('change', function (e) {
     const p = e.target.value;
     const cell = tr.querySelector('.pack-cell');
     cell.innerHTML = packComboHTML(p && catalog[p] ? catalog[p].defaultPack : {});
   });
-  tr.querySelector('.del-line').addEventListener('click', () => tr.remove());
-  // 勾选联动规格输入
-  tr.querySelectorAll('.pack-combo label').forEach(lb => {
-    const cb = lb.querySelector('input[type=checkbox]');
-    cb.addEventListener('change', () => {
-      const pt = cb.dataset.pt;
-      if (cb.checked) {
+  // 勾选联动规格输入（事件委托到单元格）
+  tr.querySelector('.pack-cell').addEventListener('change', function (e) {
+    const cb = e.target.closest('input[type=checkbox][data-pt]');
+    if (!cb) return;
+    const lb = cb.closest('label');
+    const pt = cb.dataset.pt;
+    if (cb.checked) {
+      if (!lb.querySelector('.pack-spec')) {
         const spec = document.createElement('span');
         spec.className = 'pack-spec';
         spec.innerHTML = `<input data-spec="${pt}" placeholder="规格/数量">`;
         lb.appendChild(spec);
-        lb.classList.add('on');
-      } else {
-        const spec = lb.querySelector('.pack-spec');
-        if (spec) spec.remove();
-        lb.classList.remove('on');
       }
-    });
+      lb.classList.add('on');
+    } else {
+      const spec = lb.querySelector('.pack-spec');
+      if (spec) spec.remove();
+      lb.classList.remove('on');
+    }
   });
 }
 
-document.getElementById('add-line').addEventListener('click', () => {
+document.getElementById('add-line').addEventListener('click', function () {
   document.getElementById('order-lines').appendChild(makeLineRow());
 });
 document.getElementById('order-lines').appendChild(makeLineRow());
@@ -511,79 +552,94 @@ function collectLinePack(cell) {
   return pack;
 }
 
-// 模板库弹窗（选择模板填到当前行）
-let packTargetCell = null;
+// 模板库弹窗
 function openPackTemplates(btn) {
   packTargetCell = btn.closest('.pack-cell');
-  const modal = document.createElement('div');
-  modal.className = 'modal-mask';
-  modal.innerHTML = `
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask';
+  mask.style.display = 'flex';
+  mask.innerHTML = `
     <div class="modal" style="width:620px">
       <h3>包装模板库 <span style="font-size:12px;color:#999;font-weight:400">点选模板填入本行</span></h3>
       <div class="pack-grid">
         ${packTemplates.map(t => `
-          <div class="pack-card" style="cursor:pointer" onclick="applyPackTemplate('${t.id}')">
+          <div class="pack-card pack-card-pick" style="cursor:pointer" data-tid="${t.id}">
             <div class="thumb">${t.type[0]}</div>
             <div class="name">${t.name}</div>
             <div class="meta">${t.type} · ${t.meta}</div>
           </div>`).join('')}
       </div>
-      <div class="actions"><button class="btn" onclick="closeModal(this)">关闭</button></div>
+      <div class="actions"><button class="btn modal-close" data-modal="">关闭</button></div>
     </div>`;
-  document.body.appendChild(modal);
+  mask.querySelector('.modal-close').dataset.modal = ''; // 关闭用直接移除
+  mask.querySelector('.modal-close').addEventListener('click', function () { mask.remove(); });
+  document.body.appendChild(mask);
 }
-window.applyPackTemplate = function(id) {
+
+function applyPackTemplate(id) {
   const t = packTemplates.find(x => x.id === id);
   if (t && packTargetCell) {
     const tr = packTargetCell.closest('tr');
     const pack = {};
-    if (t.type.includes('盒')) pack.box = t.meta.split('，')[0] || '包装盒';
-    if (t.type === '不干胶') pack.label = t.meta.split('，')[0] || '不干胶';
-    if (t.type === '纸箱') pack.carton = t.meta.split('，')[0] || '纸箱';
+    if (t.type.includes('盒')) pack.box = (t.meta.split('，')[0] || '包装盒');
+    if (t.type === '不干胶') pack.label = (t.meta.split('，')[0] || '不干胶');
+    if (t.type === '纸箱') pack.carton = (t.meta.split('，')[0] || '纸箱');
     if (t.type === '套袋') pack.bag = '套袋';
     packTargetCell.innerHTML = packComboHTML(pack);
     bindLineEvents(tr);
   }
   document.querySelectorAll('.modal-mask').forEach(m => m.remove());
-};
-window.closeModal = function(el) { el.closest('.modal-mask').remove(); };
+}
 
-// 上传模板弹窗
-let packUploadCell = null;
+// 保存模板弹窗（动态创建，避免 CSP 问题）
 function openPackUpload(btn) {
   packUploadCell = btn.closest('.pack-cell');
-  openModal('pack-upload-modal');
-  document.getElementById('pu-name').value = '';
-  document.getElementById('pu-meta').value = '';
-}
-function puFileChosen(input) {
-  input.previousElementSibling.textContent = '已选择图片：' + (input.files[0] ? input.files[0].name : '（模拟）');
-}
-function savePackTemplate() {
-  const name = document.getElementById('pu-name').value.trim();
-  if (!name) { alert('请填模板名称'); return; }
-  const type = document.getElementById('pu-type').value;
-  const meta = document.getElementById('pu-meta').value.trim() || '—';
-  const id = 't' + Date.now();
-  packTemplates.push({ id, name, type, meta });
-  closeModalById('pack-upload-modal');
-  // 填入当前行
-  if (packUploadCell) {
-    const tr = packUploadCell.closest('tr');
-    const pack = {};
-    if (type === '包装盒') pack.box = meta.split('，')[0] || '包装盒';
-    if (type === '不干胶') pack.label = meta.split('，')[0] || '不干胶';
-    if (type === '纸箱') pack.carton = meta.split('，')[0] || '纸箱';
-    if (type === '套袋') pack.bag = '套袋';
-    packUploadCell.innerHTML = packComboHTML(pack);
-    bindLineEvents(tr);
-  }
-  const info = document.getElementById('order-notice');
-  info.className = 'notice';
-  info.textContent = '模板「' + name + '」已保存并填入本行——其他订单行可在模板库复用';
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask';
+  mask.style.display = 'flex';
+  mask.innerHTML = `
+    <div class="modal" style="width:460px">
+      <h3>保存包装模板</h3>
+      <div class="form-grid">
+        <div class="field"><label>模板名称 *</label><input id="pu-name" placeholder="如：Weldclass 定制盒"></div>
+        <div class="field"><label>类型</label>
+          <select id="pu-type"><option>包装盒</option><option>不干胶</option><option>纸箱</option><option>套袋</option><option>其他</option></select>
+        </div>
+        <div class="field full"><label>规格说明</label><input id="pu-meta" placeholder="如：×30只/盒，含LOGO印刷"></div>
+        <div class="field full"><label>样式图（演示：模拟）</label>
+          <div style="border:1px dashed #d9d9d9;border-radius:6px;padding:14px;text-align:center;color:#999;font-size:12px">正式系统支持上传图片样式</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="pu-cancel">取消</button>
+        <button class="btn primary" id="pu-save">保存模板</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mask);
+  mask.querySelector('#pu-cancel').addEventListener('click', function () { mask.remove(); });
+  mask.querySelector('#pu-save').addEventListener('click', function () {
+    const name = mask.querySelector('#pu-name').value.trim();
+    if (!name) { mask.querySelector('#pu-name').focus(); return; }
+    const type = mask.querySelector('#pu-type').value;
+    const meta = mask.querySelector('#pu-meta').value.trim() || '—';
+    const id = 't' + Date.now();
+    packTemplates.push({ id, name, type, meta });
+    if (packUploadCell) {
+      const tr = packUploadCell.closest('tr');
+      const pack = {};
+      if (type === '包装盒') pack.box = (meta.split('，')[0] || '包装盒');
+      if (type === '不干胶') pack.label = (meta.split('，')[0] || '不干胶');
+      if (type === '纸箱') pack.carton = (meta.split('，')[0] || '纸箱');
+      if (type === '套袋') pack.bag = '套袋';
+      packUploadCell.innerHTML = packComboHTML(pack);
+      bindLineEvents(tr);
+    }
+    mask.remove();
+    showNotice('order-notice', '模板「' + name + '」已保存并填入本行', 'ok');
+  });
 }
 
-document.getElementById('confirm-order').addEventListener('click', () => {
+document.getElementById('confirm-order').addEventListener('click', function () {
   const customer = document.getElementById('customer').value;
   const due = document.getElementById('due').value;
   if (!customer) return showNotice('order-notice', '请选择客户档案', 'warn');
@@ -593,6 +649,7 @@ document.getElementById('confirm-order').addEventListener('click', () => {
     qty: +tr.querySelector('.qty').value,
     price: +tr.querySelector('.price').value,
     cur: tr.querySelector('.cur').value,
+    engrave: tr.querySelector('.engrave').value,
     pack: collectLinePack(tr.querySelector('.pack-cell')),
   })).filter(l => l.prod);
   if (!lines.length) return showNotice('order-notice', '至少加一个产品行', 'warn');
@@ -614,7 +671,7 @@ document.getElementById('confirm-order').addEventListener('click', () => {
   seq++;
   plans.push(plan);
 
-  showNotice('order-notice', `订单 ${order.id} 已确认 → 自动生成计划单草稿 ${plan.id}（${lines.length} 个产品行），去「计划单」审核`, 'ok');
+  showNotice('order-notice', '订单 ' + order.id + ' 已确认 → 自动生成计划单草稿 ' + plan.id + '（' + lines.length + ' 个产品行），去「计划单」审核', 'ok');
   renderPlans(); renderOrderList(); renderArchive();
 });
 
@@ -627,9 +684,43 @@ function showNotice(id, msg, type) {
 
 function packSummary(pack) {
   if (!pack) return '—';
-  const parts = PACK_TYPES.filter(t => pack[t]).map(t => `${PACK_NAMES[t]}:${pack[t]}`);
+  const parts = PACK_TYPES.filter(t => pack[t]).map(t => PACK_NAMES[t] + ':' + pack[t]);
   return parts.length ? parts.join('；') : '—';
 }
+
+// ============ AI 图片识别导入（票10 订单解析演示） ============
+document.getElementById('ai-file').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  // 模拟 AI 解析结果（正式系统调多模态 LLM）
+  setTimeout(function () {
+    const mock = {
+      customer: 'Weldclass（澳洲）',
+      po: 'WC-2608-' + Math.floor(Math.random()*900+100),
+      due: '2026-09-15',
+      lines: [
+        { prod: 'ANM 1/32" 乙炔', qty: 3000, price: 3.5, cur: 'USD', engrave: 'WELDCLASS', pack: { box: '包装盒×50', bag: '', carton: '纸箱×4盒', label: '标准不干胶' } },
+        { prod: '6290 1/4" 美式', qty: 2000, price: 4.2, cur: 'USD', engrave: '', pack: { box: '包装盒×100', bag: '', carton: '纸箱×8盒', label: '' } },
+      ],
+    };
+    document.getElementById('customer').value = mock.customer;
+    document.getElementById('po').value = mock.po;
+    document.getElementById('due').value = mock.due;
+    const tbody = document.getElementById('order-lines');
+    tbody.innerHTML = '';
+    mock.lines.forEach(l => tbody.appendChild(makeLineRow(l.prod, l.engrave)));
+    // 回填包装
+    tbody.querySelectorAll('tr').forEach(function (tr, i) {
+      if (mock.lines[i] && mock.lines[i].pack) {
+        tr.querySelector('.pack-cell').innerHTML = packComboHTML(mock.lines[i].pack);
+      }
+    });
+    document.getElementById('ai-result-wrap').innerHTML =
+      '<div class="ai-result"><b>✅ AI 识别完成</b>：已自动填入客户 Weldclass、PO ' + mock.po + '、交期 ' + mock.due + '，识别出 2 个产品行（ANM 3000 只 / 6290 2000 只）。低置信度字段已标红待人工确认（正式系统）。</div>';
+    document.getElementById('ai-modal').style.display = 'none';
+    showNotice('order-notice', 'AI 识别结果已填入表单，请核对后确认订单', 'ok');
+  }, 800);
+});
 
 // ============ 订单详情弹窗 ============
 function viewOrder(id) {
@@ -645,9 +736,9 @@ function viewOrder(id) {
       <div class="di full"><div class="k">备注</div><div class="v">${o.note || '—'}</div></div>
     </div>
     <table>
-      <thead><tr><th>产品</th><th>数量</th><th>单价</th><th>币种</th><th>包装要求</th></tr></thead>
+      <thead><tr><th>产品</th><th>数量</th><th>单价</th><th>币种</th><th>刻字</th><th>包装要求</th></tr></thead>
       <tbody>${o.lines.map(l => `
-        <tr><td>${l.prod}</td><td>${l.qty}</td><td>${l.price}</td><td>${l.cur}</td><td class="pack-summary">${packSummary(l.pack)}</td></tr>`).join('')}
+        <tr><td>${l.prod}</td><td>${l.qty}</td><td>${l.price}</td><td>${l.cur}</td><td>${l.engrave || '—'}</td><td class="pack-summary">${packSummary(l.pack)}</td></tr>`).join('')}
       </tbody>
     </table>`;
   openModal('order-modal');
@@ -669,7 +760,7 @@ function renderOrderList() {
       <td>${o.lines.map(l => `${l.prod}×${l.qty}`).join('<br>')}</td>
       <td>${o.due}</td>
       <td><span class="status-badge st-${o.status}">${statusText(o.status)}</span></td>
-      <td><button class="link" onclick="viewOrder('${o.id}')">详情</button></td>
+      <td><button class="link view-order" data-oid="${o.id}">详情</button></td>
     </tr>`).join('') : '<tr><td colspan="7"><div class="empty">无匹配订单</div></td></tr>';
 }
 
@@ -685,7 +776,7 @@ function renderArchive() {
       <td>${o.id}</td><td>${o.customer}</td><td>${o.po || '—'}</td>
       <td>${o.lines.map(l => `${l.prod}×${l.qty}`).join('<br>')}</td>
       <td>${o.due}</td><td>已完成</td>
-      <td><button class="link" onclick="viewOrder('${o.id}')">打开</button></td>
+      <td><button class="link view-order" data-oid="${o.id}">打开</button></td>
     </tr>`).join('') : '<tr><td colspan="7"><div class="empty">归档区为空（完成订单后自动归档到这里）</div></td></tr>';
 }
 
@@ -705,12 +796,12 @@ function renderPlans() {
   tbody.innerHTML = list.map(p => `
     <tr>
       <td>${p.id}</td>
-      <td><button class="link" onclick="viewOrder('${p.orderId}')">${p.orderId} ⇠ 反查</button></td>
+      <td><button class="link view-order" data-oid="${p.orderId}">${p.orderId} ⇠ 反查</button></td>
       <td>${p.customer}</td>
-      <td>${p.lines.map((l,i) => `${i+1}. ${l.prod}×${l.qty}${l.sched ? ' ⏱' : ''}${l.reported ? ' ✅' + l.reported : ''}`).join('<br>')}</td>
+      <td>${p.lines.map((l,i) => `${i+1}. ${l.prod}×${l.qty}${l.engrave ? ' ✒' + l.engrave : ''}${l.sched ? ' ⏱' : ''}${l.reported ? ' ✅' + l.reported : ''}`).join('<br>')}</td>
       <td>${p.due}</td>
       <td><span class="status-badge st-${p.status}">${statusText(p.status)}</span></td>
-      <td>${p.status === 'draft' ? `<button class="btn primary" onclick="confirmPlan('${p.id}')">审核确认</button>` : p.status === 'confirmed' && !p.lines.some(l => l.sched) ? '<span style="font-size:12px;color:#999">已入池 → 去排程</span>' : ''}</td>
+      <td>${p.status === 'draft' ? `<button class="btn primary confirm-plan" data-pid="${p.id}">审核确认</button>` : p.status === 'confirmed' && !p.lines.some(l => l.sched) ? '<span style="font-size:12px;color:#999">已入池 → 去排程</span>' : ''}</td>
     </tr>`).join('') || '<tr><td colspan="7"><div class="empty">无匹配计划单</div></td></tr>';
 }
 
@@ -724,10 +815,10 @@ function confirmPlan(id) {
   renderPlans();
   const info = document.querySelector('#tab-plan .notice');
   info.className = 'notice info';
-  info.innerHTML = `${p.id} 已审核确认 → ${p.lines.length} 个产品行进入排期池（去「排程看板」逐行排期）`;
+  info.innerHTML = p.id + ' 已审核确认 → ' + p.lines.length + ' 个产品行进入排期池（去「排程看板」逐行排期）';
 }
 
-// ============ ③ 排程看板（点击排期，不依赖拖放） ============
+// ============ ③ 排程看板 ============
 function allTaskLines() {
   const tasks = [];
   plans.forEach(p => {
@@ -742,10 +833,10 @@ function renderSchedule() {
   const pending = allTaskLines().filter(t => !t.l.sched);
   document.getElementById('pending-count').textContent = pending.length;
   const pl = document.getElementById('pending-list');
-  pl.innerHTML = pending.length ? pending.map((t) => `
-    <div class="task" onclick="openSchedModal('${t.p.id}|${t.li}')">
+  pl.innerHTML = pending.length ? pending.map(t => `
+    <div class="task" data-key="${t.p.id}|${t.li}">
       <div class="t-title">${t.p.id} · 行${t.li+1}</div>
-      <div class="t-line">${t.l.prod}</div>
+      <div class="t-line">${t.l.prod}${t.l.engrave ? ' ✒' + t.l.engrave : ''}</div>
       <div class="t-meta">${t.l.qty} 只 · 交期 ${t.p.due}</div>
       <div class="t-meta" style="color:#1677ff">点击排期 →</div>
     </div>`).join('') : '<div class="empty">待排区空了</div>';
@@ -763,8 +854,8 @@ function renderSchedule() {
     const days = catalog[t.l.prod] ? catalog[t.l.prod].days : 2;
     bar.style.left = `calc(${startIdx} * 9.09% + 2px)`;
     bar.style.width = `calc(${days} * 9.09% - 4px)`;
-    bar.textContent = t.p.id + ' 行' + (t.li+1) + (t.l.reported ? ` ${t.l.reported}/${t.l.qty}` : '');
-    bar.title = `${t.p.id} 行${t.li+1} ${t.l.prod}\n${t.l.reported}/${t.l.qty} 完成`;
+    bar.textContent = t.p.id + ' 行' + (t.li+1) + (t.l.reported ? ' ' + t.l.reported + '/' + t.l.qty : '');
+    bar.title = t.p.id + ' 行' + (t.li+1) + ' ' + t.l.prod + '\n' + t.l.reported + '/' + t.l.qty + ' 完成';
     track.appendChild(bar);
   });
 
@@ -776,12 +867,13 @@ function isOverdue(t) {
 }
 
 function openSchedModal(key) {
-  const [pid, li] = key.split('|');
+  const parts = key.split('|');
+  const pid = parts[0], li = +parts[1];
   const p = plans.find(x => x.id === pid);
-  const line = p.lines[+li];
-  schedTarget = { p, line, li: +li };
-  document.getElementById('sched-modal-plan').textContent = `｜ ${p.id} 行${+li+1} · ${line.prod} × ${line.qty}`;
-  // 开始日期选项
+  if (!p) return;
+  const line = p.lines[li];
+  schedTarget = { p, line, li };
+  document.getElementById('sched-modal-plan').textContent = '｜ ' + p.id + ' 行' + (li+1) + ' · ' + line.prod + ' × ' + line.qty;
   const startSel = document.getElementById('sched-start');
   startSel.innerHTML = DAYS.map((d, i) => `<option value="${d}" ${i === 2 ? 'selected' : ''}>${d}</option>`).join('');
   updateSchedVerify();
@@ -808,17 +900,17 @@ function updateSchedVerify() {
 
 document.getElementById('sched-wc').addEventListener('change', updateSchedVerify);
 document.getElementById('sched-start').addEventListener('change', updateSchedVerify);
-
-function confirmSchedule() {
+document.getElementById('sched-confirm').addEventListener('click', function () {
   if (!schedTarget) return;
   schedTarget.line.sched = {
     wc: document.getElementById('sched-wc').value,
     start: document.getElementById('sched-start').value,
   };
-  closeModalById('sched-modal');
+  document.getElementById('sched-modal').style.display = 'none';
   renderSchedule();
   document.getElementById('flow-dot3').classList.add('on');
-}
+  renderGlobalState();
+});
 
 // ============ 报工 ============
 function renderReportArea() {
@@ -835,14 +927,16 @@ function renderReportArea() {
       <span style="min-width:170px"><strong>${t.p.id} 行${t.li+1}</strong><br><span style="color:#666;font-size:12px">${t.l.prod}</span></span>
       <span style="color:#666;font-size:12px">已报 ${t.l.reported} / ${t.l.qty}</span>
       <input id="rep-${t.p.id}-${t.li}" type="number" value="500" min="1" style="width:90px;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px">
-      <button class="btn primary" onclick="doReport('${t.p.id}|${t.li}')">报工</button>
+      <button class="btn primary do-report" data-key="${t.p.id}|${t.li}">报工</button>
     </div>`).join('');
 }
 
 function doReport(key) {
-  const [pid, li] = key.split('|');
+  const parts = key.split('|');
+  const pid = parts[0], li = +parts[1];
   const p = plans.find(x => x.id === pid);
-  const line = p.lines[+li];
+  if (!p) return;
+  const line = p.lines[li];
   const val = +document.getElementById('rep-' + pid + '-' + li).value;
   line.reported = Math.min(line.qty, line.reported + val);
   const allDone = p.lines.every(l => l.reported >= l.qty);
@@ -862,38 +956,32 @@ function doReport(key) {
 
 // ============ 筛选联动 ============
 ['of-status','of-customer','of-kw','ar-customer','ar-kw','pf-status','pf-customer','pf-kw'].forEach(id => {
-  document.getElementById(id).addEventListener('input', () => {
+  document.getElementById(id).addEventListener('input', function () {
     if (id.startsWith('of')) renderOrderList();
     if (id.startsWith('ar')) renderArchive();
     if (id.startsWith('pf')) renderPlans();
   });
 });
-document.getElementById('of-reset').addEventListener('click', () => {
-  ['of-status','of-customer','of-kw'].forEach(id => document.getElementById(id).value = '');
-  renderOrderList();
-});
-document.getElementById('pf-reset').addEventListener('click', () => {
-  ['pf-status','pf-customer','pf-kw'].forEach(id => document.getElementById(id).value = '');
-  renderPlans();
-});
 
 // ============ 反馈 ============
-document.querySelectorAll('.fb-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const fb = btn.dataset.fb;
-    const screen = fb.split('-')[0];
-    const screenName = { order: '订单', plan: '计划单', sched: '排程看板' }[screen];
-    feedbacks.push({ screen: screenName, type: fb, text: btn.textContent, time: new Date().toLocaleTimeString() });
-    renderFbLog(screen);
-  });
-});
+function recordFb(fb) {
+  const screen = fb.split('-')[0];
+  const screenName = { order: '订单', plan: '计划单', sched: '排程看板' }[screen];
+  feedbacks.push({ screen: screenName, type: fb, text: fbTextLabel(fb), time: new Date().toLocaleTimeString() });
+  renderFbLog(screen);
+}
+function fbTextLabel(fb) {
+  return { 'order-like':'像想要的','order-missing':'缺字段','order-awkward':'交互别扭','order-other':'其他问题',
+    'plan-like':'像想要的','plan-missing':'缺字段','plan-awkward':'交互别扭','plan-other':'其他问题',
+    'sched-like':'像想要的','sched-missing':'缺字段','sched-awkward':'交互别扭','sched-other':'其他问题' }[fb] || fb;
+}
 
 function submitFbText(screen) {
   const input = document.getElementById('fb-' + screen + '-input');
   const text = input.value.trim();
   if (!text) return;
   const screenName = { order: '订单', plan: '计划单', sched: '排程看板' }[screen];
-  feedbacks.push({ screen: screenName, type: 'text', text, time: new Date().toLocaleTimeString() });
+  feedbacks.push({ screen: screenName, type: 'text', text: text, time: new Date().toLocaleTimeString() });
   input.value = '';
   renderFbLog(screen);
   renderGlobalState();
@@ -906,7 +994,7 @@ function renderFbLog(screen) {
   const histEl = document.getElementById('fb-' + screen + '-hist');
   if (mine.length) {
     const last = mine[mine.length - 1];
-    logEl.textContent = `已记录反馈：${last.screen} - ${last.text}（${last.time}）`;
+    logEl.textContent = '已记录反馈：' + last.screen + ' - ' + last.text + '（' + last.time + '）';
     logEl.style.color = '#52c41a';
   }
   histEl.innerHTML = mine.map(f => `<div>${f.time} · ${f.type === 'text' ? '💬' : '▸'} ${f.text}</div>`).join('');
@@ -914,16 +1002,16 @@ function renderFbLog(screen) {
 }
 
 ['order','plan','sched'].forEach(s => {
-  document.getElementById('fb-' + s + '-input').addEventListener('keydown', e => {
+  document.getElementById('fb-' + s + '-input').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') submitFbText(s);
   });
 });
 
 function renderGlobalState() {
   const el = document.getElementById('global-state');
-  const line1 = `订单 ${orders.length} 张（确认${orders.filter(o=>o.status==='confirmed').length}/生产${orders.filter(o=>o.status==='inprod').length}/完成${orders.filter(o=>o.status==='done').length}）`;
-  const line2 = `计划单 ${plans.length} 张（草稿${plans.filter(p=>p.status==='draft').length}/确认${plans.filter(p=>p.status==='confirmed').length}/生产${plans.filter(p=>p.status==='inprod').length}/完成${plans.filter(p=>p.status==='done').length}）`;
-  const line3 = `已排期行 ${allTaskLines().filter(t=>t.l.sched).length} · 包装模板 ${packTemplates.length} 个 · 反馈 ${feedbacks.length} 条`;
+  const line1 = '订单 ' + orders.length + ' 张（确认' + orders.filter(o=>o.status==='confirmed').length + '/生产' + orders.filter(o=>o.status==='inprod').length + '/完成' + orders.filter(o=>o.status==='done').length + '）';
+  const line2 = '计划单 ' + plans.length + ' 张（草稿' + plans.filter(p=>p.status==='draft').length + '/确认' + plans.filter(p=>p.status==='confirmed').length + '/生产' + plans.filter(p=>p.status==='inprod').length + '/完成' + plans.filter(p=>p.status==='done').length + '）';
+  const line3 = '已排期行 ' + allTaskLines().filter(t=>t.l.sched).length + ' · 包装模板 ' + packTemplates.length + ' 个 · 反馈 ' + feedbacks.length + ' 条';
   el.textContent = line1 + ' ｜ ' + line2 + ' ｜ ' + line3;
 }
 
