@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>工厂管理系统 · 核心界面原型 v2（PROTOTYPE 一次性资产）</title>
+<title>工厂管理系统 · 核心界面原型 v2.2（PROTOTYPE 一次性资产）</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f5f5; color: #1f1f1f; }
@@ -33,7 +33,6 @@
   .btn.primary { background: #1677ff; color: #fff; border-color: #1677ff; }
   .btn.ghost { color: #1677ff; border-color: #adc6ff; background: #fff; }
   .btn.danger { color: #ff4d4f; border-color: #ffa39e; background: #fff; }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
   .actions { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
   .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
   .st-draft { background: #fffbe6; color: #ad6800; }
@@ -51,20 +50,17 @@
   .kanban { display: flex; gap: 12px; }
   .kanban-col { flex: 1; background: #fafafa; border-radius: 8px; padding: 10px; min-height: 220px; }
   .kanban-col h3 { font-size: 13px; color: #666; margin-bottom: 8px; display: flex; justify-content: space-between; }
-  .task { background: #fff; border: 1px solid #e8e8e8; border-left: 4px solid #1677ff; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; cursor: grab; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-  .task.overdue { border-left-color: #ff4d4f; border-color: #ffa39e; }
-  .task.done { border-left-color: #52c41a; opacity: .75; }
+  .task { background: #fff; border: 1px solid #e8e8e8; border-left: 4px solid #1677ff; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .task:hover { border-color: #1677ff; }
   .task .t-title { font-weight: 500; }
   .task .t-meta { font-size: 11px; color: #999; margin-top: 2px; }
-  .task .t-warn { font-size: 11px; color: #cf1322; margin-top: 2px; }
   .task .t-line { font-size: 11px; color: #1677ff; margin-top: 2px; }
   .gantt-wrap { overflow-x: auto; }
   .gantt { min-width: 980px; }
   .gantt-row { display: flex; border-bottom: 1px solid #f0f0f0; }
   .gantt-label { width: 170px; padding: 10px 8px; font-size: 13px; font-weight: 500; flex-shrink: 0; }
-  .gantt-label .sub { font-size: 11px; color: #999; font-weight: 400; display: block; }
   .gantt-track { flex: 1; height: 44px; background: #fafafa; position: relative; border-left: 1px solid #f0f0f0; }
-  .gantt-bar { position: absolute; top: 8px; height: 28px; border-radius: 4px; background: #1677ff; color: #fff; font-size: 11px; display: flex; align-items: center; padding: 0 8px; cursor: move; white-space: nowrap; overflow: hidden; }
+  .gantt-bar { position: absolute; top: 8px; height: 28px; border-radius: 4px; background: #1677ff; color: #fff; font-size: 11px; display: flex; align-items: center; padding: 0 8px; white-space: nowrap; overflow: hidden; }
   .gantt-bar.done { background: #52c41a; }
   .gantt-bar.overdue { background: #ff4d4f; }
   .gantt-bar.wip { background: #faad14; }
@@ -83,25 +79,24 @@
   .fb-log { margin-top: 8px; font-size: 12px; color: #0958d9; min-height: 16px; }
   .fb-history { margin-top: 6px; font-size: 12px; color: #666; max-height: 90px; overflow-y: auto; }
   .fb-history div { padding: 2px 0; border-bottom: 1px dashed #f0f0f0; }
-  .flow-indicator { display: flex; align-items: center; gap: 6px; background: #fff; border-radius: 8px; padding: 10px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.06); margin-bottom: 12px; font-size: 13px; color: #666; }
-  .flow-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: #d9d9d9; }
-  .flow-indicator .dot.on { background: #52c41a; }
-  .flow-indicator .arrow { color: #bfbfbf; }
   .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
-  .modal { background: #fff; border-radius: 10px; padding: 20px; width: 520px; max-width: 92vw; box-shadow: 0 4px 20px rgba(0,0,0,.15); }
+  .modal { background: #fff; border-radius: 10px; padding: 20px; width: 600px; max-width: 92vw; box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 86vh; overflow-y: auto; }
   .modal h3 { font-size: 15px; margin-bottom: 12px; }
   .modal .row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; border-bottom: 1px dashed #f0f0f0; }
   .modal .row .k { color: #666; }
-  .modal .row .v { font-weight: 500; }
+  .modal .row .v { font-weight: 500; text-align: right; }
   .modal .row .v.warn { color: #cf1322; }
   .modal .row .v.ok { color: #389e0d; }
   .modal .actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
   .link { color: #1677ff; cursor: pointer; background: none; border: none; font-size: 13px; padding: 0; }
   .link:hover { text-decoration: underline; }
-  .pack-tpl { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-  .pack-opt { border: 1px solid #d9d9d9; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; background: #fff; display: flex; align-items: center; gap: 6px; }
-  .pack-opt.active { border-color: #1677ff; background: #f0f5ff; color: #1677ff; }
-  .pack-opt .mini { width: 20px; height: 20px; border-radius: 3px; background: #e8e8e8; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .pack-combo { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pack-combo label { display: flex; align-items: center; gap: 4px; border: 1px solid #d9d9d9; border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer; background: #fff; }
+  .pack-combo label.on { border-color: #1677ff; background: #f0f5ff; color: #1677ff; }
+  .pack-combo label input { width: auto; }
+  .pack-spec { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; font-size: 12px; }
+  .pack-spec input { width: 60px; padding: 2px 4px; border: 1px solid #d9d9d9; border-radius: 3px; }
+  .pack-spec select { padding: 2px 4px; border: 1px solid #d9d9d9; border-radius: 3px; font-size: 12px; }
   .pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
   .pack-card { border: 1px solid #e8e8e8; border-radius: 8px; padding: 10px; font-size: 12px; }
   .pack-card .thumb { height: 56px; background: #f5f5f5; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; margin-bottom: 6px; font-size: 11px; }
@@ -111,13 +106,18 @@
   .tabs-inline button { padding: 5px 12px; border: 1px solid #d9d9d9; background: #fff; border-radius: 4px; font-size: 13px; cursor: pointer; }
   .tabs-inline button.active { background: #1677ff; color: #fff; border-color: #1677ff; }
   .archive-row { background: #fafafa; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; margin-bottom: 10px; }
+  .detail-grid .di { padding: 4px 0; }
+  .detail-grid .di .k { color: #666; font-size: 12px; }
+  .detail-grid .di .v { font-weight: 500; }
+  .pack-summary { font-size: 12px; color: #666; }
 </style>
 </head>
 <body>
-<div class="banner"><strong>PROTOTYPE v2 · 一次性原型</strong> — 已按 v1 反馈修订：包装模板/订单查询归档/行级排程/拖排核验。模拟数据在浏览器内存，刷新重置。反馈用每屏底部按钮。</div>
+<div class="banner"><strong>PROTOTYPE v2.2 · 一次性原型</strong> — 修复：详情/反查/上传弹窗全部自绘（不再依赖系统 alert/prompt）；排程改为点击任务弹排期面板（不依赖 HTML5 拖放）；包装改复合勾选。反馈用每屏底部输入框。</div>
 <div class="app">
   <header>
-    <h1>割嘴工厂管理系统 · 原型 v2</h1>
+    <h1>割嘴工厂管理系统 · 原型 v2.2</h1>
     <div class="opbar">
       <span>当前操作人：<select id="operator"><option>老板</option><option selected>文员</option><option>计划员</option><option>仓管</option><option>财务</option></select></span>
     </div>
@@ -137,7 +137,7 @@
     <button data-tab="schedule"><span class="step">③</span>排程看板</button>
   </nav>
 
-  <!-- ============ ① 订单（新建 + 列表 + 归档） ============ -->
+  <!-- ============ ① 订单 ============ -->
   <div id="tab-order">
     <div class="tabs-inline" id="order-tabs">
       <button class="active" data-otab="new">+ 新建订单</button>
@@ -149,16 +149,8 @@
       <div class="card">
         <h2>新建订单 <span class="tag">草稿</span></h2>
         <div class="form-grid">
-          <div class="field">
-            <label>客户档案 *</label>
-            <select id="customer">
-              <option value="">请选择客户</option>
-              <option>Weldclass（澳洲）</option>
-              <option>Parweld（英国）</option>
-              <option>SWP（英国）</option>
-              <option>Zaker Trading（中东）</option>
-              <option>Mehta Sanghavi（印度）</option>
-            </select>
+          <div class="field"><label>客户档案 *</label>
+            <select id="customer"><option value="">请选择客户</option><option>Weldclass（澳洲）</option><option>Parweld（英国）</option><option>SWP（英国）</option><option>Zaker Trading（中东）</option><option>Mehta Sanghavi（印度）</option></select>
           </div>
           <div class="field"><label>客户 PO 号</label><input id="po" placeholder="选填"></div>
           <div class="field"><label>交期 *</label><input id="due" type="date"></div>
@@ -171,12 +163,12 @@
         <table>
           <thead>
             <tr>
-              <th style="width:20%">产品（目录）</th>
-              <th style="width:9%">数量</th>
-              <th style="width:10%">单价</th>
-              <th style="width:8%">币种</th>
-              <th style="width:34%">包装要求</th>
-              <th style="width:9%"></th>
+              <th style="width:16%">产品（目录）</th>
+              <th style="width:8%">数量</th>
+              <th style="width:9%">单价</th>
+              <th style="width:7%">币种</th>
+              <th style="width:44%">包装要求（可多选）</th>
+              <th style="width:8%"></th>
             </tr>
           </thead>
           <tbody id="order-lines"></tbody>
@@ -229,7 +221,7 @@
         <button class="btn fb-btn" data-fb="order-other">其他问题</button>
       </div>
       <div class="fb-input-row">
-        <input id="fb-order-input" placeholder="直接输入反馈内容…（可选，输入后回车提交）">
+        <input id="fb-order-input" placeholder="直接输入反馈内容…（回车提交）">
         <button class="btn primary" onclick="submitFbText('order')">提交</button>
       </div>
       <div class="fb-log" id="fb-order"></div>
@@ -237,9 +229,9 @@
     </div>
   </div>
 
-  <!-- ============ ② 计划单（列表 + 筛选 + 反查） ============ -->
+  <!-- ============ ② 计划单 ============ -->
   <div id="tab-plan" style="display:none">
-    <div class="notice info">订单确认后系统自动生成计划单草稿（预填目录默认值）。计划员审核确认后，计划单行进入排期池。点击「来源订单」可反查订单详情。</div>
+    <div class="notice info">订单确认后系统自动生成计划单草稿。计划员审核确认后，计划单的<b>每个产品行</b>进入排期池。点击「来源订单」弹窗查看订单详情。</div>
     <div class="card">
       <h2>计划单列表</h2>
       <div class="filters">
@@ -249,12 +241,8 @@
         <button class="btn" id="pf-reset">重置</button>
       </div>
       <table>
-        <thead>
-          <tr><th>计划单号</th><th>来源订单</th><th>客户</th><th>产品行</th><th>交期</th><th>状态</th><th>操作</th></tr>
-        </thead>
-        <tbody id="plan-list">
-          <tr><td colspan="7"><div class="empty">还没有计划单——去「订单」新建确认一张试试</div></td></tr>
-        </tbody>
+        <thead><tr><th>计划单号</th><th>来源订单</th><th>客户</th><th>产品行</th><th>交期</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="plan-list"></tbody>
       </table>
     </div>
     <div class="feedback">
@@ -266,7 +254,7 @@
         <button class="btn fb-btn" data-fb="plan-other">其他问题</button>
       </div>
       <div class="fb-input-row">
-        <input id="fb-plan-input" placeholder="直接输入反馈内容…（可选，输入后回车提交）">
+        <input id="fb-plan-input" placeholder="直接输入反馈内容…（回车提交）">
         <button class="btn primary" onclick="submitFbText('plan')">提交</button>
       </div>
       <div class="fb-log" id="fb-plan"></div>
@@ -274,46 +262,28 @@
     </div>
   </div>
 
-  <!-- ============ ③ 排程看板（行级 + 拖排核验） ============ -->
+  <!-- ============ ③ 排程看板 ============ -->
   <div id="tab-schedule" style="display:none">
-    <div class="notice info">已审核计划单的<b>每个产品行</b>进入待排区（一行一任务块，可分别拖排）。拖到时间槽弹<b>核验面板</b>确认产能与交期；报工后任务块变色。</div>
+    <div class="notice info">已审核计划单的<b>每个产品行</b>进入待排区。<b>点击任务块</b>弹出排期面板（选工序 + 开始日 + 核验），确认后排期；报工后任务块自动变色。</div>
     <div class="kanban">
       <div class="kanban-col" style="max-width:320px">
         <h3>待排区 <span id="pending-count">0</span></h3>
         <div id="pending-list"></div>
       </div>
       <div class="kanban-col">
-        <h3>时间槽 <span>拖到这里排期</span></h3>
+        <h3>时间槽 <span>点击待排任务 → 选工序排期</span></h3>
         <div class="gantt-wrap" style="margin-top:6px">
           <div class="gantt">
             <div class="gantt-header">
               <div class="spacer"></div>
               <div class="gantt-days" id="gantt-days"></div>
             </div>
-            <div class="gantt-row">
-              <div class="gantt-label">下料</div>
-              <div class="gantt-track" data-wc="cut"></div>
-            </div>
-            <div class="gantt-row">
-              <div class="gantt-label">车削</div>
-              <div class="gantt-track" data-wc="turn"></div>
-            </div>
-            <div class="gantt-row">
-              <div class="gantt-label">钻孔</div>
-              <div class="gantt-track" data-wc="drill"></div>
-            </div>
-            <div class="gantt-row">
-              <div class="gantt-label">螺纹</div>
-              <div class="gantt-track" data-wc="thread"></div>
-            </div>
-            <div class="gantt-row">
-              <div class="gantt-label">抛光/清洗</div>
-              <div class="gantt-track" data-wc="finish"></div>
-            </div>
-            <div class="gantt-row">
-              <div class="gantt-label">测试/包装</div>
-              <div class="gantt-track" data-wc="pack"></div>
-            </div>
+            <div class="gantt-row"><div class="gantt-label">下料</div><div class="gantt-track" data-wc="cut"></div></div>
+            <div class="gantt-row"><div class="gantt-label">车削</div><div class="gantt-track" data-wc="turn"></div></div>
+            <div class="gantt-row"><div class="gantt-label">钻孔</div><div class="gantt-track" data-wc="drill"></div></div>
+            <div class="gantt-row"><div class="gantt-label">螺纹</div><div class="gantt-track" data-wc="thread"></div></div>
+            <div class="gantt-row"><div class="gantt-label">抛光/清洗</div><div class="gantt-track" data-wc="finish"></div></div>
+            <div class="gantt-row"><div class="gantt-label">测试/包装</div><div class="gantt-track" data-wc="pack"></div></div>
           </div>
         </div>
         <div class="legend">
@@ -321,25 +291,24 @@
           <span><i style="background:#faad14"></i>进行中</span>
           <span><i style="background:#52c41a"></i>已完成</span>
           <span><i style="background:#ff4d4f"></i>超交期</span>
-          <span>拖动时按住可调整天数（演示：拖到时间槽即排期）</span>
         </div>
       </div>
     </div>
     <div class="card" style="margin-top:12px">
       <h2>模拟报工 <span class="tag">按产品行报工</span></h2>
       <p style="font-size:13px;color:#666;margin-bottom:8px">每个已排期产品行可单独录完成数量——报工后该行任务块变色，行完成量汇入计划单状态。</p>
-      <div id="report-area" class="empty">先拖一行到时间槽，再回来报工</div>
+      <div id="report-area" class="empty">先排一行任务，再回来报工</div>
     </div>
     <div class="feedback">
       <h4>反馈：排程看板界面</h4>
       <div class="fb-btns">
         <button class="btn fb-btn" data-fb="sched-like">像想要的</button>
         <button class="btn fb-btn" data-fb="sched-missing">缺字段</button>
-        <button class="btn fb-btn" data-fb="sched-awkward">拖拽别扭</button>
+        <button class="btn fb-btn" data-fb="sched-awkward">交互别扭</button>
         <button class="btn fb-btn" data-fb="sched-other">其他问题</button>
       </div>
       <div class="fb-input-row">
-        <input id="fb-sched-input" placeholder="直接输入反馈内容…（可选，输入后回车提交）">
+        <input id="fb-sched-input" placeholder="直接输入反馈内容…（回车提交）">
         <button class="btn primary" onclick="submitFbText('sched')">提交</button>
       </div>
       <div class="fb-log" id="fb-sched"></div>
@@ -350,14 +319,62 @@
   <div class="notice warn" style="margin-top:16px" id="global-state"></div>
 </div>
 
-<!-- 核验面板 -->
-<div class="modal-mask" id="verify-mask" style="display:none">
+<!-- 订单详情弹窗 -->
+<div class="modal-mask" id="order-modal" style="display:none">
   <div class="modal">
-    <h3>排期核验 <span style="font-size:12px;color:#999;font-weight:400" id="verify-plan-id"></span></h3>
-    <div id="verify-body"></div>
+    <h3 id="order-modal-title">订单详情</h3>
+    <div id="order-modal-body"></div>
+    <div class="actions"><button class="btn" onclick="closeModalById('order-modal')">关闭</button></div>
+  </div>
+</div>
+
+<!-- 排期面板 -->
+<div class="modal-mask" id="sched-modal" style="display:none">
+  <div class="modal">
+    <h3>排期 <span style="font-size:12px;color:#999;font-weight:400" id="sched-modal-plan"></span></h3>
+    <div class="form-grid" style="margin-bottom:12px">
+      <div class="field"><label>排入工序</label>
+        <select id="sched-wc">
+          <option value="cut">下料</option>
+          <option value="turn">车削</option>
+          <option value="drill" selected>钻孔</option>
+          <option value="thread">螺纹</option>
+          <option value="finish">抛光/清洗</option>
+          <option value="pack">测试/包装</option>
+        </select>
+      </div>
+      <div class="field"><label>开始日期</label>
+        <select id="sched-start">${''}</select>
+      </div>
+    </div>
+    <div id="sched-verify"></div>
     <div class="actions">
-      <button class="btn" id="verify-cancel">取消（不排）</button>
-      <button class="btn primary" id="verify-confirm">确认排期</button>
+      <button class="btn" onclick="closeModalById('sched-modal')">取消</button>
+      <button class="btn primary" onclick="confirmSchedule()">确认排期</button>
+    </div>
+  </div>
+</div>
+
+<!-- 上传包装模板弹窗 -->
+<div class="modal-mask" id="pack-upload-modal" style="display:none">
+  <div class="modal" style="width:460px">
+    <h3>保存包装模板</h3>
+    <div class="form-grid">
+      <div class="field"><label>模板名称 *</label><input id="pu-name" placeholder="如：Weldclass 定制盒"></div>
+      <div class="field"><label>类型</label>
+        <select id="pu-type"><option>包装盒</option><option>不干胶</option><option>纸箱</option><option>套袋</option><option>其他</option></select>
+      </div>
+      <div class="field full"><label>规格说明</label><input id="pu-meta" placeholder="如：×30只/盒，含LOGO印刷"></div>
+      <div class="field full"><label>样式图上传（演示：模拟）</label>
+        <div style="border:1px dashed #d9d9d9;border-radius:6px;padding:14px;text-align:center;color:#999;font-size:12px;cursor:pointer" onclick="document.getElementById('pu-file').click()">
+          点击选择图片（演示环境仅模拟，正式系统接文件上传）
+          <input type="file" id="pu-file" accept="image/*" style="display:none" onchange="puFileChosen(this)">
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="closeModalById('pack-upload-modal')">取消</button>
+      <button class="btn primary" onclick="savePackTemplate()">保存模板</button>
     </div>
   </div>
 </div>
@@ -365,24 +382,27 @@
 <script>
 // ============ 模拟数据 ============
 const catalog = {
-  'ANM 1/32" 乙炔': { wc: 'drill', days: 2, packs: ['包装盒×50', '不干胶标签', '纸箱×4盒'] },
-  'ANM 3/32" 乙炔': { wc: 'drill', days: 2, packs: ['包装盒×50', '不干胶标签', '纸箱×4盒'] },
-  'PNM 3/32" 丙烷': { wc: 'drill', days: 3, packs: ['客户定制盒×25', '不干胶标签', '纸箱×6盒'] },
-  '6290 1/4" 美式': { wc: 'drill', days: 2, packs: ['包装盒×100', '纸箱×8盒'] },
-  '101 3/8" 美式': { wc: 'drill', days: 3, packs: ['包装盒×100', '纸箱×8盒'] },
+  'ANM 1/32" 乙炔': { wc: 'drill', days: 2, defaultPack: { box: '包装盒×50', bag: '', carton: '纸箱×4盒', label: '标准不干胶' } },
+  'ANM 3/32" 乙炔': { wc: 'drill', days: 2, defaultPack: { box: '包装盒×50', bag: '', carton: '纸箱×4盒', label: '标准不干胶' } },
+  'PNM 3/32" 丙烷': { wc: 'drill', days: 3, defaultPack: { box: '客户定制盒×25', bag: '套袋', carton: '纸箱×6盒', label: '' } },
+  '6290 1/4" 美式': { wc: 'drill', days: 2, defaultPack: { box: '包装盒×100', bag: '', carton: '纸箱×8盒', label: '' } },
+  '101 3/8" 美式': { wc: 'drill', days: 3, defaultPack: { box: '包装盒×100', bag: '', carton: '纸箱×8盒', label: '' } },
 };
-// 包装模板库（可上传保存）
+const PACK_TYPES = ['box', 'bag', 'carton', 'label'];
+const PACK_NAMES = { box: '包装盒', bag: '套袋', carton: '纸箱', label: '不干胶' };
 const packTemplates = [
-  { id: 't1', name: 'UWELD 中性盒（ANM）', type: '包装盒', thumb: '盒', meta: '纸盒×50只/盒，白底黑字' },
-  { id: 't2', name: 'Weldclass 定制盒', type: '客户定制盒', thumb: '盒', meta: '客户LOGO，×25只/盒' },
-  { id: 't3', name: '标准不干胶标签', type: '不干胶', thumb: '贴', meta: '70×40mm，含型号/气体/警示' },
-  { id: 't4', name: '出口纸箱', type: '纸箱', thumb: '箱', meta: '五层瓦楞，×8盒/箱' },
+  { id: 't1', name: 'UWELD 中性盒（ANM）', type: '包装盒', meta: '纸盒×50只/盒，白底黑字' },
+  { id: 't2', name: 'Weldclass 定制盒', type: '客户定制盒', meta: '客户LOGO，×25只/盒' },
+  { id: 't3', name: '标准不干胶标签', type: '不干胶', meta: '70×40mm，含型号/气体/警示' },
+  { id: 't4', name: '出口纸箱', type: '纸箱', meta: '五层瓦楞，×8盒/箱' },
 ];
+const DAYS = ['8/28','8/29','8/30','8/31','9/1','9/2','9/3','9/4','9/5','9/6'];
+const VERIFY_WC = { cut: '下料', turn: '车削', drill: '钻孔', thread: '螺纹', finish: '抛光/清洗', pack: '测试/包装' };
 let seq = 1;
 const orders = [];
 const plans = [];
 const feedbacks = [];
-const VERIFY_WC = { cut: '下料', turn: '车削', drill: '钻孔', thread: '螺纹', finish: '抛光/清洗', pack: '测试/包装' };
+let schedTarget = null; // {p, line, li}
 
 // ============ Tab 切换 ============
 document.querySelectorAll('#tabs button').forEach(btn => {
@@ -396,7 +416,6 @@ document.querySelectorAll('#tabs button').forEach(btn => {
   });
 });
 
-// 订单内 tabs
 document.querySelectorAll('#order-tabs button').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('#order-tabs button').forEach(b => b.classList.remove('active'));
@@ -407,9 +426,31 @@ document.querySelectorAll('#order-tabs button').forEach(btn => {
   });
 });
 
+// ============ 通用弹窗 ============
+function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModalById(id) { document.getElementById(id).style.display = 'none'; }
+document.querySelectorAll('.modal-mask').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
+});
+
 // ============ ① 订单录入 ============
+function packComboHTML(pack) {
+  const p = pack || {};
+  return `<div class="pack-combo">
+    ${PACK_TYPES.map(t => `
+      <label class="${p[t] ? 'on' : ''}" data-pt="${t}">
+        <input type="checkbox" ${p[t] ? 'checked' : ''} data-pt="${t}" style="width:auto">
+        ${PACK_NAMES[t]}
+        ${p[t] ? `<span class="pack-spec"><input data-spec="${t}" value="${p[t]}" placeholder="规格/数量"></span>` : ''}
+      </label>`).join('')}
+    <button class="btn ghost" type="button" style="padding:2px 8px;font-size:12px" onclick="openPackTemplates(this)">模板库</button>
+    <button class="btn ghost" type="button" style="padding:2px 8px;font-size:12px" onclick="openPackUpload(this)">+ 保存模板</button>
+  </div>`;
+}
+
 function makeLineRow(prod) {
   const tr = document.createElement('tr');
+  const defaultPack = prod && catalog[prod] ? catalog[prod].defaultPack : {};
   tr.innerHTML = `
     <td><select class="prod"><option value="">选择产品</option>
       ${Object.keys(catalog).map(p => `<option>${p}</option>`).join('')}
@@ -417,28 +458,38 @@ function makeLineRow(prod) {
     <td><input class="qty" type="number" value="1000" min="1"></td>
     <td><input class="price" type="number" value="3.5" step="0.1"></td>
     <td><select class="cur"><option>USD</option><option>RMB</option></select></td>
-    <td>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input class="pack" placeholder="选包装模板或手填" style="flex:1">
-        <select class="pack-preset" style="width:110px"><option value="">模板…</option>${packTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
-        <button class="btn ghost" type="button" style="padding:4px 8px" onclick="openPackManager(this)">样式</button>
-      </div>
-    </td>
+    <td class="pack-cell">${packComboHTML(defaultPack)}</td>
     <td><button class="btn danger del-line">删</button></td>`;
-  if (prod) {
-    tr.querySelector('.prod').value = prod;
-    tr.querySelector('.pack').value = catalog[prod].packs[0];
-  }
+  if (prod) tr.querySelector('.prod').value = prod;
+  bindLineEvents(tr);
+  return tr;
+}
+
+function bindLineEvents(tr) {
   tr.querySelector('.prod').addEventListener('change', e => {
     const p = e.target.value;
-    if (p && catalog[p]) tr.querySelector('.pack').value = catalog[p].packs[0];
-  });
-  tr.querySelector('.pack-preset').addEventListener('change', e => {
-    const t = packTemplates.find(x => x.id === e.target.value);
-    if (t) tr.querySelector('.pack').value = t.name + '｜' + t.meta;
+    const cell = tr.querySelector('.pack-cell');
+    cell.innerHTML = packComboHTML(p && catalog[p] ? catalog[p].defaultPack : {});
   });
   tr.querySelector('.del-line').addEventListener('click', () => tr.remove());
-  return tr;
+  // 勾选联动规格输入
+  tr.querySelectorAll('.pack-combo label').forEach(lb => {
+    const cb = lb.querySelector('input[type=checkbox]');
+    cb.addEventListener('change', () => {
+      const pt = cb.dataset.pt;
+      if (cb.checked) {
+        const spec = document.createElement('span');
+        spec.className = 'pack-spec';
+        spec.innerHTML = `<input data-spec="${pt}" placeholder="规格/数量">`;
+        lb.appendChild(spec);
+        lb.classList.add('on');
+      } else {
+        const spec = lb.querySelector('.pack-spec');
+        if (spec) spec.remove();
+        lb.classList.remove('on');
+      }
+    });
+  });
 }
 
 document.getElementById('add-line').addEventListener('click', () => {
@@ -447,50 +498,90 @@ document.getElementById('add-line').addEventListener('click', () => {
 document.getElementById('order-lines').appendChild(makeLineRow());
 document.getElementById('order-lines').appendChild(makeLineRow('PNM 3/32" 丙烷'));
 
-// 包装管理器（模拟上传+保存模板）
-function openPackManager(btn) {
+function collectLinePack(cell) {
+  const pack = {};
+  cell.querySelectorAll('.pack-combo label').forEach(lb => {
+    const cb = lb.querySelector('input[type=checkbox]');
+    if (cb && cb.checked) {
+      const pt = cb.dataset.pt;
+      const spec = lb.querySelector('.pack-spec input');
+      pack[pt] = (spec && spec.value) ? spec.value : PACK_NAMES[pt];
+    }
+  });
+  return pack;
+}
+
+// 模板库弹窗（选择模板填到当前行）
+let packTargetCell = null;
+function openPackTemplates(btn) {
+  packTargetCell = btn.closest('.pack-cell');
   const modal = document.createElement('div');
   modal.className = 'modal-mask';
   modal.innerHTML = `
     <div class="modal" style="width:620px">
-      <h3>包装样式模板库 <span style="font-size:12px;color:#999;font-weight:400">选择后填入当前行，可上传新样式</span></h3>
+      <h3>包装模板库 <span style="font-size:12px;color:#999;font-weight:400">点选模板填入本行</span></h3>
       <div class="pack-grid">
         ${packTemplates.map(t => `
-          <div class="pack-card" style="cursor:pointer" onclick="pickPack('${t.id}')">
-            <div class="thumb">${t.thumb}</div>
+          <div class="pack-card" style="cursor:pointer" onclick="applyPackTemplate('${t.id}')">
+            <div class="thumb">${t.type[0]}</div>
             <div class="name">${t.name}</div>
             <div class="meta">${t.type} · ${t.meta}</div>
           </div>`).join('')}
-        <div class="pack-card" style="border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer" onclick="addPackPrompt()">
-          <div style="font-size:22px;color:#999">＋</div>
-          <div class="meta">上传新样式</div>
-        </div>
       </div>
       <div class="actions"><button class="btn" onclick="closeModal(this)">关闭</button></div>
     </div>`;
   document.body.appendChild(modal);
-  window._packBtn = btn;
 }
-window.pickPack = function(id) {
+window.applyPackTemplate = function(id) {
   const t = packTemplates.find(x => x.id === id);
-  if (t && window._packBtn) {
-    const tr = window._packBtn.closest('tr');
-    tr.querySelector('.pack').value = t.name + '｜' + t.meta;
-    tr.querySelector('.pack-preset').value = t.id;
+  if (t && packTargetCell) {
+    const tr = packTargetCell.closest('tr');
+    const pack = {};
+    if (t.type.includes('盒')) pack.box = t.meta.split('，')[0] || '包装盒';
+    if (t.type === '不干胶') pack.label = t.meta.split('，')[0] || '不干胶';
+    if (t.type === '纸箱') pack.carton = t.meta.split('，')[0] || '纸箱';
+    if (t.type === '套袋') pack.bag = '套袋';
+    packTargetCell.innerHTML = packComboHTML(pack);
+    bindLineEvents(tr);
   }
   document.querySelectorAll('.modal-mask').forEach(m => m.remove());
 };
-window.addPackPrompt = function() {
-  const name = prompt('模板名称（如：新客户定制盒）：');
-  if (!name) return;
-  const type = prompt('类型（包装盒/不干胶/纸箱/其他）：') || '其他';
-  const meta = prompt('规格说明（如：×30只/盒，含LOGO）：') || '';
+window.closeModal = function(el) { el.closest('.modal-mask').remove(); };
+
+// 上传模板弹窗
+let packUploadCell = null;
+function openPackUpload(btn) {
+  packUploadCell = btn.closest('.pack-cell');
+  openModal('pack-upload-modal');
+  document.getElementById('pu-name').value = '';
+  document.getElementById('pu-meta').value = '';
+}
+function puFileChosen(input) {
+  input.previousElementSibling.textContent = '已选择图片：' + (input.files[0] ? input.files[0].name : '（模拟）');
+}
+function savePackTemplate() {
+  const name = document.getElementById('pu-name').value.trim();
+  if (!name) { alert('请填模板名称'); return; }
+  const type = document.getElementById('pu-type').value;
+  const meta = document.getElementById('pu-meta').value.trim() || '—';
   const id = 't' + Date.now();
-  packTemplates.push({ id, name, type, thumb: type[0] || '盒', meta });
-  document.querySelectorAll('.modal-mask').forEach(m => m.remove());
-  alert('已保存模板「' + name + '」——可在此行或新订单行复用');
-};
-function closeModal(el) { el.closest('.modal-mask').remove(); }
+  packTemplates.push({ id, name, type, meta });
+  closeModalById('pack-upload-modal');
+  // 填入当前行
+  if (packUploadCell) {
+    const tr = packUploadCell.closest('tr');
+    const pack = {};
+    if (type === '包装盒') pack.box = meta.split('，')[0] || '包装盒';
+    if (type === '不干胶') pack.label = meta.split('，')[0] || '不干胶';
+    if (type === '纸箱') pack.carton = meta.split('，')[0] || '纸箱';
+    if (type === '套袋') pack.bag = '套袋';
+    packUploadCell.innerHTML = packComboHTML(pack);
+    bindLineEvents(tr);
+  }
+  const info = document.getElementById('order-notice');
+  info.className = 'notice';
+  info.textContent = '模板「' + name + '」已保存并填入本行——其他订单行可在模板库复用';
+}
 
 document.getElementById('confirm-order').addEventListener('click', () => {
   const customer = document.getElementById('customer').value;
@@ -502,7 +593,7 @@ document.getElementById('confirm-order').addEventListener('click', () => {
     qty: +tr.querySelector('.qty').value,
     price: +tr.querySelector('.price').value,
     cur: tr.querySelector('.cur').value,
-    pack: tr.querySelector('.pack').value,
+    pack: collectLinePack(tr.querySelector('.pack-cell')),
   })).filter(l => l.prod);
   if (!lines.length) return showNotice('order-notice', '至少加一个产品行', 'warn');
 
@@ -514,7 +605,6 @@ document.getElementById('confirm-order').addEventListener('click', () => {
   seq++;
   orders.push(order);
 
-  // 计划单：一单一计划单，行级排期任务
   const plan = {
     id: 'PS-2026-' + String(seq).padStart(3,'0'),
     orderId: order.id, customer, due,
@@ -533,6 +623,34 @@ function showNotice(id, msg, type) {
   el.className = 'notice ' + (type === 'warn' ? 'warn' : '');
   el.style.display = msg ? '' : 'none';
   el.textContent = msg || '';
+}
+
+function packSummary(pack) {
+  if (!pack) return '—';
+  const parts = PACK_TYPES.filter(t => pack[t]).map(t => `${PACK_NAMES[t]}:${pack[t]}`);
+  return parts.length ? parts.join('；') : '—';
+}
+
+// ============ 订单详情弹窗 ============
+function viewOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  document.getElementById('order-modal-title').textContent = '订单详情 ' + o.id;
+  document.getElementById('order-modal-body').innerHTML = `
+    <div class="detail-grid">
+      <div class="di"><div class="k">客户</div><div class="v">${o.customer}</div></div>
+      <div class="di"><div class="k">状态</div><div class="v"><span class="status-badge st-${o.status}">${statusText(o.status)}</span></div></div>
+      <div class="di"><div class="k">客户PO号</div><div class="v">${o.po || '—'}</div></div>
+      <div class="di"><div class="k">交期</div><div class="v">${o.due}</div></div>
+      <div class="di full"><div class="k">备注</div><div class="v">${o.note || '—'}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>产品</th><th>数量</th><th>单价</th><th>币种</th><th>包装要求</th></tr></thead>
+      <tbody>${o.lines.map(l => `
+        <tr><td>${l.prod}</td><td>${l.qty}</td><td>${l.price}</td><td>${l.cur}</td><td class="pack-summary">${packSummary(l.pack)}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+  openModal('order-modal');
 }
 
 // ============ 订单列表 / 归档 ============
@@ -571,12 +689,6 @@ function renderArchive() {
     </tr>`).join('') : '<tr><td colspan="7"><div class="empty">归档区为空（完成订单后自动归档到这里）</div></td></tr>';
 }
 
-function viewOrder(id) {
-  const o = orders.find(x => x.id === id);
-  if (!o) return;
-  alert(`订单 ${o.id}\n客户：${o.customer}\nPO号：${o.po || '—'}\n交期：${o.due}\n状态：${statusText(o.status)}\n\n产品行：\n${o.lines.map(l => `  ${l.prod} × ${l.qty} @ ${l.cur}${l.price}\n  包装：${l.pack || '—'}`).join('\n')}\n\n备注：${o.note || '—'}`);
-}
-
 // ============ ② 计划单 ============
 function renderPlans() {
   const kw = document.getElementById('pf-kw').value.trim();
@@ -595,7 +707,7 @@ function renderPlans() {
       <td>${p.id}</td>
       <td><button class="link" onclick="viewOrder('${p.orderId}')">${p.orderId} ⇠ 反查</button></td>
       <td>${p.customer}</td>
-      <td>${p.lines.map((l,i) => `${i+1}. ${l.prod}×${l.qty}${l.sched ? ' ⏱已排' : ''}${l.reported ? ` ✅${l.reported}` : ''}`).join('<br>')}</td>
+      <td>${p.lines.map((l,i) => `${i+1}. ${l.prod}×${l.qty}${l.sched ? ' ⏱' : ''}${l.reported ? ' ✅' + l.reported : ''}`).join('<br>')}</td>
       <td>${p.due}</td>
       <td><span class="status-badge st-${p.status}">${statusText(p.status)}</span></td>
       <td>${p.status === 'draft' ? `<button class="btn primary" onclick="confirmPlan('${p.id}')">审核确认</button>` : p.status === 'confirmed' && !p.lines.some(l => l.sched) ? '<span style="font-size:12px;color:#999">已入池 → 去排程</span>' : ''}</td>
@@ -610,20 +722,18 @@ function confirmPlan(id) {
   const p = plans.find(x => x.id === id);
   p.status = 'confirmed';
   renderPlans();
-  showNotice('plan-notice', `${p.id} 已审核确认 → ${p.lines.length} 个产品行进入排期池（去「排程看板」逐行拖排）`, 'info');
+  const info = document.querySelector('#tab-plan .notice');
+  info.className = 'notice info';
+  info.innerHTML = `${p.id} 已审核确认 → ${p.lines.length} 个产品行进入排期池（去「排程看板」逐行排期）`;
 }
 
-// ============ ③ 排程看板（行级） ============
-const DAYS = ['8/28','8/29','8/30','8/31','9/1','9/2','9/3','9/4','9/5','9/6'];
-
+// ============ ③ 排程看板（点击排期，不依赖拖放） ============
 function allTaskLines() {
   const tasks = [];
   plans.forEach(p => {
-    p.lines.forEach((l, li) => {
-      if (p.status === 'confirmed' || p.status === 'inprod' || p.status === 'done') {
-        tasks.push({ p, l, li });
-      }
-    });
+    if (p.status === 'confirmed' || p.status === 'inprod' || p.status === 'done') {
+      p.lines.forEach((l, li) => tasks.push({ p, l, li }));
+    }
   });
   return tasks;
 }
@@ -632,12 +742,12 @@ function renderSchedule() {
   const pending = allTaskLines().filter(t => !t.l.sched);
   document.getElementById('pending-count').textContent = pending.length;
   const pl = document.getElementById('pending-list');
-  pl.innerHTML = pending.length ? pending.map((t, i) => `
-    <div class="task" draggable="true" ondragstart="dragStart(event,'${t.p.id}|${t.li}')" ondblclick="quickSchedule('${t.p.id}|${t.li}')">
+  pl.innerHTML = pending.length ? pending.map((t) => `
+    <div class="task" onclick="openSchedModal('${t.p.id}|${t.li}')">
       <div class="t-title">${t.p.id} · 行${t.li+1}</div>
       <div class="t-line">${t.l.prod}</div>
       <div class="t-meta">${t.l.qty} 只 · 交期 ${t.p.due}</div>
-      <div class="t-meta" style="color:#1677ff">双击快速排期</div>
+      <div class="t-meta" style="color:#1677ff">点击排期 →</div>
     </div>`).join('') : '<div class="empty">待排区空了</div>';
 
   const daysEl = document.getElementById('gantt-days');
@@ -665,70 +775,58 @@ function isOverdue(t) {
   return t.p.due <= '2026-08-31' && t.l.reported < t.l.qty;
 }
 
-function dragStart(e, key) { e.dataTransfer.setData('text/plain', key); }
-
-document.querySelectorAll('.gantt-track').forEach(track => {
-  track.addEventListener('dragover', e => e.preventDefault());
-  track.addEventListener('drop', e => {
-    e.preventDefault();
-    const key = e.dataTransfer.getData('text/plain');
-    if (!key) return;
-    const [pid, li] = key.split('|');
-    const p = plans.find(x => x.id === pid);
-    const line = p.lines[+li];
-    if (line.sched) return;
-    const rect = track.getBoundingClientRect();
-    const idx = Math.min(DAYS.length - 1, Math.max(0, Math.floor((e.clientX - rect.left) / rect.width * DAYS.length)));
-    window._verify = { p, line, li: +li, wc: track.dataset.wc, start: DAYS[idx] };
-    showVerify();
-  });
-});
-
-function quickSchedule(key) {
+function openSchedModal(key) {
   const [pid, li] = key.split('|');
   const p = plans.find(x => x.id === pid);
-  window._verify = { p, line: p.lines[+li], li: +li, wc: 'drill', start: DAYS[2] };
-  showVerify();
+  const line = p.lines[+li];
+  schedTarget = { p, line, li: +li };
+  document.getElementById('sched-modal-plan').textContent = `｜ ${p.id} 行${+li+1} · ${line.prod} × ${line.qty}`;
+  // 开始日期选项
+  const startSel = document.getElementById('sched-start');
+  startSel.innerHTML = DAYS.map((d, i) => `<option value="${d}" ${i === 2 ? 'selected' : ''}>${d}</option>`).join('');
+  updateSchedVerify();
+  openModal('sched-modal');
 }
 
-function showVerify() {
-  const { p, line, wc, start } = window._verify;
-  const due = p.due;
-  const days = catalog[line.prod].days;
+function updateSchedVerify() {
+  if (!schedTarget) return;
+  const { p, line } = schedTarget;
+  const wc = document.getElementById('sched-wc').value;
+  const start = document.getElementById('sched-start').value;
+  const days = catalog[line.prod] ? catalog[line.prod].days : 2;
   const startIdx = DAYS.indexOf(start);
-  const endIdx = Math.min(DAYS.length - 1, startIdx + days - 1);
-  const end = DAYS[endIdx];
-  const overdue = end >= due && due <= '2026-08-31';
+  const end = DAYS[Math.min(DAYS.length - 1, startIdx + days - 1)];
+  const overdue = p.due <= '2026-08-31' && end >= p.due;
   const wcLoad = allTaskLines().filter(t => t.l.sched && t.l.sched.wc === wc).length;
-  document.getElementById('verify-plan-id').textContent = `｜ ${p.id} 行${window._verify.li+1} · ${line.prod} × ${line.qty}`;
-  document.getElementById('verify-body').innerHTML = `
-    <div class="row"><span class="k">排入工序</span><span class="v">${VERIFY_WC[wc]}（${wc}）</span></div>
+  document.getElementById('sched-verify').innerHTML = `
+    <div class="row"><span class="k">排入工序</span><span class="v">${VERIFY_WC[wc]}</span></div>
     <div class="row"><span class="k">预计工期</span><span class="v">${days} 天（${start} → ${end}）</span></div>
     <div class="row"><span class="k">该工序已有任务</span><span class="v">${wcLoad} 个</span></div>
-    <div class="row"><span class="k">客户交期</span><span class="v">${due}</span></div>
-    <div class="row"><span class="k">交期判断</span><span class="v ${overdue ? 'warn' : 'ok'}">${overdue ? '⚠ 预计完工日紧贴/超过交期' : '✅ 预计可按时交付'}</span></div>
-    <div style="font-size:12px;color:#999;margin-top:10px">确认后排期生效；也可取消后换行/换时间重拖。</div>`;
-  document.getElementById('verify-mask').style.display = 'flex';
+    <div class="row"><span class="k">客户交期</span><span class="v">${p.due}</span></div>
+    <div class="row"><span class="k">交期判断</span><span class="v ${overdue ? 'warn' : 'ok'}">${overdue ? '⚠ 预计完工日紧贴/超过交期' : '✅ 预计可按时交付'}</span></div>`;
 }
 
-document.getElementById('verify-confirm').addEventListener('click', () => {
-  const v = window._verify;
-  v.line.sched = { wc: v.wc, start: v.start };
-  if (v.p.status === 'confirmed') v.p.status = 'confirmed';
-  document.getElementById('verify-mask').style.display = 'none';
+document.getElementById('sched-wc').addEventListener('change', updateSchedVerify);
+document.getElementById('sched-start').addEventListener('change', updateSchedVerify);
+
+function confirmSchedule() {
+  if (!schedTarget) return;
+  schedTarget.line.sched = {
+    wc: document.getElementById('sched-wc').value,
+    start: document.getElementById('sched-start').value,
+  };
+  closeModalById('sched-modal');
   renderSchedule();
   document.getElementById('flow-dot3').classList.add('on');
-});
-document.getElementById('verify-cancel').addEventListener('click', () => {
-  document.getElementById('verify-mask').style.display = 'none';
-});
+}
 
+// ============ 报工 ============
 function renderReportArea() {
   const area = document.getElementById('report-area');
   const sched = allTaskLines().filter(t => t.l.sched && t.l.reported < t.l.qty);
   if (!sched.length) {
     area.className = 'empty';
-    area.innerHTML = '先拖一行到时间槽，再回来报工';
+    area.innerHTML = '先排一行任务，再回来报工';
     return;
   }
   area.className = '';
@@ -747,13 +845,12 @@ function doReport(key) {
   const line = p.lines[+li];
   const val = +document.getElementById('rep-' + pid + '-' + li).value;
   line.reported = Math.min(line.qty, line.reported + val);
-  // 计划单状态由行进度聚合（票03）
   const allDone = p.lines.every(l => l.reported >= l.qty);
   const anyStart = p.lines.some(l => l.reported > 0);
   if (allDone) {
     p.status = 'done';
     const o = orders.find(x => x.id === p.orderId);
-    if (o) o.status = 'done'; // 订单联动完成
+    if (o) o.status = 'done';
   } else if (anyStart && p.status === 'confirmed') {
     p.status = 'inprod';
     const o = orders.find(x => x.id === p.orderId);
@@ -772,15 +869,11 @@ function doReport(key) {
   });
 });
 document.getElementById('of-reset').addEventListener('click', () => {
-  document.getElementById('of-status').value = '';
-  document.getElementById('of-customer').value = '';
-  document.getElementById('of-kw').value = '';
+  ['of-status','of-customer','of-kw'].forEach(id => document.getElementById(id).value = '');
   renderOrderList();
 });
 document.getElementById('pf-reset').addEventListener('click', () => {
-  document.getElementById('pf-status').value = '';
-  document.getElementById('pf-customer').value = '';
-  document.getElementById('pf-kw').value = '';
+  ['pf-status','pf-customer','pf-kw'].forEach(id => document.getElementById(id).value = '');
   renderPlans();
 });
 
@@ -821,8 +914,7 @@ function renderFbLog(screen) {
 }
 
 ['order','plan','sched'].forEach(s => {
-  const input = document.getElementById('fb-' + s + '-input');
-  input.addEventListener('keydown', e => {
+  document.getElementById('fb-' + s + '-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') submitFbText(s);
   });
 });
