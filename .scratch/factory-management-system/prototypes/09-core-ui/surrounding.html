@@ -278,33 +278,45 @@
     </div>
   </div>
 
-  <!-- ============ ③ 设置 ============ -->
+  <!-- ============ ③ 设置（可交互版） ============ -->
   <div id="tab-cfg" style="display:none">
     <div class="card">
-      <h2>产品目录 <span class="tag">主数据 · 默认工序路线/包装</span></h2>
+      <h2>产品目录 <span class="tag">主数据 · 默认工序路线/包装 · 可增删改</span></h2>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn primary" id="cfg-add-prod">+ 新增产品</button>
+      </div>
       <table>
-        <thead><tr><th>产品</th><th>类型</th><th>默认包装</th><th>默认工序路线</th><th>安全库存</th></tr></thead>
+        <thead><tr><th>产品</th><th>类型</th><th>默认包装</th><th>默认工序路线</th><th>安全库存</th><th>操作</th></tr></thead>
         <tbody id="cfg-catalog"></tbody>
       </table>
     </div>
     <div class="card">
-      <h2>客户档案 <span class="tag">轻量主数据</span></h2>
+      <h2>客户档案 <span class="tag">轻量主数据 · 可增删改</span></h2>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn primary" id="cfg-add-cust">+ 新增客户</button>
+      </div>
       <table>
-        <thead><tr><th>客户</th><th>联系人</th><th>结算方式</th><th>账期（天）</th></tr></thead>
+        <thead><tr><th>客户</th><th>联系人</th><th>结算方式</th><th>账期（天）</th><th>操作</th></tr></thead>
         <tbody id="cfg-customer"></tbody>
       </table>
     </div>
     <div class="card">
-      <h2>供应商档案 <span class="tag">与客户同构</span></h2>
+      <h2>供应商档案 <span class="tag">与客户同构 · 可增删改</span></h2>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn primary" id="cfg-add-sup">+ 新增供应商</button>
+      </div>
       <table>
-        <thead><tr><th>供应商</th><th>联系人</th><th>结算方式</th></tr></thead>
+        <thead><tr><th>供应商</th><th>联系人</th><th>结算方式</th><th>操作</th></tr></thead>
         <tbody id="cfg-supplier"></tbody>
       </table>
     </div>
     <div class="card">
       <h2>操作人 / PC 绑定 <span class="tag">票07：免登录 · 固定名单 · 每台PC绑默认操作人</span></h2>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn primary" id="cfg-add-op">+ 新增操作人</button>
+      </div>
       <table>
-        <thead><tr><th>PC</th><th>绑定操作人</th><th>备注</th></tr></thead>
+        <thead><tr><th>操作人名单</th><th>PC 绑定（下拉选默认操作人）</th><th>备注</th><th>操作</th></tr></thead>
         <tbody id="cfg-pc"></tbody>
       </table>
     </div>
@@ -408,24 +420,97 @@
   </div>
 </div>
 
+<!-- 产品目录弹窗 -->
+<div class="modal-mask" id="prod-modal">
+  <div class="modal">
+    <h3 id="prod-modal-title">新增产品</h3>
+    <div class="form-grid">
+      <div class="field"><label>产品名 *</label><input id="pm-name" placeholder="如：ANM 1/32" 乙炔"></div>
+      <div class="field"><label>类型</label><select id="pm-type"><option>英式乙炔</option><option>英式丙烷</option><option>美式乙炔</option><option>美式丙烷</option></select></div>
+      <div class="field full"><label>默认包装</label><input id="pm-pack" placeholder="如：包装盒×50+纸箱"></div>
+      <div class="field full"><label>默认工序路线</label><input id="pm-route" placeholder="如：下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装"></div>
+      <div class="field"><label>安全库存</label><input id="pm-safety" type="number" value="1000" min="0"></div>
+    </div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="prod-modal">取消</button>
+      <button class="btn primary" id="pm-confirm">保存产品</button>
+    </div>
+  </div>
+</div>
+
+<!-- 客户档案弹窗 -->
+<div class="modal-mask" id="cust-modal">
+  <div class="modal">
+    <h3 id="cust-modal-title">新增客户</h3>
+    <div class="form-grid">
+      <div class="field"><label>客户名 *</label><input id="cm-name" placeholder="如：Weldclass（澳洲）"></div>
+      <div class="field"><label>联系人</label><input id="cm-contact" placeholder="如：John"></div>
+      <div class="field"><label>结算方式</label><select id="cm-settle"><option>30%定金+70%发货前</option><option>月结30天</option><option>月结60天</option><option>发货前付清</option></select></div>
+      <div class="field"><label>账期天数</label><input id="cm-aging" type="number" value="30" min="0"></div>
+    </div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="cust-modal">取消</button>
+      <button class="btn primary" id="cm-confirm">保存客户</button>
+    </div>
+  </div>
+</div>
+
+<!-- 供应商弹窗 -->
+<div class="modal-mask" id="sup-modal">
+  <div class="modal">
+    <h3 id="sup-modal-title">新增供应商</h3>
+    <div class="form-grid">
+      <div class="field"><label>供应商名 *</label><input id="sm-name" placeholder="如：桐乡铜业"></div>
+      <div class="field"><label>联系人</label><input id="sm-contact" placeholder="如：王经理"></div>
+      <div class="field"><label>结算方式</label><select id="sm-settle"><option>预付30%</option><option>月结</option><option>现结</option></select></div>
+    </div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="sup-modal">取消</button>
+      <button class="btn primary" id="sm-confirm">保存供应商</button>
+    </div>
+  </div>
+</div>
+
+<!-- 操作人弹窗 -->
+<div class="modal-mask" id="op-modal">
+  <div class="modal">
+    <h3 id="op-modal-title">新增操作人</h3>
+    <div class="form-grid">
+      <div class="field"><label>操作人姓名 *</label><input id="om-name" placeholder="如：文员"></div>
+      <div class="field"><label>绑定 PC</label><select id="om-pc"><option>办公室 1 号机</option><option>办公室 2 号机</option><option>老板办公室</option><option>不绑定（机动）</option></select></div>
+      <div class="field full"><label>备注</label><input id="om-note" placeholder="如：订单录入/计划单审核"></div>
+    </div>
+    <div class="actions">
+      <button class="btn modal-close" data-modal="op-modal">取消</button>
+      <button class="btn primary" id="om-confirm">保存操作人</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============ 预置数据 ============
-const catalogCfg = [
+let catalogCfg = [
   { prod: 'ANM 1/32" 乙炔', type: '英式乙炔', pack: '包装盒×50+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 2000 },
   { prod: 'PNM 3/32" 丙烷', type: '英式丙烷', pack: '定制盒×25+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 1500 },
   { prod: '6290 1/4" 美式', type: '美式乙炔', pack: '包装盒×100+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 1000 },
   { prod: '101 3/8" 美式', type: '美式丙烷', pack: '包装盒×100+纸箱', route: '下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装', safety: 800 },
 ];
-const customers = [
+let customers = [
   { name: 'Weldclass（澳洲）', contact: 'John', settle: '30%定金+70%发货前', aging: 30 },
   { name: 'Parweld（英国）', contact: 'Sarah', settle: '月结30天', aging: 30 },
   { name: 'SWP（英国）', contact: 'Mike', settle: '月结60天', aging: 60 },
   { name: 'Zaker Trading（中东）', contact: 'Ali', settle: '发货前付清', aging: 0 },
 ];
-const suppliers = [
+let suppliers = [
   { name: '桐乡铜业', contact: '王经理', settle: '预付30%' },
   { name: '本地纸箱厂', contact: '李老板', settle: '月结' },
   { name: '气体供应站', contact: '—', settle: '现结' },
+];
+let operators = [
+  { name: '文员', pc: '办公室 1 号机', note: '订单录入/计划单审核' },
+  { name: '仓管/财务', pc: '办公室 2 号机', note: '出入库/收付款' },
+  { name: '老板', pc: '老板办公室', note: '看数（利润/对账）' },
+  { name: '计划员', pc: '不绑定（机动）', note: '排期' },
 ];
 
 // 库存（SKU × 批次）
@@ -508,8 +593,28 @@ document.addEventListener('click', function (e) {
   if (oqcBtn) { doOqc(oqcBtn.dataset.id); return; }
   const stBtn = e.target.closest('.do-stocktake');
   if (stBtn) { openStocktake(stBtn.dataset.sku); return; }
+  // 设置页：新增
+  if (e.target.closest('#cfg-add-prod')) { openCfgModal('prod', null); return; }
+  if (e.target.closest('#cfg-add-cust')) { openCfgModal('cust', null); return; }
+  if (e.target.closest('#cfg-add-sup')) { openCfgModal('sup', null); return; }
+  if (e.target.closest('#cfg-add-op')) { openCfgModal('op', null); return; }
+  // 设置页：编辑/删除
+  const cfgEdit = e.target.closest('.cfg-edit');
+  if (cfgEdit) { openCfgModal(cfgEdit.dataset.kind, +cfgEdit.dataset.idx); return; }
+  const cfgDel = e.target.closest('.cfg-del');
+  if (cfgDel) { delCfg(cfgDel.dataset.kind, +cfgDel.dataset.idx); return; }
+  // 设置页：保存
+  if (e.target.closest('#pm-confirm')) { saveCfgModal('prod'); return; }
+  if (e.target.closest('#cm-confirm')) { saveCfgModal('cust'); return; }
+  if (e.target.closest('#sm-confirm')) { saveCfgModal('sup'); return; }
+  if (e.target.closest('#om-confirm')) { saveCfgModal('op'); return; }
   const fbSub = e.target.closest('.fb-submit');
   if (fbSub) { submitFb(fbSub.dataset.screen); return; }
+});
+// 操作人 PC 绑定下拉即时生效
+document.addEventListener('change', function (e) {
+  const pcSel = e.target.closest('.op-pc');
+  if (pcSel) { operators[+pcSel.dataset.idx].pc = pcSel.value; renderGlobalState(); }
 });
 
 function switchTab(tab) {
@@ -703,16 +808,123 @@ function renderCost() {
 
 // ============ 设置 ============
 function renderCfg() {
-  document.getElementById('cfg-catalog').innerHTML = catalogCfg.map(c => `
-    <tr><td>${c.prod}</td><td>${c.type}</td><td>${c.pack}</td><td style="font-size:11px;color:#666">${c.route}</td><td>${c.safety}</td></tr>`).join('');
-  document.getElementById('cfg-customer').innerHTML = customers.map(c => `
-    <tr><td>${c.name}</td><td>${c.contact}</td><td>${c.settle}</td><td>${c.aging} 天</td></tr>`).join('');
-  document.getElementById('cfg-supplier').innerHTML = suppliers.map(s => `
-    <tr><td>${s.name}</td><td>${s.contact}</td><td>${s.settle}</td></tr>`).join('');
-  document.getElementById('cfg-pc').innerHTML = `
-    <tr><td>办公室 1 号机</td><td>文员</td><td>订单录入/计划单审核</td></tr>
-    <tr><td>办公室 2 号机</td><td>仓管/财务</td><td>出入库/收付款</td></tr>
-    <tr><td>老板办公室</td><td>老板</td><td>看数（利润/对账）</td></tr>`;
+  document.getElementById('cfg-catalog').innerHTML = catalogCfg.map((c, i) => `
+    <tr>
+      <td>${c.prod}</td><td>${c.type}</td><td>${c.pack}</td>
+      <td style="font-size:11px;color:#666">${c.route}</td><td>${c.safety}</td>
+      <td>
+        <button class="link cfg-edit" data-kind="prod" data-idx="${i}">编辑</button>
+        <button class="link cfg-del" data-kind="prod" data-idx="${i}" style="color:#cf1322">删</button>
+      </td>
+    </tr>`).join('');
+  document.getElementById('cfg-customer').innerHTML = customers.map((c, i) => `
+    <tr>
+      <td>${c.name}</td><td>${c.contact}</td><td>${c.settle}</td><td>${c.aging} 天</td>
+      <td>
+        <button class="link cfg-edit" data-kind="cust" data-idx="${i}">编辑</button>
+        <button class="link cfg-del" data-kind="cust" data-idx="${i}" style="color:#cf1322">删</button>
+      </td>
+    </tr>`).join('');
+  document.getElementById('cfg-supplier').innerHTML = suppliers.map((s, i) => `
+    <tr>
+      <td>${s.name}</td><td>${s.contact}</td><td>${s.settle}</td>
+      <td>
+        <button class="link cfg-edit" data-kind="sup" data-idx="${i}">编辑</button>
+        <button class="link cfg-del" data-kind="sup" data-idx="${i}" style="color:#cf1322">删</button>
+      </td>
+    </tr>`).join('');
+  document.getElementById('cfg-pc').innerHTML = operators.map((o, i) => `
+    <tr>
+      <td>${o.name}</td>
+      <td><select class="op-pc" data-idx="${i}">
+        <option ${o.pc === '办公室 1 号机' ? 'selected' : ''}>办公室 1 号机</option>
+        <option ${o.pc === '办公室 2 号机' ? 'selected' : ''}>办公室 2 号机</option>
+        <option ${o.pc === '老板办公室' ? 'selected' : ''}>老板办公室</option>
+        <option ${o.pc === '不绑定（机动）' ? 'selected' : ''}>不绑定（机动）</option>
+      </select></td>
+      <td style="font-size:12px;color:#666">${o.note}</td>
+      <td>
+        <button class="link cfg-edit" data-kind="op" data-idx="${i}">编辑</button>
+        <button class="link cfg-del" data-kind="op" data-idx="${i}" style="color:#cf1322">删</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ============ 设置页交互 ============
+let cfgEditIdx = null; // 编辑中的索引，null = 新增
+
+function openCfgModal(kind, idx) {
+  cfgEditIdx = idx;
+  const titles = { prod: '产品', cust: '客户', sup: '供应商', op: '操作人' };
+  if (kind === 'prod') {
+    document.getElementById('prod-modal-title').textContent = (idx === null ? '新增' : '编辑') + '产品';
+    const c = idx !== null ? catalogCfg[idx] : null;
+    document.getElementById('pm-name').value = c ? c.prod : '';
+    document.getElementById('pm-type').value = c ? c.type : '英式乙炔';
+    document.getElementById('pm-pack').value = c ? c.pack : '';
+    document.getElementById('pm-route').value = c ? c.route : '';
+    document.getElementById('pm-safety').value = c ? c.safety : 1000;
+    document.getElementById('prod-modal').style.display = 'flex';
+  } else if (kind === 'cust') {
+    document.getElementById('cust-modal-title').textContent = (idx === null ? '新增' : '编辑') + '客户';
+    const c = idx !== null ? customers[idx] : null;
+    document.getElementById('cm-name').value = c ? c.name : '';
+    document.getElementById('cm-contact').value = c ? c.contact : '';
+    document.getElementById('cm-settle').value = c ? c.settle : '月结30天';
+    document.getElementById('cm-aging').value = c ? c.aging : 30;
+    document.getElementById('cust-modal').style.display = 'flex';
+  } else if (kind === 'sup') {
+    document.getElementById('sup-modal-title').textContent = (idx === null ? '新增' : '编辑') + '供应商';
+    const s = idx !== null ? suppliers[idx] : null;
+    document.getElementById('sm-name').value = s ? s.name : '';
+    document.getElementById('sm-contact').value = s ? s.contact : '';
+    document.getElementById('sm-settle').value = s ? s.settle : '月结';
+    document.getElementById('sup-modal').style.display = 'flex';
+  } else if (kind === 'op') {
+    document.getElementById('op-modal-title').textContent = (idx === null ? '新增' : '编辑') + '操作人';
+    const o = idx !== null ? operators[idx] : null;
+    document.getElementById('om-name').value = o ? o.name : '';
+    document.getElementById('om-pc').value = o ? o.pc : '不绑定（机动）';
+    document.getElementById('om-note').value = o ? o.note : '';
+    document.getElementById('op-modal').style.display = 'flex';
+  }
+}
+
+function saveCfgModal(kind) {
+  if (kind === 'prod') {
+    const name = document.getElementById('pm-name').value.trim();
+    if (!name) return;
+    const data = { prod: name, type: document.getElementById('pm-type').value, pack: document.getElementById('pm-pack').value || '—', route: document.getElementById('pm-route').value || '—', safety: +document.getElementById('pm-safety').value || 0 };
+    if (cfgEditIdx !== null) catalogCfg[cfgEditIdx] = data; else catalogCfg.push(data);
+    document.getElementById('prod-modal').style.display = 'none';
+  } else if (kind === 'cust') {
+    const name = document.getElementById('cm-name').value.trim();
+    if (!name) return;
+    const data = { name, contact: document.getElementById('cm-contact').value || '—', settle: document.getElementById('cm-settle').value, aging: +document.getElementById('cm-aging').value || 0 };
+    if (cfgEditIdx !== null) customers[cfgEditIdx] = data; else customers.push(data);
+    document.getElementById('cust-modal').style.display = 'none';
+  } else if (kind === 'sup') {
+    const name = document.getElementById('sm-name').value.trim();
+    if (!name) return;
+    const data = { name, contact: document.getElementById('sm-contact').value || '—', settle: document.getElementById('sm-settle').value };
+    if (cfgEditIdx !== null) suppliers[cfgEditIdx] = data; else suppliers.push(data);
+    document.getElementById('sup-modal').style.display = 'none';
+  } else if (kind === 'op') {
+    const name = document.getElementById('om-name').value.trim();
+    if (!name) return;
+    const data = { name, pc: document.getElementById('om-pc').value, note: document.getElementById('om-note').value || '—' };
+    if (cfgEditIdx !== null) operators[cfgEditIdx] = data; else operators.push(data);
+    document.getElementById('op-modal').style.display = 'none';
+  }
+  renderCfg(); renderGlobalState();
+}
+
+function delCfg(kind, idx) {
+  if (kind === 'prod') catalogCfg.splice(idx, 1);
+  if (kind === 'cust') customers.splice(idx, 1);
+  if (kind === 'sup') suppliers.splice(idx, 1);
+  if (kind === 'op') operators.splice(idx, 1);
+  renderCfg(); renderGlobalState();
 }
 
 // ============ 弹窗：出库 ============
@@ -823,7 +1035,7 @@ function renderGlobalState() {
   const stockTotal = stocks.reduce((s, x) => s + x.qty, 0);
   const arTotal = receivables.reduce((s, r) => s + (r.amt - r.paid), 0);
   const apTotal = payables.reduce((s, p) => s + (p.amt - p.paid), 0);
-  el.textContent = '库存 ' + stockTotal + ' 只（低库存 ' + stocks.filter(x=>x.qty<x.safety).length + ' SKU）｜ 应收未收 ¥' + arTotal + ' ｜ 应付未付 ¥' + apTotal + ' ｜ 反馈 ' + feedbacks.length + ' 条';
+  el.textContent = '库存 ' + stockTotal + ' 只（低库存 ' + stocks.filter(x=>x.qty<x.safety).length + ' SKU）｜ 应收未收 ¥' + arTotal + ' ｜ 应付未付 ¥' + apTotal + ' ｜ 主数据：产品 ' + catalogCfg.length + ' / 客户 ' + customers.length + ' / 供应商 ' + suppliers.length + ' / 操作人 ' + operators.length + ' ｜ 反馈 ' + feedbacks.length + ' 条';
 }
 
 renderAll();
