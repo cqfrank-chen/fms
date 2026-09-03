@@ -67,3 +67,20 @@ export const IQC_LABEL: Record<string, string> = {
   pending: '待检（线下纸质）',
   passed: '合格',
 }
+
+/** 收付款模式 */
+export const SLIP_MODE_LABEL: Record<string, string> = {
+  settle: '核销',
+  prepay: '预收/预付',
+}
+
+/** 月度成本六类 */
+export const COST_CATEGORY_LABEL: Record<string, string> = {
+  labor: '人工',
+  electricity: '电费',
+  gas: '燃气',
+  rent: '房租',
+  depreciation: '折旧',
+  other: '其他',
+}
+export const COST_CATEGORY_ORDER = ['labor', 'electricity', 'gas', 'rent', 'depreciation', 'other']

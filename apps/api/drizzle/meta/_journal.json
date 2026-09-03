@@ -43,6 +43,13 @@
       "when": 1788457371543,
       "tag": "0005_strong_mesmero",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788458093594,
+      "tag": "0006_stormy_skaar",
+      "breakpoints": true
     }
   ]
 }

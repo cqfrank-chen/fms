@@ -163,3 +163,101 @@ export interface Stocktake {
   createdAt: string
   confirmedAt?: string | null
 }
+
+// ---------- 账目域（I09） ----------
+
+export interface Receivable {
+  id: number
+  recvNo: string
+  customerId: number
+  customerName?: string
+  sourceType: string
+  sourceId: number
+  shipNo?: string
+  amount: number
+  currency: string
+  settledAmount: number
+  status: ReceiptStatus
+  dueDate?: string | null
+  createdAt: string
+  remain: number
+  overDue: boolean
+  ageDays: number
+  bucket: 'current' | 'd30' | 'd60' | 'd90' | 'd90p'
+  settled: boolean
+}
+
+export interface Payable {
+  id: number
+  payNo: string
+  supplierId: number
+  supplierName?: string
+  sourceType: string
+  sourceId: number
+  incomingNo?: string
+  amount: number
+  settledAmount: number
+  status: ReceiptStatus
+  createdAt: string
+  remain: number
+  settled: boolean
+}
+
+export type SlipMode = 'settle' | 'prepay'
+export type SlipStatus = 'confirmed' | 'voided'
+
+export interface SlipLine { id: number; amount: number; recvNo?: string; payNo?: string }
+export interface CollectionSlip {
+  id: number
+  collectNo: string
+  customerId: number
+  customerName?: string
+  mode: SlipMode
+  amount: number
+  status: SlipStatus
+  note?: string | null
+  createdAt: string
+  lines: SlipLine[]
+}
+export interface PaymentSlip {
+  id: number
+  payNo: string
+  supplierId: number
+  supplierName?: string
+  mode: SlipMode
+  amount: number
+  status: SlipStatus
+  note?: string | null
+  createdAt: string
+  lines: SlipLine[]
+}
+
+export interface StatementRow {
+  customerId: number
+  customerName: string
+  invoiced: number
+  settled: number
+  prepay: number
+  balance: number
+  buckets: { current: number; d30: number; d60: number; d90: number; d90p: number }
+  overDueTotal: number
+}
+
+export interface ProfitView {
+  month: string
+  revenue: number
+  revenueByCustomer: Array<{ customer: string; amount: number }>
+  material: number
+  costs: { labor: number; electricity: number; gas: number; rent: number; depreciation: number; other: number }
+  manufactureCost: number
+  totalCost: number
+  profit: number
+}
+
+export interface MonthlyCost {
+  id: number
+  month: string
+  category: string
+  amount: number
+  note?: string | null
+}

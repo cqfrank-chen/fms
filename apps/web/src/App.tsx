@@ -6,6 +6,7 @@ import SetupPage from './pages/SetupPage'
 import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
 import WarehousePage from './pages/WarehousePage'
+import AccountingPage from './pages/AccountingPage'
 
 interface HealthInfo { status: string; db: string; time: string }
 interface TestProduct {
@@ -84,7 +85,7 @@ export default function App() {
           {page === 'plans' && <PlansPage />}
           {page === 'schedule' && <ComingSoon title="排程" desc="I11 实施：甘特拖排（I10 先验证甘特库选型）" />}
           {page === 'warehouse' && <WarehousePage />}
-          {page === 'accounting' && <ComingSoon title="账目" desc="I09 实施：应收应付/收付款/对账/利润视图" />}
+          {page === 'accounting' && <AccountingPage />}
         </Content>
       </Layout>
     </Layout>
@@ -136,7 +137,7 @@ function AlertStrip() {
             { label: 'I06 报工', done: true },
             { label: 'I07 反查', done: true },
             { label: 'I08 仓储', done: true },
-            { label: 'I09 账目', done: false },
+            { label: 'I09 账目', done: true },
             { label: 'I10 甘特验证', done: false },
             { label: 'I11 排程', done: false },
             { label: 'I12 AI 一期', done: false },

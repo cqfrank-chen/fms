@@ -371,3 +371,97 @@ export type Receivable = typeof receivables.$inferSelect;
 export type NewReceivable = typeof receivables.$inferInsert;
 export type Payable = typeof payables.$inferSelect;
 export type NewPayable = typeof payables.$inferInsert;
+
+// ============================================================
+// 账目单据（I09）：收款/付款单一步生效（核销+预收/预付双模式）+ 月度成本
+// ============================================================
+
+/** 收付款单状态：一步生效 → 冲销纠错（无草稿态） */
+export const slipStatusEnum = pgEnum('slip_status', ['confirmed', 'voided']);
+/** 收付款模式：核销（冲抵应收/应付） / 预收预付（挂余额，后续出库/来料再核销） */
+export const slipModeEnum = pgEnum('slip_mode', ['settle', 'prepay']);
+
+/** 收款单：核销 + 预收双模式；营收=收款核销（现金收付制） */
+export const collectionSlips = pgTable('collection_slips', {
+  id: serial('id').primaryKey(),
+  collectNo: text('collect_no').notNull().unique(), // CO-YYYYMMDD-NN
+  customerId: integer('customer_id')
+    .notNull()
+    .references(() => customers.id),
+  mode: slipModeEnum('mode').notNull(), // settle 核销应收 / prepay 预收（挂客户贷方余额）
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+  status: slipStatusEnum('status').default('confirmed').notNull(), // 一步生效
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+});
+
+/** 收款核销明细：收款单 → 应收（支持一张收款单核销多笔应收 / 部分核销） */
+export const collectionSlipLines = pgTable('collection_slip_lines', {
+  id: serial('id').primaryKey(),
+  slipId: integer('slip_id')
+    .notNull()
+    .references(() => collectionSlips.id, { onDelete: 'cascade' }),
+  receivableId: integer('receivable_id')
+    .notNull()
+    .references(() => receivables.id),
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+});
+
+/** 付款单（与收款单同构）：核销 + 预付双模式 */
+export const paymentSlips = pgTable('payment_slips', {
+  id: serial('id').primaryKey(),
+  payNo: text('pay_no').notNull().unique(), // PM-YYYYMMDD-NN
+  supplierId: integer('supplier_id')
+    .notNull()
+    .references(() => suppliers.id),
+  mode: slipModeEnum('mode').notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+  status: slipStatusEnum('status').default('confirmed').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+});
+
+/** 付款核销明细 */
+export const paymentSlipLines = pgTable('payment_slip_lines', {
+  id: serial('id').primaryKey(),
+  slipId: integer('slip_id')
+    .notNull()
+    .references(() => paymentSlips.id, { onDelete: 'cascade' }),
+  payableId: integer('payable_id')
+    .notNull()
+    .references(() => payables.id),
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+});
+
+/** 月度成本固定六类（材料自动从来料汇总，不在此手填） */
+export const costCategoryEnum = pgEnum('cost_category', [
+  'labor', // 人工
+  'electricity', // 电费
+  'gas', // 燃气
+  'rent', // 房租
+  'depreciation', // 折旧
+  'other', // 其他
+]);
+
+/** 月度成本：每月每类一笔（unique month+category） */
+export const monthlyCosts = pgTable('monthly_costs', {
+  id: serial('id').primaryKey(),
+  month: text('month').notNull(), // 'YYYY-MM'
+  category: costCategoryEnum('category').notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex('monthly_cost_month_cat_uq').on(t.month, t.category)]);
+
+export type CollectionSlip = typeof collectionSlips.$inferSelect;
+export type NewCollectionSlip = typeof collectionSlips.$inferInsert;
+export type CollectionSlipLine = typeof collectionSlipLines.$inferSelect;
+export type NewCollectionSlipLine = typeof collectionSlipLines.$inferInsert;
+export type PaymentSlip = typeof paymentSlips.$inferSelect;
+export type NewPaymentSlip = typeof paymentSlips.$inferInsert;
+export type PaymentSlipLine = typeof paymentSlipLines.$inferSelect;
+export type NewPaymentSlipLine = typeof paymentSlipLines.$inferInsert;
+export type MonthlyCost = typeof monthlyCosts.$inferSelect;
+export type NewMonthlyCost = typeof monthlyCosts.$inferInsert;
