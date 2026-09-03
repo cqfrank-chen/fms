@@ -5,6 +5,7 @@ import type { MenuProps } from 'antd'
 import SetupPage from './pages/SetupPage'
 import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
+import WarehousePage from './pages/WarehousePage'
 
 interface HealthInfo { status: string; db: string; time: string }
 interface TestProduct {
@@ -82,7 +83,7 @@ export default function App() {
           {page === 'setup' && <SetupPage />}
           {page === 'plans' && <PlansPage />}
           {page === 'schedule' && <ComingSoon title="排程" desc="I11 实施：甘特拖排（I10 先验证甘特库选型）" />}
-          {page === 'warehouse' && <ComingSoon title="仓储" desc="I08 实施：库存/入库/出库/来料/盘点/冲销" />}
+          {page === 'warehouse' && <WarehousePage />}
           {page === 'accounting' && <ComingSoon title="账目" desc="I09 实施：应收应付/收付款/对账/利润视图" />}
         </Content>
       </Layout>
@@ -134,7 +135,7 @@ function AlertStrip() {
             { label: 'I05 计划单', done: true },
             { label: 'I06 报工', done: true },
             { label: 'I07 反查', done: true },
-            { label: 'I08 仓储', done: false },
+            { label: 'I08 仓储', done: true },
             { label: 'I09 账目', done: false },
             { label: 'I10 甘特验证', done: false },
             { label: 'I11 排程', done: false },
@@ -144,7 +145,7 @@ function AlertStrip() {
           ))}
         </Space>
         <Typography.Text type="secondary">
-          阶段 ② 订单线已交付验收：录单→确认→审核→报工→订单完成全流程走通（I04~I07）。正在实施 ③ 仓储账目线 I08。
+          阶段 ③ 仓储已交付（I08）：入库确认/出库 OQC 先检后出/FIFO 扣库存/来料登记/盘点校准/冲销。正在实施 I09 账目域。
         </Typography.Text>
       </Space>
     </Card>

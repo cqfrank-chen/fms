@@ -1,4 +1,4 @@
-import { integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /** 技术验证演示实体（I01）：最小 CRUD 的载体，订单线完成后下线 */
 export const testProducts = pgTable('test_products', {
@@ -203,8 +203,8 @@ export type NewPlanSheetLine = typeof planSheetLines.$inferInsert;
 // 仓储（I06 报工触发入库草稿；I08 完整：确认入账/库存/出库/来料/盘点/冲销）
 // ============================================================
 
-/** 入库单两态：草稿（报工自动触发）→ 已确认（仓管入账，I08） */
-export const receiptStatusEnum = pgEnum('receipt_status', ['draft', 'confirmed']);
+/** 入库单三态：草稿（报工自动触发）→ 已确认（仓管入账）→ 已冲销（纠错抵销） */
+export const receiptStatusEnum = pgEnum('receipt_status', ['draft', 'confirmed', 'voided']);
 
 /** 入库单（Goods Receipt）：报工触发草稿（预填产品/数量/批次）→ 仓管确认 → 库存+（I08） */
 export const goodsReceipts = pgTable('goods_receipts', {
@@ -239,3 +239,135 @@ export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
 export type NewGoodsReceipt = typeof goodsReceipts.$inferInsert;
 export type GoodsReceiptLine = typeof goodsReceiptLines.$inferSelect;
 export type NewGoodsReceiptLine = typeof goodsReceiptLines.$inferInsert;
+
+/** 成品库存（SKU×批次）：只管成品；允许负库存；安全库存标红预警在前端 */
+export const inventory = pgTable('inventory', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id),
+  batchNo: text('batch_no').notNull(), // 成品批次 FG-YYYYMMDD-NN
+  quantity: integer('quantity').default(0).notNull(), // 当前库存（可为负）
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex('inventory_product_batch_uq').on(t.productId, t.batchNo)]);
+
+/** OQC 判定：待检/合格放行/免检 */
+export const oqcStatusEnum = pgEnum('oqc_status', ['pending', 'passed', 'exempt']);
+/** 出库单状态：草稿 → 待检（已提交，正常单）→ 已出库（OQC 放行/免检直出）→ 已冲销 */
+export const outboundStatusEnum = pgEnum('outbound_status', ['draft', 'pending', 'shipped', 'voided']);
+
+/** 出库单：挂订单、可分批（行引用订单行）、OQC 先检后出；确认后扣库存 + 自动生成应收（I09 消费） */
+export const outbounds = pgTable('outbounds', {
+  id: serial('id').primaryKey(),
+  shipNo: text('ship_no').notNull().unique(), // 出库单号 OUT-YYYYMMDD-NN
+  orderId: integer('order_id')
+    .notNull()
+    .references(() => orders.id), // 挂订单（发货对象）
+  oqc: oqcStatusEnum('oqc').notNull(), // 本单 OQC 模式：exempt 免检直出 / 其余走待检
+  status: outboundStatusEnum('status').default('draft').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  shippedAt: timestamp('shipped_at', { withTimezone: true }),
+});
+
+/** 出库单行：引用订单行 × 本批发货数量（≤ 订单行剩余），包装快照 */
+export const outboundLines = pgTable('outbound_lines', {
+  id: serial('id').primaryKey(),
+  outboundId: integer('outbound_id')
+    .notNull()
+    .references(() => outbounds.id, { onDelete: 'cascade' }),
+  orderLineId: integer('order_line_id')
+    .notNull()
+    .references(() => orderLines.id),
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id),
+  quantity: integer('quantity').notNull(),
+  packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求快照（自订单行）
+});
+
+/** 来料检验状态（IQC 预留，一期线下纸质） */
+export const iqcStatusEnum = pgEnum('iqc_status', ['pending', 'passed']);
+
+/** 来料登记单（超轻量）：不维护库存；带金额自动生成应付 */
+export const incomingGoods = pgTable('incoming_goods', {
+  id: serial('id').primaryKey(),
+  incomingNo: text('incoming_no').notNull().unique(), // 登记单号 IN-YYYYMMDD-NN
+  supplierId: integer('supplier_id')
+    .notNull()
+    .references(() => suppliers.id),
+  materialName: text('material_name').notNull(), // 物料名（如 黄铜棒 φ20）
+  quantity: integer('quantity').notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(), // 金额（元）
+  batchNo: text('batch_no'), // 供应商批次（追溯）
+  iqcStatus: iqcStatusEnum('iqc_status').default('pending').notNull(), // IQC 预留
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** 盘点单：账面→实盘→差异；确认后校准库存（盘盈/盘亏调整，全程留痕） */
+export const stocktakes = pgTable('stocktakes', {
+  id: serial('id').primaryKey(),
+  stocktakeNo: text('stocktake_no').notNull().unique(), // ST-YYYYMMDD-NN
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id),
+  batchNo: text('batch_no').notNull(),
+  bookQty: integer('book_qty').notNull(), // 账面数（建档时库存快照）
+  actualQty: integer('actual_qty').notNull(), // 实盘数
+  diffQty: integer('diff_qty').notNull(), // 差异（实盘-账面）
+  status: receiptStatusEnum('status').default('draft').notNull(), // 复用：草稿→已确认（校准）→已冲销
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+});
+
+// ============================================================
+// 账目事件落点（I08 事件写入；I09 界面/核销/对账）
+// ============================================================
+
+/** 应收（出库自动生成；金额按订单币种记录） */
+export const receivables = pgTable('receivables', {
+  id: serial('id').primaryKey(),
+  recvNo: text('recv_no').notNull().unique(), // 应收号 REC-YYYYMMDD-NN
+  customerId: integer('customer_id')
+    .notNull()
+    .references(() => customers.id),
+  sourceType: text('source_type').notNull(), // 'outbound'（本期仅出库）
+  sourceId: integer('source_id').notNull(), // 来源出库单 id
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+  currency: text('currency').default('RMB').notNull(), // 订单币种快照
+  settledAmount: numeric('settled_amount', { precision: 10, scale: 2, mode: 'number' }).default(0).notNull(), // 已核销（I09）
+  status: receiptStatusEnum('status').default('draft').notNull(), // 复用三态：开立→(核销完 I09)→冲销
+  dueDate: timestamp('due_date', { withTimezone: true }), // 到期（客户账期计算，I09 对账）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** 应付（来料登记自动生成） */
+export const payables = pgTable('payables', {
+  id: serial('id').primaryKey(),
+  payNo: text('pay_no').notNull().unique(), // 应付号 PAY-YYYYMMDD-NN
+  supplierId: integer('supplier_id')
+    .notNull()
+    .references(() => suppliers.id),
+  sourceType: text('source_type').notNull(), // 'incoming'
+  sourceId: integer('source_id').notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+  settledAmount: numeric('settled_amount', { precision: 10, scale: 2, mode: 'number' }).default(0).notNull(), // I09
+  status: receiptStatusEnum('status').default('draft').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type Inventory = typeof inventory.$inferSelect;
+export type NewInventory = typeof inventory.$inferInsert;
+export type Outbound = typeof outbounds.$inferSelect;
+export type NewOutbound = typeof outbounds.$inferInsert;
+export type OutboundLine = typeof outboundLines.$inferSelect;
+export type NewOutboundLine = typeof outboundLines.$inferInsert;
+export type IncomingGoods = typeof incomingGoods.$inferSelect;
+export type NewIncomingGoods = typeof incomingGoods.$inferInsert;
+export type Stocktake = typeof stocktakes.$inferSelect;
+export type NewStocktake = typeof stocktakes.$inferInsert;
+export type Receivable = typeof receivables.$inferSelect;
+export type NewReceivable = typeof receivables.$inferInsert;
+export type Payable = typeof payables.$inferSelect;
+export type NewPayable = typeof payables.$inferInsert;

@@ -39,3 +39,31 @@ export const CURRENCY_LABEL: Record<string, string> = {
   RMB: 'RMB',
   USD: 'USD',
 }
+
+/** 仓储单据三态（入库/盘点/应收/应付） */
+export const RECEIPT_STATUS_LABEL: Record<string, string> = {
+  draft: '草稿',
+  confirmed: '已确认',
+  voided: '已冲销',
+}
+
+/** OQC 判定 */
+export const OQC_LABEL: Record<string, string> = {
+  pending: '待检',
+  passed: '合格放行',
+  exempt: '免检',
+}
+
+/** 出库单状态 */
+export const OUTBOUND_STATUS_LABEL: Record<string, string> = {
+  draft: '草稿',
+  pending: 'OQC 待检',
+  shipped: '已出库',
+  voided: '已冲销',
+}
+
+/** IQC 检验状态（一期线下预留） */
+export const IQC_LABEL: Record<string, string> = {
+  pending: '待检（线下纸质）',
+  passed: '合格',
+}

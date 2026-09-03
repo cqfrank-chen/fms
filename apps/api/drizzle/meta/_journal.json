@@ -36,6 +36,13 @@
       "when": 1788456908328,
       "tag": "0004_nappy_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788457371543,
+      "tag": "0005_strong_mesmero",
+      "breakpoints": true
     }
   ]
 }
