@@ -3,13 +3,16 @@ import { Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Select, S
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
-import { PACK_LABEL, STATUS_LABEL } from '../lib/labels'
-import type { Customer, OrderLine, PlanSheet } from '../lib/types'
+import { CURRENCY_LABEL, PACK_LABEL, STATUS_LABEL } from '../lib/labels'
+import type { Customer, Order, OrderLine, PlanSheet } from '../lib/types'
 
 const { Text } = Typography
 
 const statusColor = (v: string) =>
   v === 'completed' ? 'success' : v === 'draft' ? 'default' : v === 'cancelled' ? 'error' : 'processing'
+
+/** 计划单五态筛选白名单（计划单无 cancelled，订单无 voided，勿共用 STATUS_LABEL 全表） */
+const PLAN_FILTER = ['draft', 'confirmed', 'production', 'completed', 'voided']
 
 /**
  * 计划单页（I05）：订单确认自动生成的草稿 → 计划员审核
@@ -28,6 +31,15 @@ function PlansPage() {
   const [reportLineId, setReportLineId] = useState<number>()
   const [reportQty, setReportQty] = useState<number | null>(null)
   const [reporting, setReporting] = useState(false)
+  const [traceOrder, setTraceOrder] = useState<Order | null>(null)
+
+  async function openTrace(orderId: number) {
+    try {
+      setTraceOrder(await api<Order>(`/orders/${orderId}`))
+    } catch (e) {
+      message.error('来源订单反查失败：' + (e as Error).message)
+    }
+  }
 
   useEffect(() => { api<Customer[]>('/customers').then(setCustomers).catch(() => {}) }, [])
 
@@ -93,13 +105,17 @@ function PlansPage() {
     {
       title: '产品行', render: (_, r) => (
         <Space direction="vertical" size={2}>
-          {r.lines?.map((l, i) => (
-            <div key={i} style={{ fontSize: 12 }}>
-              {l.productName} × {l.quantity}
-              {(l.completedQuantity ?? 0) > 0 && <Text type="success">（完成 {l.completedQuantity}/{l.quantity}）</Text>}
-              {l.engraving ? ` ✒${l.engraving}` : ''}
-            </div>
-          ))}
+          {r.lines?.map((l, i) => {
+            const done = l.completedQuantity ?? 0
+            const mark = done >= l.quantity ? '✅' : done > 0 ? '🔄' : ''
+            return (
+              <div key={i} style={{ fontSize: 12 }}>
+                {mark} {l.productName} × {l.quantity}
+                {done > 0 && <Text type={done >= l.quantity ? 'success' : undefined}>（{done}/{l.quantity}）</Text>}
+                {l.engraving ? ` ✒${l.engraving}` : ''}
+              </div>
+            )
+          })}
         </Space>
       ),
     },
@@ -126,7 +142,7 @@ function PlansPage() {
   const filterBar = (
     <Space wrap style={{ marginBottom: 12 }}>
       <Select style={{ width: 130 }} value={status} onChange={setStatus} placeholder="全部状态"
-        options={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))} allowClear />
+        options={PLAN_FILTER.map((value) => ({ value, label: STATUS_LABEL[value] ?? value }))} allowClear />
       <Select style={{ width: 180 }} value={customerId} onChange={setCustomerId} placeholder="全部客户"
         options={customers.map((c) => ({ value: c.id, label: c.name }))} allowClear />
       <Input.Search placeholder="计划单号搜索" style={{ width: 200 }} allowClear
@@ -140,7 +156,9 @@ function PlansPage() {
       <Table<PlanSheet> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
         locale={{ emptyText: <Empty description="暂无计划单 —— 订单列表点「确认」自动生成草稿（I05）" /> }} />
-      {detail && <PlanDetail plan={detail} onClose={() => setDetail(null)} />}
+      {detail && <PlanDetail plan={detail} onClose={() => setDetail(null)} onTrace={() => openTrace(detail.orderId)} />
+      }
+      {traceOrder && <OrderTraceModal order={traceOrder} onClose={() => setTraceOrder(null)} />}
       <Modal
         title={`行报工 ${reportPlan?.planNo ?? ''}`}
         open={!!reportPlan} onCancel={() => setReportPlan(null)}
@@ -178,9 +196,19 @@ function PlansPage() {
 }
 
 /** 计划单详情：单头（含来源订单信息）+ 行（可反查订单行） */
-function PlanDetail({ plan, onClose }: { plan: PlanSheet; onClose: () => void }) {
+function PlanDetail({ plan, onClose, onTrace }: { plan: PlanSheet; onClose: () => void; onTrace: () => void }) {
   return (
-    <Modal title={`计划单详情 ${plan.planNo}`} open onCancel={onClose} footer={<Button onClick={onClose}>关闭</Button>} width={820}>
+    <Modal
+      title={`计划单详情 ${plan.planNo}`}
+      open onCancel={onClose}
+      footer={
+        <Space>
+          <Button onClick={onTrace}>反查来源订单</Button>
+          <Button type="primary" onClick={onClose}>关闭</Button>
+        </Space>
+      }
+      width={820}
+    >
       <Descriptions size="small" column={3} bordered style={{ marginBottom: 16 }}>
         <Descriptions.Item label="状态"><Tag color={statusColor(plan.status)}>{STATUS_LABEL[plan.status]}</Tag></Descriptions.Item>
         <Descriptions.Item label="来源订单">{plan.orderNo}</Descriptions.Item>
@@ -201,6 +229,40 @@ function PlanDetail({ plan, onClose }: { plan: PlanSheet; onClose: () => void })
           { title: '刻字', dataIndex: 'engraving', width: 140, render: (v?: string | null) => (v ? `✒${v}` : '—') },
           { title: '包装要求', width: 220, render: (_, l) => {
             const pack = (l as unknown as { packaging?: Record<string, string> }).packaging ?? {}
+            const txt = Object.entries(pack).map(([k, v]) => `${PACK_LABEL[k] ?? k}:${v}`).join('；')
+            return <span style={{ fontSize: 12 }}>{txt || '—'}</span>
+          } },
+        ]}
+      />
+    </Modal>
+  )
+}
+
+/** 来源订单反查：完整订单详情（单头+行：单价/币种/金额/刻字/包装） */
+function OrderTraceModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const total = order.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)
+  return (
+    <Modal title={`来源订单 ${order.orderNo}`} open onCancel={onClose} footer={<Button type="primary" onClick={onClose}>关闭</Button>} width={860}>
+      <Descriptions size="small" column={3} bordered style={{ marginBottom: 16 }}>
+        <Descriptions.Item label="状态"><Tag color={statusColor(order.status)}>{STATUS_LABEL[order.status] ?? order.status}</Tag></Descriptions.Item>
+        <Descriptions.Item label="客户">{order.customerName || '—'}</Descriptions.Item>
+        <Descriptions.Item label="PO号">{order.poNo || '—'}</Descriptions.Item>
+        <Descriptions.Item label="交期">{dayjs(order.dueDate).format('YYYY-MM-DD')}</Descriptions.Item>
+        <Descriptions.Item label="下单时间">{dayjs(order.createdAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+        <Descriptions.Item label="订单金额">{total.toLocaleString()} {CURRENCY_LABEL[order.lines[0]?.currency ?? ''] ?? ''}</Descriptions.Item>
+        <Descriptions.Item label="备注" span={3}>{order.note || '—'}</Descriptions.Item>
+      </Descriptions>
+      <Table<OrderLine>
+        rowKey={(l) => String(l.id)}
+        size="small" bordered pagination={false} dataSource={order.lines}
+        columns={[
+          { title: '产品', dataIndex: 'productName' },
+          { title: '数量', dataIndex: 'quantity', width: 90 },
+          { title: '单价', width: 110, render: (_, l) => `${l.unitPrice} ${CURRENCY_LABEL[l.currency] ?? l.currency}` },
+          { title: '小计', width: 120, render: (_, l) => (l.quantity * l.unitPrice).toLocaleString() },
+          { title: '刻字', dataIndex: 'engraving', width: 130, render: (v?: string | null) => (v ? `✒${v}` : '—') },
+          { title: '包装要求', width: 200, render: (_, l) => {
+            const pack = (l.packaging ?? {}) as Record<string, string>
             const txt = Object.entries(pack).map(([k, v]) => `${PACK_LABEL[k] ?? k}:${v}`).join('；')
             return <span style={{ fontSize: 12 }}>{txt || '—'}</span>
           } },
