@@ -1,20 +1,31 @@
+# ============================================================
+# 工厂管理系统 · Docker Compose 正式版（I02 地基完备化）
+# 拓扑：nginx(80) → app(NestJS:3000) → postgres(18)
+# 约束：postgres 不暴露宿主机端口（ADR-0001）；数据入卷 pgdata
+# 用法：docker compose up -d --build（或根目录 install.bat）
+# 变量：默认值见下，可用根目录 .env 覆盖（模板 .env.example）
+# ============================================================
+
 services:
   postgres:
     image: postgres:18
+    container_name: fms-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: fms
-      POSTGRES_PASSWORD: fms
-      POSTGRES_DB: fms
+      POSTGRES_USER: ${DB_USER:-fms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fms}
+      POSTGRES_DB: ${DB_NAME:-fms}
     volumes:
       # PG18+ 要求挂 /var/lib/postgresql（内部按主版本子目录存放），
       # 直接挂 /var/lib/postgresql/data 会报 "unused mount/volume" 错误
       - pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fms"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fms}"]
       interval: 5s
       timeout: 3s
       retries: 10
-    # 生产约束：不暴露宿主机端口（ADR-0001）
+      start_period: 10s
+    # 生产约束：不暴露宿主机端口（仅 compose 内网可达）
     # 开发直连时放开注释：
     # ports:
     #   - "5432:5432"
@@ -22,13 +33,14 @@ services:
   app:
     build:
       context: ./apps/api
-      dockerfile: Dockerfile
+    container_name: fms-app
+    restart: unless-stopped
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USER: fms
-      DB_PASSWORD: fms
-      DB_NAME: fms
+      DB_USER: ${DB_USER:-fms}
+      DB_PASSWORD: ${DB_PASSWORD:-fms}
+      DB_NAME: ${DB_NAME:-fms}
       PORT: 3000
     depends_on:
       postgres:
@@ -38,8 +50,10 @@ services:
     build:
       context: .
       dockerfile: deploy/Dockerfile
+    container_name: fms-nginx
+    restart: unless-stopped
     ports:
-      - "80:80"
+      - "${HTTP_PORT:-80}:80"
     depends_on:
       - app
 

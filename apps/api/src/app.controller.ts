@@ -5,8 +5,20 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  /** 根路由：服务名（供探活/人工确认） */
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  getServiceName(): string {
+    return this.appService.getServiceName();
+  }
+
+  /** 健康检查：API + 数据库连通性（首页状态徽标消费） */
+  @Get('health')
+  async health(): Promise<{ status: string; db: string; time: string }> {
+    const dbOk = await this.appService.checkDb();
+    return {
+      status: dbOk ? 'ok' : 'degraded',
+      db: dbOk ? 'up' : 'down',
+      time: new Date().toISOString(),
+    };
   }
 }

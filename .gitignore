@@ -10,7 +10,9 @@ dist/
 
 # Environment / secrets
 .env
-.env.*
+.env.local
+# 保留 .env.example 模板入库
+!.env.example
 
 # OS
 Thumbs.db
