@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { customers, orderLines, orders, planSheetLines, planSheets, products } from '../db/schema';
+import {
+  customers, goodsReceiptLines, goodsReceipts, orderLines, orders,
+  planSheetLines, planSheets, products,
+} from '../db/schema';
 import type { PlanStatus } from '../db/schema';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -77,6 +80,91 @@ export class PlanSheetsService {
     return this.findOne(updated.id);
   }
 
+  // ---------- I06 行报工 + 状态聚合 + 入库草稿 ----------
+
+  /** 行报工：录本次完成数量（增量）→ 行累计 → 计划单/订单状态联动 → 触发入库单草稿 */
+  async report(planId: number, dto: { lineId: number; doneQty: number }) {
+    const plan = await this.loadPlan(planId);
+    if (plan.status !== 'confirmed' && plan.status !== 'production')
+      throw new BadRequestException(`仅已确认/生产中计划单可报工（当前：${plan.status}）`);
+
+    const [line] = await db
+      .select()
+      .from(planSheetLines)
+      .where(and(eq(planSheetLines.id, dto.lineId), eq(planSheetLines.planSheetId, planId)));
+    if (!line) throw new NotFoundException('计划单行不存在或不属于该计划单');
+    if (line.completedQuantity + dto.doneQty > line.quantity)
+      throw new BadRequestException(
+        `报工超量：已完成 ${line.completedQuantity}/${line.quantity}，本次最多可报 ${line.quantity - line.completedQuantity}`,
+      );
+
+    await db.transaction(async (tx) => {
+      // 1. 行累计
+      const newDone = line.completedQuantity + dto.doneQty;
+      await tx
+        .update(planSheetLines)
+        .set({ completedQuantity: newDone })
+        .where(eq(planSheetLines.id, line.id));
+
+      // 2. 状态聚合：首报>0 → 生产中；全部行完成 → 计划单已完成
+      const all = await tx.select().from(planSheetLines).where(eq(planSheetLines.planSheetId, planId));
+      const allDone = all.length > 0 && all.every((l) => l.completedQuantity >= l.quantity);
+      const anyDone = all.some((l) => l.completedQuantity > 0);
+      const nextPlanStatus: PlanStatus = allDone ? 'completed' : anyDone ? 'production' : 'confirmed';
+      if (plan.status !== nextPlanStatus)
+        await tx.update(planSheets).set({ status: nextPlanStatus }).where(eq(planSheets.id, planId));
+
+      // 3. 订单联动：计划单已完成 → 订单已完成（进归档）
+      if (allDone) {
+        await tx.update(orders).set({ status: 'completed' }).where(eq(orders.id, plan.orderId));
+      }
+
+      // 4. 入库草稿 upsert：找未确认草稿，无则新建（批次=一计划单一批次）
+      const now = new Date();
+      let [receipt] = await tx
+        .select()
+        .from(goodsReceipts)
+        .where(and(eq(goodsReceipts.planSheetId, planId), eq(goodsReceipts.status, 'draft')));
+      if (!receipt) {
+        const [{ rc }] = await tx
+          .select({ rc: sql<number>`count(*)::int` })
+          .from(goodsReceipts)
+          .where(like(goodsReceipts.receiptNo, `GR-${ymd(now)}-%`));
+        const [{ bc }] = await tx
+          .select({ bc: sql<number>`count(*)::int` })
+          .from(goodsReceipts)
+          .where(like(goodsReceipts.batchNo, `FG-${ymd(now)}-%`));
+        const [created] = await tx
+          .insert(goodsReceipts)
+          .values({
+            receiptNo: `GR-${ymd(now)}-${pad2(rc + 1)}`,
+            planSheetId: planId,
+            batchNo: `FG-${ymd(now)}-${pad2(bc + 1)}`,
+          })
+          .returning();
+        receipt = created;
+      }
+      const [rline] = await tx
+        .select()
+        .from(goodsReceiptLines)
+        .where(and(eq(goodsReceiptLines.receiptId, receipt.id), eq(goodsReceiptLines.planSheetLineId, line.id)));
+      if (rline) {
+        await tx
+          .update(goodsReceiptLines)
+          .set({ quantity: rline.quantity + dto.doneQty })
+          .where(eq(goodsReceiptLines.id, rline.id));
+      } else {
+        await tx.insert(goodsReceiptLines).values({
+          receiptId: receipt.id,
+          planSheetLineId: line.id,
+          productId: line.productId,
+          quantity: dto.doneQty,
+        });
+      }
+    });
+    return this.findOne(planId);
+  }
+
   /** 列表（筛选：状态/客户/单号PO关键字），关联订单行产品名与客户名 */
   async findAll(q: PlanListQuery) {
     const conds = [];
@@ -123,6 +211,13 @@ export class PlanSheetsService {
     if (!rows.length) throw new NotFoundException('计划单不存在');
     const [r] = await this.attachLines(rows as any);
     return r;
+  }
+
+  /** 取计划单（不存在 404） */
+  private async loadPlan(id: number) {
+    const [plan] = await db.select().from(planSheets).where(eq(planSheets.id, id));
+    if (!plan) throw new NotFoundException('计划单不存在');
+    return plan;
   }
 
   /** 为行补产品名 */

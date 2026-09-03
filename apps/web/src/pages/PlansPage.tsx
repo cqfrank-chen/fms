@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Empty, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
@@ -24,6 +24,10 @@ function PlansPage() {
   const [kw, setKw] = useState('')
   const [detail, setDetail] = useState<PlanSheet | null>(null)
   const [auditingId, setAuditingId] = useState<number | null>(null)
+  const [reportPlan, setReportPlan] = useState<PlanSheet | null>(null)
+  const [reportLineId, setReportLineId] = useState<number>()
+  const [reportQty, setReportQty] = useState<number | null>(null)
+  const [reporting, setReporting] = useState(false)
 
   useEffect(() => { api<Customer[]>('/customers').then(setCustomers).catch(() => {}) }, [])
 
@@ -52,6 +56,28 @@ function PlansPage() {
     } finally { setAuditingId(null) }
   }
 
+  function openReport(r: PlanSheet) {
+    setReportPlan(r)
+    setReportLineId(undefined)
+    setReportQty(null)
+  }
+
+  async function doReport() {
+    if (!reportPlan || !reportLineId || reportQty == null) {
+      message.warning('请选择产品行并填写本次完成数量')
+      return
+    }
+    setReporting(true)
+    try {
+      await api(`/plan-sheets/${reportPlan.id}/report`, { method: 'POST', body: { lineId: reportLineId, doneQty: reportQty } })
+      message.success('报工成功：完成数量已累计，入库草稿已生成（仓管确认 I08）')
+      setReportPlan(null)
+      fetchRows()
+    } catch (e) {
+      message.error('报工失败：' + (e as Error).message)
+    } finally { setReporting(false) }
+  }
+
   const columns: ColumnsType<PlanSheet> = useMemo(() => [
     { title: '计划单号', dataIndex: 'planNo', width: 170, render: (v: string) => <Text strong>{v}</Text> },
     {
@@ -69,7 +95,9 @@ function PlansPage() {
         <Space direction="vertical" size={2}>
           {r.lines?.map((l, i) => (
             <div key={i} style={{ fontSize: 12 }}>
-              {l.productName} × {l.quantity}{l.engraving ? ` ✒${l.engraving}` : ''}
+              {l.productName} × {l.quantity}
+              {(l.completedQuantity ?? 0) > 0 && <Text type="success">（完成 {l.completedQuantity}/{l.quantity}）</Text>}
+              {l.engraving ? ` ✒${l.engraving}` : ''}
             </div>
           ))}
         </Space>
@@ -80,11 +108,14 @@ function PlansPage() {
       render: (v: string) => <Tag color={statusColor(v)}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
     {
-      title: '操作', width: 150,
+      title: '操作', width: 210,
       render: (_, r) => (
         <Space size={4}>
           {r.status === 'draft' && (
             <Button type="primary" size="small" loading={auditingId === r.id} onClick={() => doAudit(r)}>审核</Button>
+          )}
+          {(r.status === 'confirmed' || r.status === 'production') && (
+            <Button type="primary" size="small" ghost onClick={() => openReport(r)}>报工</Button>
           )}
           <Button size="small" onClick={() => setDetail(r)}>详情</Button>
         </Space>
@@ -110,6 +141,38 @@ function PlansPage() {
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
         locale={{ emptyText: <Empty description="暂无计划单 —— 订单列表点「确认」自动生成草稿（I05）" /> }} />
       {detail && <PlanDetail plan={detail} onClose={() => setDetail(null)} />}
+      <Modal
+        title={`行报工 ${reportPlan?.planNo ?? ''}`}
+        open={!!reportPlan} onCancel={() => setReportPlan(null)}
+        onOk={doReport} confirmLoading={reporting} okText="提交报工" width={540}
+      >
+        {reportPlan && (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <div>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                选择产品行（办公室 PC 代录，按纸单填本次完成数量）
+              </Typography.Text>
+              <Select
+                style={{ width: '100%' }} value={reportLineId} onChange={setReportLineId} placeholder="选择产品行"
+                options={reportPlan.lines
+                  ?.filter((l) => (l.completedQuantity ?? 0) < l.quantity)
+                  .map((l) => ({
+                    value: l.id,
+                    label: `${l.productName} × ${l.quantity}（已完成 ${l.completedQuantity ?? 0}，可报 ${l.quantity - (l.completedQuantity ?? 0)}）`,
+                  }))}
+              />
+            </div>
+            <div>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>本次完成数量</Typography.Text>
+              <InputNumber style={{ width: '100%' }} min={1} value={reportQty}
+                onChange={(v) => setReportQty(v as number | null)} placeholder="≥ 1" />
+            </div>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              提示：报工自动累计完成量并推进计划单/订单状态；同时生成入库单草稿（批次 FG-YYYYMMDD-NN，仓管确认在 I08）。
+            </Typography.Text>
+          </Space>
+        )}
+      </Modal>
     </Card>
   )
 }
@@ -133,7 +196,8 @@ function PlanDetail({ plan, onClose }: { plan: PlanSheet; onClose: () => void })
         dataSource={plan.lines as unknown as OrderLine[]}
         columns={[
           { title: '产品', dataIndex: 'productName' },
-          { title: '数量', dataIndex: 'quantity', width: 90 },
+          { title: '数量', dataIndex: 'quantity', width: 80 },
+          { title: '已完成', dataIndex: 'completedQuantity', width: 80, render: (v?: number) => v ?? 0 },
           { title: '刻字', dataIndex: 'engraving', width: 140, render: (v?: string | null) => (v ? `✒${v}` : '—') },
           { title: '包装要求', width: 220, render: (_, l) => {
             const pack = (l as unknown as { packaging?: Record<string, string> }).packaging ?? {}

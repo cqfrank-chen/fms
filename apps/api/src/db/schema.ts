@@ -198,3 +198,44 @@ export type PlanSheet = typeof planSheets.$inferSelect;
 export type NewPlanSheet = typeof planSheets.$inferInsert;
 export type PlanSheetLine = typeof planSheetLines.$inferSelect;
 export type NewPlanSheetLine = typeof planSheetLines.$inferInsert;
+
+// ============================================================
+// 仓储（I06 报工触发入库草稿；I08 完整：确认入账/库存/出库/来料/盘点/冲销）
+// ============================================================
+
+/** 入库单两态：草稿（报工自动触发）→ 已确认（仓管入账，I08） */
+export const receiptStatusEnum = pgEnum('receipt_status', ['draft', 'confirmed']);
+
+/** 入库单（Goods Receipt）：报工触发草稿（预填产品/数量/批次）→ 仓管确认 → 库存+（I08） */
+export const goodsReceipts = pgTable('goods_receipts', {
+  id: serial('id').primaryKey(),
+  receiptNo: text('receipt_no').notNull().unique(), // 入库单号（自动生成 GR-YYYYMMDD-NN）
+  planSheetId: integer('plan_sheet_id')
+    .notNull()
+    .references(() => planSheets.id), // 来源计划单（一计划单一张草稿，报工累计入同一张）
+  batchNo: text('batch_no').notNull(), // 成品批次 FG-YYYYMMDD-NN（一计划单一批次，首报日定号）
+  status: receiptStatusEnum('status').default('draft').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }), // 仓管确认时间（I08）
+});
+
+/** 入库单行：产品×数量，锚定计划单行（反查） */
+export const goodsReceiptLines = pgTable('goods_receipt_lines', {
+  id: serial('id').primaryKey(),
+  receiptId: integer('receipt_id')
+    .notNull()
+    .references(() => goodsReceipts.id, { onDelete: 'cascade' }),
+  planSheetLineId: integer('plan_sheet_line_id')
+    .notNull()
+    .references(() => planSheetLines.id),
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id),
+  quantity: integer('quantity').notNull(), // 入库数量（多次报工在同一草稿行累计）
+});
+
+export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
+export type NewGoodsReceipt = typeof goodsReceipts.$inferInsert;
+export type GoodsReceiptLine = typeof goodsReceiptLines.$inferSelect;
+export type NewGoodsReceiptLine = typeof goodsReceiptLines.$inferInsert;

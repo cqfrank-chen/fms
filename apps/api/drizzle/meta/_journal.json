@@ -29,6 +29,13 @@
       "when": 1788453967871,
       "tag": "0003_daffy_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788456908328,
+      "tag": "0004_nappy_wonder_man",
+      "breakpoints": true
     }
   ]
 }

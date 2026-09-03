@@ -51,6 +51,7 @@ export interface PlanSheetLine {
   productId: number
   productName?: string
   quantity: number
+  completedQuantity?: number
   engraving?: string | null
   packaging?: PackagingSpec | null
 }

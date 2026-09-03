@@ -132,7 +132,7 @@ function AlertStrip() {
             { label: 'I03 主数据', done: true },
             { label: 'I04 订单', done: true },
             { label: 'I05 计划单', done: true },
-            { label: 'I06 报工', done: false },
+            { label: 'I06 报工', done: true },
             { label: 'I07 反查', done: false },
             { label: 'I08 仓储', done: false },
             { label: 'I09 账目', done: false },
@@ -144,7 +144,7 @@ function AlertStrip() {
           ))}
         </Space>
         <Typography.Text type="secondary">
-          当前阶段：② 订单线 —— 订单确认自动生成计划单、计划员审核已完成（I05）。正在实施 I06 行级报工。
+          当前阶段：② 订单线 —— 行级报工与状态聚合已完成（I06）：报工自动累计、计划单/订单联动完成、入库草稿自动生成。正在实施 I07 订单线收尾。
         </Typography.Text>
       </Space>
     </Card>
