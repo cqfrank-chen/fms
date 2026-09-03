@@ -9,6 +9,7 @@ export type PackType = 'box' | 'bag' | 'carton' | 'label'
 export type PackagingSpec = Partial<Record<PackType, string>>
 
 export type OrderStatus = 'draft' | 'confirmed' | 'production' | 'completed' | 'cancelled'
+export type PlanStatus = 'draft' | 'confirmed' | 'production' | 'completed' | 'cancelled'
 
 export interface OrderLine {
   id?: number
@@ -41,4 +42,31 @@ export interface PackTemplate {
   note?: string | null
   imageUrl?: string | null
   createdAt: string
+}
+
+export interface PlanSheetLine {
+  id: number
+  planSheetId?: number
+  orderLineId: number
+  productId: number
+  productName?: string
+  quantity: number
+  engraving?: string | null
+  packaging?: PackagingSpec | null
+}
+
+export interface PlanSheet {
+  id: number
+  planNo: string
+  orderId: number
+  orderNo?: string
+  customerId?: number
+  customerName?: string
+  poNo?: string | null
+  dueDate?: string | null
+  note?: string | null
+  orderStatus?: OrderStatus
+  status: PlanStatus
+  createdAt: string
+  lines: PlanSheetLine[]
 }

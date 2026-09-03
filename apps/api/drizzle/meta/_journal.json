@@ -22,6 +22,13 @@
       "when": 1788453137851,
       "tag": "0002_neat_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788453967871,
+      "tag": "0003_daffy_taskmaster",
+      "breakpoints": true
     }
   ]
 }

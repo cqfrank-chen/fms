@@ -154,3 +154,47 @@ export type OrderLine = typeof orderLines.$inferSelect;
 export type NewOrderLine = typeof orderLines.$inferInsert;
 export type PackTemplate = typeof packTemplates.$inferSelect;
 export type NewPackTemplate = typeof packTemplates.$inferInsert;
+
+/** 计划单五态（票 03）：草稿 → 已确认 → 生产中 → 已完成 / 已作废 */
+export const planStatusEnum = pgEnum('plan_status', [
+  'draft',
+  'confirmed',
+  'production',
+  'completed',
+  'voided',
+]);
+export type PlanStatus = (typeof planStatusEnum.enumValues)[number];
+
+/** 计划单（Plan Sheet）：一单一计划单，从订单整单生成（I05） */
+export const planSheets = pgTable('plan_sheets', {
+  id: serial('id').primaryKey(),
+  planNo: text('plan_no').notNull().unique(), // 计划单号（自动生成 PS-YYYYMMDD-NN）
+  orderId: integer('order_id')
+    .notNull()
+    .references(() => orders.id), // 来源订单（一单一计划单）
+  status: planStatusEnum('status').default('draft').notNull(), // 五态
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** 计划单行（Plan Sheet Line）：产品/计划数量/包装/刻字/完成数量 */
+export const planSheetLines = pgTable('plan_sheet_lines', {
+  id: serial('id').primaryKey(),
+  planSheetId: integer('plan_sheet_id')
+    .notNull()
+    .references(() => planSheets.id, { onDelete: 'cascade' }),
+  orderLineId: integer('order_line_id')
+    .notNull()
+    .references(() => orderLines.id), // 来源订单行（反查/变更联动锚点）
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id),
+  quantity: integer('quantity').notNull(), // 计划数量（=订单行数量）
+  completedQuantity: integer('completed_quantity').default(0).notNull(), // 完成数量（I06 行报工）
+  engraving: text('engraving'), // 刻字（快照自订单行）
+  packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求快照
+});
+
+export type PlanSheet = typeof planSheets.$inferSelect;
+export type NewPlanSheet = typeof planSheets.$inferInsert;
+export type PlanSheetLine = typeof planSheetLines.$inferSelect;
+export type NewPlanSheetLine = typeof planSheetLines.$inferInsert;

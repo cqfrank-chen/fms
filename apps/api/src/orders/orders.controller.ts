@@ -9,6 +9,7 @@ import {
 import { CURRENCIES } from '../db/schema';
 import type { Currency, OrderStatus } from '../db/schema';
 import { OrdersService } from './orders.service';
+import { PlanSheetsService } from '../plan-sheets/plan-sheets.service';
 
 class OrderLineDto {
   @IsInt()
@@ -60,7 +61,10 @@ export class CreateOrderDto {
 
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly service: OrdersService) {}
+  constructor(
+    private readonly service: OrdersService,
+    private readonly planSheetsService: PlanSheetsService,
+  ) {}
 
   @Get()
   findAll(
@@ -73,6 +77,12 @@ export class OrdersController {
       customerId: customerId ? Number(customerId) : undefined,
       kw,
     });
+  }
+
+  /** 订单确认：草稿 → 已确认，自动生成计划单草稿（I05） */
+  @Post(':id/confirm')
+  confirm(@Param('id', ParseIntPipe) id: number) {
+    return this.planSheetsService.confirmOrder(id);
   }
 
   @Get(':id')

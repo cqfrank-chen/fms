@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import SetupPage from './pages/SetupPage'
 import OrdersPage from './pages/OrdersPage'
+import PlansPage from './pages/PlansPage'
 
 interface HealthInfo { status: string; db: string; time: string }
 interface TestProduct {
@@ -76,10 +77,10 @@ export default function App() {
           />
         </Sider>
         <Content style={{ padding: 24, background: '#f5f5f5' }}>
-          {page === 'overview' && <OverviewPage onGoSetup={() => setPage('setup')} />}
+          {page === 'overview' && <OverviewPage />}
           {page === 'orders' && <OrdersPage />}
           {page === 'setup' && <SetupPage />}
-          {page === 'plans' && <ComingSoon title="计划单" desc="I05 实施：订单确认自动生成草稿 → 审核 → 状态机" />}
+          {page === 'plans' && <PlansPage />}
           {page === 'schedule' && <ComingSoon title="排程" desc="I11 实施：甘特拖排（I10 先验证甘特库选型）" />}
           {page === 'warehouse' && <ComingSoon title="仓储" desc="I08 实施：库存/入库/出库/来料/盘点/冲销" />}
           {page === 'accounting' && <ComingSoon title="账目" desc="I09 实施：应收应付/收付款/对账/利润视图" />}
@@ -106,11 +107,11 @@ function ComingSoon({ title, desc }: { title: string; desc: string }) {
 }
 
 /** 首页：地基状态 + I01 技术验证 CRUD 演示 */
-function OverviewPage({ onGoSetup }: { onGoSetup: () => void }) {
+function OverviewPage() {
   return (
     <Row gutter={[16, 16]}>
       <Col span={24}>
-        <AlertStrip onGoSetup={onGoSetup} />
+        <AlertStrip />
       </Col>
       <Col span={24}>
         <CrudDemoCard />
@@ -119,7 +120,7 @@ function OverviewPage({ onGoSetup }: { onGoSetup: () => void }) {
   )
 }
 
-function AlertStrip({ onGoSetup }: { onGoSetup: () => void }) {
+function AlertStrip() {
   return (
     <Card size="small">
       <Space direction="vertical" size={4} style={{ width: '100%' }}>
@@ -129,8 +130,8 @@ function AlertStrip({ onGoSetup }: { onGoSetup: () => void }) {
             { label: 'I01 技术验证', done: true },
             { label: 'I02 地基', done: true },
             { label: 'I03 主数据', done: true },
-            { label: 'I04 订单', done: false },
-            { label: 'I05 计划单', done: false },
+            { label: 'I04 订单', done: true },
+            { label: 'I05 计划单', done: true },
             { label: 'I06 报工', done: false },
             { label: 'I07 反查', done: false },
             { label: 'I08 仓储', done: false },
@@ -143,7 +144,7 @@ function AlertStrip({ onGoSetup }: { onGoSetup: () => void }) {
           ))}
         </Space>
         <Typography.Text type="secondary">
-          当前阶段：② 订单线 —— 主数据界面已完成，前往 <Typography.Link onClick={onGoSetup}>设置 · 主数据</Typography.Link> 录入产品/客户/供应商/操作人。
+          当前阶段：② 订单线 —— 订单确认自动生成计划单、计划员审核已完成（I05）。正在实施 I06 行级报工。
         </Typography.Text>
       </Space>
     </Card>

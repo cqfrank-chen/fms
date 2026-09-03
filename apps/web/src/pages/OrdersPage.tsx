@@ -7,7 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
 import { PACK_LABEL, PRODUCT_TYPE_LABEL, STATUS_LABEL } from '../lib/labels'
-import type { Customer, Order, OrderLine, PackagingSpec, Product } from '../lib/types'
+import type { Customer, Order, OrderLine, PackagingSpec, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 
 const { Text } = Typography
@@ -195,6 +195,18 @@ function OrderListTable({ archived }: { archived: boolean }) {
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [kw, setKw] = useState('')
   const [detail, setDetail] = useState<Order | null>(null)
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
+
+  async function doConfirm(r: Order) {
+    setConfirmingId(r.id)
+    try {
+      const plan = await api<PlanSheet>(`/orders/${r.id}/confirm`, { method: 'POST' })
+      message.success(`已确认并生成计划单 ${plan.planNo}（草稿，待审核）`)
+      fetchRows()
+    } catch (e) {
+      message.error('确认失败：' + (e as Error).message)
+    } finally { setConfirmingId(null) }
+  }
 
   useEffect(() => { api<Customer[]>('/customers').then(setCustomers).catch(() => {}) }, [])
 
@@ -234,10 +246,17 @@ function OrderListTable({ archived }: { archived: boolean }) {
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
     {
-      title: '操作', width: 90,
-      render: (_, r) => <Button size="small" onClick={() => setDetail(r)}>详情</Button>,
+      title: '操作', width: 170,
+      render: (_, r) => (
+        <Space size={4}>
+          {r.status === 'draft' && (
+            <Button type="primary" size="small" loading={confirmingId === r.id} onClick={() => doConfirm(r)}>确认</Button>
+          )}
+          <Button size="small" onClick={() => setDetail(r)}>详情</Button>
+        </Space>
+      ),
     },
-  ], [])
+  ], [confirmingId])
 
   const filterBar = !archived && (
     <Space wrap style={{ marginBottom: 12 }}>
