@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: fms
+      POSTGRES_PASSWORD: fms
+      POSTGRES_DB: fms
+    volumes:
+      # PG18+ 要求挂 /var/lib/postgresql（内部按主版本子目录存放），
+      # 直接挂 /var/lib/postgresql/data 会报 "unused mount/volume" 错误
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # 生产约束：不暴露宿主机端口（ADR-0001）
+    # 开发直连时放开注释：
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: fms
+      DB_PASSWORD: fms
+      DB_NAME: fms
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
