@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 /** 技术验证演示实体（I01）：最小 CRUD 的载体，订单线完成后下线 */
 export const testProducts = pgTable('test_products', {
@@ -87,3 +87,70 @@ export type Supplier = typeof suppliers.$inferSelect;
 export type NewSupplier = typeof suppliers.$inferInsert;
 export type Operator = typeof operators.$inferSelect;
 export type NewOperator = typeof operators.$inferInsert;
+
+// ============================================================
+// 订单域（I04 起，spec §4）——术语对齐 CONTEXT.md
+// ============================================================
+
+/** 订单/计划单五态（票 03）：草稿 → 已确认 → 生产中 → 已完成/已取消(作废) */
+export const STATUSES = ['draft', 'confirmed', 'production', 'completed', 'cancelled'] as const;
+export type OrderStatus = (typeof STATUSES)[number];
+export const orderStatusEnum = pgEnum('order_status', STATUSES);
+
+/** 币种（一期单币种 RMB 记账，字段保留出海预留） */
+export const CURRENCIES = ['RMB', 'USD'] as const;
+export type Currency = (typeof CURRENCIES)[number];
+export const currencyEnum = pgEnum('currency', CURRENCIES);
+
+/** 包装要求类型（复合勾选，值=规格/数量描述） */
+export const PACK_TYPES = ['box', 'bag', 'carton', 'label'] as const;
+export type PackType = (typeof PACK_TYPES)[number];
+/** 包装要求快照：{ box?: '包装盒×50', carton?: '纸箱×4盒', ... } */
+export type PackagingSpec = Partial<Record<PackType, string>>;
+
+/** 订单（Order）：客户下达的生产需求单据 */
+export const orders = pgTable('orders', {
+  id: serial('id').primaryKey(),
+  orderNo: text('order_no').notNull().unique(), // 订单号（自动生成 SO-YYYYMMDD-NN）
+  customerId: integer('customer_id')
+    .notNull()
+    .references(() => customers.id), // 客户档案
+  poNo: text('po_no'), // 客户 PO 号
+  dueDate: timestamp('due_date', { withTimezone: true }).notNull(), // 交期
+  note: text('note'), // 备注
+  status: orderStatusEnum('status').default('draft').notNull(), // 五态
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** 订单行（Order Line）：一单多产品 */
+export const orderLines = pgTable('order_lines', {
+  id: serial('id').primaryKey(),
+  orderId: integer('order_id')
+    .notNull()
+    .references(() => orders.id, { onDelete: 'cascade' }),
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id), // 产品目录引用
+  quantity: integer('quantity').notNull(), // 数量
+  unitPrice: numeric('unit_price', { precision: 10, scale: 2, mode: 'number' }).notNull(), // 单价
+  currency: currencyEnum('currency').default('RMB').notNull(), // 币种（出海预留）
+  engraving: text('engraving'), // 刻字需求
+  packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求（复合，JSONB）
+});
+
+/** 包装模板库：整行包装要求保存/复用 + 样式图（I04） */
+export const packTemplates = pgTable('pack_templates', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(), // 模板名，如 Weldclass 定制盒
+  pack: jsonb('pack').$type<PackagingSpec>().notNull(), // 包装要求快照（可复合多选）
+  note: text('note'), // 规格说明
+  imageUrl: text('image_url'), // 样式图（上传路径，I12 前可空）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type Order = typeof orders.$inferSelect;
+export type NewOrder = typeof orders.$inferInsert;
+export type OrderLine = typeof orderLines.$inferSelect;
+export type NewOrderLine = typeof orderLines.$inferInsert;
+export type PackTemplate = typeof packTemplates.$inferSelect;
+export type NewPackTemplate = typeof packTemplates.$inferInsert;

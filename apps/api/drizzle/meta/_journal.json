@@ -15,6 +15,13 @@
       "when": 1788452013150,
       "tag": "0001_new_madelyne_pryor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788453137851,
+      "tag": "0002_neat_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

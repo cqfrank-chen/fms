@@ -1,0 +1,188 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import { db } from '../db';
+import { customers, orderLines, orders, products } from '../db/schema';
+import type { OrderStatus } from '../db/schema';
+
+export interface OrderLineDto {
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+  currency?: 'RMB' | 'USD';
+  engraving?: string;
+  packaging?: Record<string, string>;
+}
+
+export interface CreateOrderDto {
+  customerId: number;
+  poNo?: string;
+  dueDate: string; // ISO 日期
+  note?: string;
+  lines: OrderLineDto[];
+}
+
+export interface OrderListQuery {
+  status?: OrderStatus;
+  customerId?: number;
+  kw?: string;
+}
+
+/** 单头+行+关联名的返回结构（前端直接消费） */
+export interface OrderWithLines {
+  id: number;
+  orderNo: string;
+  customerId: number;
+  customerName: string;
+  poNo: string | null;
+  dueDate: Date;
+  note: string | null;
+  status: OrderStatus;
+  createdAt: Date;
+  lines: Array<OrderLineDto & { id: number; productName: string }>;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+
+@Injectable()
+export class OrdersService {
+  /** 生成单号 SO-YYYYMMDD-NN（当天序号） */
+  private async nextOrderNo(now: Date): Promise<string> {
+    const prefix = `SO-${ymd(now)}-`;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(like(orders.orderNo, `${prefix}%`));
+    return `${prefix}${pad2(count + 1)}`;
+  }
+
+  /** 创建订单（单头+行，事务）；I05 前状态恒为草稿 */
+  async create(dto: CreateOrderDto) {
+    const now = new Date();
+    const orderNo = await this.nextOrderNo(now);
+    const dueDate = new Date(dto.dueDate);
+    const created = await db.transaction(async (tx) => {
+      const [order] = await tx
+        .insert(orders)
+        .values({ orderNo, customerId: dto.customerId, poNo: dto.poNo ?? null, dueDate, note: dto.note ?? null })
+        .returning();
+      await tx.insert(orderLines).values(
+        dto.lines.map((l) => ({
+          orderId: order.id,
+          productId: l.productId,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          currency: l.currency ?? 'RMB',
+          engraving: l.engraving ?? null,
+          packaging: l.packaging ?? null,
+        })),
+      );
+      return order;
+    });
+    return this.findOne(created.id);
+  }
+
+  /** 列表（可选筛选：状态/客户/单号PO关键字） */
+  async findAll(q: OrderListQuery) {
+    const conds = [];
+    if (q.status) conds.push(eq(orders.status, q.status));
+    if (q.customerId) conds.push(eq(orders.customerId, q.customerId));
+    if (q.kw) {
+      const kw = `%${q.kw}%`;
+      conds.push(or(like(orders.orderNo, kw), like(orders.poNo, kw)));
+    }
+    const base = db
+      .select({
+        order: orders,
+        customerName: customers.name,
+      })
+      .from(orders)
+      .leftJoin(customers, eq(orders.customerId, customers.id))
+      .where(conds.length ? and(...conds) : undefined)
+      .orderBy(desc(orders.id));
+    const rows = await base;
+    return this.attachLines(rows);
+  }
+
+  /** 详情（404 保护） */
+  async findOne(id: number) {
+    const rows = await db
+      .select({ order: orders, customerName: customers.name })
+      .from(orders)
+      .leftJoin(customers, eq(orders.customerId, customers.id))
+      .where(eq(orders.id, id));
+    if (!rows.length) throw new NotFoundException('订单不存在');
+    const [r] = await this.attachLines(rows as any);
+    return r;
+  }
+
+  /** 编辑（仅草稿；单头字段+行整体替换） */
+  async update(id: number, dto: Partial<CreateOrderDto>) {
+    const existing = await this.requireDraft(id);
+    await db.transaction(async (tx) => {
+      const dueDate = dto.dueDate ? new Date(dto.dueDate) : existing.dueDate;
+      await tx
+        .update(orders)
+        .set({
+          customerId: dto.customerId ?? existing.customerId,
+          poNo: dto.poNo !== undefined ? (dto.poNo ?? null) : existing.poNo,
+          dueDate,
+          note: dto.note !== undefined ? (dto.note ?? null) : existing.note,
+        })
+        .where(eq(orders.id, id));
+      if (dto.lines) {
+        await tx.delete(orderLines).where(eq(orderLines.orderId, id));
+        await tx.insert(orderLines).values(
+          dto.lines.map((l) => ({
+            orderId: id,
+            productId: l.productId,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            currency: l.currency ?? 'RMB',
+            engraving: l.engraving ?? null,
+            packaging: l.packaging ?? null,
+          })),
+        );
+      }
+    });
+    return this.findOne(id);
+  }
+
+  /** 删除（仅草稿） */
+  async remove(id: number) {
+    await this.requireDraft(id);
+    await db.delete(orders).where(eq(orders.id, id));
+  }
+
+  // ---------- helpers ----------
+
+  private async requireDraft(id: number) {
+    const [row] = await db.select().from(orders).where(eq(orders.id, id));
+    if (!row) throw new NotFoundException('订单不存在');
+    if (row.status !== 'draft') throw new BadRequestException('仅草稿订单可修改/删除（已确认订单走变更流程）');
+    return row;
+  }
+
+  /** 为列表行补订单行+产品名 */
+  private async attachLines(rows: Array<{ order: any; customerName: string | null }>) {
+    if (!rows.length) return [];
+    const orderIds = rows.map((r) => r.order.id);
+    const lines = await db
+      .select({ line: orderLines, productName: products.name })
+      .from(orderLines)
+      .leftJoin(products, eq(orderLines.productId, products.id))
+      .where(inArray(orderLines.orderId, orderIds))
+      .orderBy(orderLines.id);
+    const byOrder = new Map<number, Array<any>>();
+    for (const { line, productName } of lines) {
+      const arr = byOrder.get(line.orderId) ?? [];
+      arr.push({ ...line, productName });
+      byOrder.set(line.orderId, arr);
+    }
+    return rows.map(({ order, customerName }) => ({
+      ...order,
+      customerName,
+      lines: byOrder.get(order.id) ?? [],
+    }));
+  }
+}

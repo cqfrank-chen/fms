@@ -3,6 +3,7 @@ import { Badge, Button, Card, Col, Descriptions, Empty, Form, Input, Layout, Men
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import SetupPage from './pages/SetupPage'
+import OrdersPage from './pages/OrdersPage'
 
 interface HealthInfo { status: string; db: string; time: string }
 interface TestProduct {
@@ -76,8 +77,8 @@ export default function App() {
         </Sider>
         <Content style={{ padding: 24, background: '#f5f5f5' }}>
           {page === 'overview' && <OverviewPage onGoSetup={() => setPage('setup')} />}
+          {page === 'orders' && <OrdersPage />}
           {page === 'setup' && <SetupPage />}
-          {page === 'orders' && <ComingSoon title="订单" desc="I04 实施：订单录入（一单多产品）+ 列表筛选 + 归档区" />}
           {page === 'plans' && <ComingSoon title="计划单" desc="I05 实施：订单确认自动生成草稿 → 审核 → 状态机" />}
           {page === 'schedule' && <ComingSoon title="排程" desc="I11 实施：甘特拖排（I10 先验证甘特库选型）" />}
           {page === 'warehouse' && <ComingSoon title="仓储" desc="I08 实施：库存/入库/出库/来料/盘点/冲销" />}

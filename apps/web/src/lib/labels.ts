@@ -15,3 +15,27 @@ export const SETTLEMENT_LABEL: Record<string, string> = {
   monthly: '月结',
   cash: '现结',
 }
+
+/** 订单/计划单五态 */
+export const STATUS_LABEL: Record<string, string> = {
+  draft: '草稿',
+  confirmed: '已确认',
+  production: '生产中',
+  completed: '已完成',
+  cancelled: '已取消',
+  voided: '已作废',
+}
+
+/** 包装类型（复合勾选） */
+export const PACK_LABEL: Record<string, string> = {
+  box: '包装盒',
+  bag: '套袋',
+  carton: '纸箱',
+  label: '不干胶',
+}
+
+/** 币种 */
+export const CURRENCY_LABEL: Record<string, string> = {
+  RMB: 'RMB',
+  USD: 'USD',
+}
