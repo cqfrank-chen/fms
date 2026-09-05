@@ -1,0 +1,26 @@
+{
+  "name": "gantt-spike",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5199 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5199 --strictPort"
+  },
+  "dependencies": {
+    "antd": "^6.6.2",
+    "dayjs": "^1.11.23",
+    "dhtmlx-gantt": "^10.0.3",
+    "frappe-gantt": "^1.2.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  }
+}
