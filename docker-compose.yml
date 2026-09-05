@@ -42,6 +42,13 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-fms}
       DB_NAME: ${DB_NAME:-fms}
       PORT: 3000
+      # AI 网关（I12）：根 .env 配置，重启 app 生效；AI_API_KEY 为空 → mock 降级
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-deepseek-chat}
+      AI_VISION_BASE_URL: ${AI_VISION_BASE_URL:-}
+      AI_VISION_KEY: ${AI_VISION_KEY:-}
+      AI_VISION_MODEL: ${AI_VISION_MODEL:-qwen3-vl-flash}
     depends_on:
       postgres:
         condition: service_healthy

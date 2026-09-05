@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AccountingModule } from './accounting/accounting.module';
+import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AccountingModule } from './accounting/accounting.module';
 import { CustomersModule } from './customers/customers.module';
 import { OperatorsModule } from './operators/operators.module';
 import { OrdersModule } from './orders/orders.module';
@@ -16,6 +17,7 @@ import { WarehouseModule } from './warehouse/warehouse.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AiModule,
     TestProductsModule,
     ProductsModule,
     CustomersModule,

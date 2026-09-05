@@ -1,0 +1,23 @@
+2026-09-05T16:38:41.416Z
+PASS 直通=Y(期望Y)  正常1·PO+USD  issues=-
+PASS 直通=Y(期望Y)  正常2·RMB+无PO  issues=-
+PASS 直通=Y(期望Y)  正常3·档案全称  issues=-
+PASS 直通=Y(期望Y)  正常4·多行全命中  issues=-
+PASS 直通=Y(期望Y)  正常5·刻字+盒装  issues=-
+PASS 直通=Y(期望Y)  正常6·包装袋+不干胶  issues=-
+PASS 直通=Y(期望Y)  正常7·纸箱描述  issues=-
+PASS 直通=Y(期望Y)  正常8·无包装要求  issues=-
+PASS 直通=Y(期望Y)  正常9·备注存在  issues=-
+PASS 直通=Y(期望Y)  正常10·数量千分位  issues=-
+PASS 直通=Y(期望Y)  正常11·单价两位小数  issues=-
+PASS 直通=Y(期望Y)  正常12·年末交期  issues=-
+PASS 直通=Y(期望Y)  正常13·今天交期  issues=-
+PASS 直通=Y(期望Y)  正常14·不同单价  issues=-
+PASS 直通=Y(期望Y)  正常15·USD+刻字批次  issues=-
+PASS 直通=N(期望N)  拦截1·新客户  issues=error:customer
+PASS 直通=N(期望N)  拦截2·未知产品  issues=error:lines[0].product
+PASS 直通=N(期望N)  拦截3·缺单价  issues=error:lines[0].unitPrice
+PASS 直通=N(期望N)  拦截4·行缺数量  issues=error:lines[0].quantity
+PASS 直通=N(期望N)  拦截5·多行含未知产品  issues=error:lines[1].product
+
+直通率：20/20 = 100%（验收线 ≥70%）→ ✅ 达标

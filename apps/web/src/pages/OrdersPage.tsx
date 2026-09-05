@@ -10,6 +10,7 @@ import { PRODUCT_TYPE_LABEL, STATUS_LABEL } from '../lib/labels'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 import OrderDetailModal from '../components/OrderDetailModal'
+import AiOrderImport from '../components/AiOrderImport'
 
 const { Text } = Typography
 
@@ -140,10 +141,7 @@ function OrderCreateCard() {
 
   return (
     <Card title="新建订单" extra={<Typography.Text type="secondary">保存即草稿；确认生成计划单为 I05 动作</Typography.Text>}>
-      <div style={{ border: '2px dashed #91caff', borderRadius: 8, padding: 14, textAlign: 'center', color: '#0958d9', marginBottom: 16, background: '#e6f4ff' }}>
-        📷 <Text strong>图片识别导入订单（AI）</Text>
-        <div style={{ fontSize: 12 }}>上传客户邮件/微信传单/拍照图自动识别 —— 功能 I12 接入，此处为入口占位</div>
-      </div>
+      <AiOrderImport />
 
       <Form form={form} layout="vertical" initialValues={{}}>
         <Space wrap align="start" size={16}>

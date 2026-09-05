@@ -1,4 +1,4 @@
-import { date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /** 技术验证演示实体（I01）：最小 CRUD 的载体，订单线完成后下线 */
 export const testProducts = pgTable('test_products', {
@@ -510,3 +510,22 @@ export type PaymentSlipLine = typeof paymentSlipLines.$inferSelect;
 export type NewPaymentSlipLine = typeof paymentSlipLines.$inferInsert;
 export type MonthlyCost = typeof monthlyCosts.$inferSelect;
 export type NewMonthlyCost = typeof monthlyCosts.$inferInsert;
+
+// ============================================================
+// AI 学习闭环（I12，spec §8）——人工修正回流 few-shot + 校验规则
+// 只存差异与原始快照；回流消费（示例库/规则热更新）由后续迭代挂接
+// ============================================================
+
+/** AI 解析反馈：一次「解析 → 人工确认」过程的学习样本 */
+export const aiParseFeedback = pgTable('ai_parse_feedback', {
+  id: serial('id').primaryKey(),
+  source: text('source').notNull(), // 'text' | 'image' | 'manual'
+  parsed: jsonb('parsed').$type<Record<string, unknown>>().notNull(), // AI 解析原始结果（人工确认前）
+  corrected: jsonb('corrected').$type<Record<string, unknown>>(), // 人工确认稿（确认后）
+  corrections: jsonb('corrections').$type<Array<Record<string, unknown>>>(), // 差异项描述（可解释）
+  directPass: boolean('direct_pass').notNull().default(false), // 是否直通（免人工改动）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type AiParseFeedback = typeof aiParseFeedback.$inferSelect;
+export type NewAiParseFeedback = typeof aiParseFeedback.$inferInsert;

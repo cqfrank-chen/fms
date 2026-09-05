@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Card, Col, Descriptions, Form, Input, Layout, Menu, Modal, Row, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
+import AlertBell from './components/AlertBell'
 import SetupPage from './pages/SetupPage'
+import AiPage from './pages/AiPage'
 import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
 import SchedulingPage from './pages/SchedulingPage'
@@ -21,7 +23,7 @@ interface TestProduct {
 const API = '/api'
 const { Header, Content, Sider } = Layout
 
-type PageKey = 'overview' | 'orders' | 'plans' | 'schedule' | 'warehouse' | 'accounting' | 'setup'
+type PageKey = 'overview' | 'orders' | 'plans' | 'schedule' | 'warehouse' | 'accounting' | 'ai' | 'setup'
 
 const MENU_ITEMS: MenuProps['items'] = [
   { key: 'overview', label: '首页' },
@@ -30,6 +32,7 @@ const MENU_ITEMS: MenuProps['items'] = [
   { key: 'schedule', label: '排程' },
   { key: 'warehouse', label: '仓储' },
   { key: 'accounting', label: '账目' },
+  { key: 'ai', label: 'AI 助手' },
   { type: 'divider' },
   { key: 'setup', label: '设置 · 主数据' },
 ]
@@ -60,6 +63,7 @@ export default function App() {
           工厂管理系统 FMS
         </Typography.Title>
         <Space>
+          <AlertBell />
           {health ? (
             <Badge status={health.status === 'ok' ? 'success' : 'warning'} text={
               <span style={{ color: '#fff' }}>API {health.status} · 数据库 {health.db}</span>
@@ -87,6 +91,7 @@ export default function App() {
           {page === 'schedule' && <SchedulingPage />}
           {page === 'warehouse' && <WarehousePage />}
           {page === 'accounting' && <AccountingPage />}
+          {page === 'ai' && <AiPage />}
         </Content>
       </Layout>
     </Layout>
@@ -124,13 +129,13 @@ function AlertStrip() {
             { label: 'I09 账目', done: true },
             { label: 'I10 甘特验证', done: true },
             { label: 'I11 排程', done: true },
-            { label: 'I12 AI 一期', done: false },
+            { label: 'I12 AI 一期', done: true },
           ].map((t) => (
             <Tag key={t.label} color={t.done ? 'success' : 'default'}>{t.label}</Tag>
           ))}
         </Space>
         <Typography.Text type="secondary">
-          阶段 ④ 排期 AI 线：I10 甘特库选型完成（自研 React 泳道甘特，跳出 frappe/dhtmlx 任务树模型）、I11 排程看板落地（待排区+6泳道+贪心分层+拖拽改开始日+超期红框+报工驱动色标）。
+          阶段 ④ 排期 AI 线全过：I10 甘特库选型（自研 React 泳道甘特，跳出 frappe/dhtmlx 任务树模型）、I11 排程看板（待排区+6泳道+贪心分层+拖拽改开始日+超期红框+报工驱动色标）、I12 AI 一期五项（订单解析/查数 function calling/利润月报摘要/规则预警/学习闭环）。
         </Typography.Text>
       </Space>
     </Card>
