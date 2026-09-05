@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Modal,
+  Button, Card, DatePicker, Form, Input, InputNumber,
   Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
-import { PACK_LABEL, PRODUCT_TYPE_LABEL, STATUS_LABEL } from '../lib/labels'
-import type { Customer, Order, OrderLine, PackagingSpec, PlanSheet, Product } from '../lib/types'
+import { PRODUCT_TYPE_LABEL, STATUS_LABEL } from '../lib/labels'
+import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
+import OrderDetailModal from '../components/OrderDetailModal'
 
 const { Text } = Typography
 
@@ -280,41 +281,7 @@ function OrderListTable({ archived }: { archived: boolean }) {
       )}
       <Table<Order> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
         pagination={{ pageSize: 10, showSizeChanger: false }} />
-      <OrderDetailDrawer order={detail} onClose={() => setDetail(null)} />
+      <OrderDetailModal order={detail} open={!!detail} onClose={() => setDetail(null)} />
     </Card>
-  )
-}
-
-/** 订单详情：单头 + 行（刻字/包装/币种单价） */
-function OrderDetailDrawer({ order, onClose }: { order: Order | null; onClose: () => void }) {
-  if (!order) return <Modal open={false} onCancel={onClose} footer={null} />
-  const packText = (p?: PackagingSpec | null) => {
-    if (!p || !Object.keys(p).length) return '—'
-    return Object.entries(p).map(([k, v]) => `${PACK_LABEL[k] ?? k}${v ? '：' + v : ''}`).join('；')
-  }
-  return (
-    <Modal title={`订单详情 ${order.orderNo}`} open onCancel={onClose} footer={<Button onClick={onClose}>关闭</Button>} width={760}>
-      <Descriptions size="small" column={3} bordered style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="客户">{order.customerName}</Descriptions.Item>
-        <Descriptions.Item label="PO号">{order.poNo || '—'}</Descriptions.Item>
-        <Descriptions.Item label="状态"><Tag color="processing">{STATUS_LABEL[order.status]}</Tag></Descriptions.Item>
-        <Descriptions.Item label="交期">{dayjs(order.dueDate).format('YYYY-MM-DD')}</Descriptions.Item>
-        <Descriptions.Item label="备注" span={2}>{order.note || '—'}</Descriptions.Item>
-      </Descriptions>
-      <Table<OrderLine>
-        rowKey={(_, i) => String(i)}
-        size="small"
-        pagination={false}
-        columns={[
-          { title: '产品', dataIndex: 'productName' },
-          { title: '数量', dataIndex: 'quantity', width: 90, align: 'right' },
-          { title: '单价', dataIndex: 'unitPrice', width: 90, align: 'right', render: (v: number) => v.toFixed(2) },
-          { title: '币种', dataIndex: 'currency', width: 70 },
-          { title: '刻字', dataIndex: 'engraving', width: 140, render: (v?: string | null) => v || '—' },
-          { title: '包装要求', dataIndex: 'packaging', render: packText },
-        ]}
-        dataSource={order.lines}
-      />
-    </Modal>
   )
 }

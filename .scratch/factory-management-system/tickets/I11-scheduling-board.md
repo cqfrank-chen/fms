@@ -28,6 +28,9 @@ Spec: spec.md §5
 - [x] 工期推算/覆盖正确；重叠分层；超期标红
 - [x] 报工后看板状态自动变化
 - [x] **阶段④验收（部分）**：甘特拖排可用
+- [x] 横轴缩放（日/周可切，周=44px/格 + 周一分隔线 + 周一标注 MM-DD）
+- [x] 待排区可筛选（单号/产品/客户/刻字关键字）+ 按交期升序
+- [x] 任务简介「查看完整订单」可跳完整订单（共享订单详情组件）
 
 ## 实施摘要
 
@@ -38,6 +41,13 @@ Spec: spec.md §5
   - research/i11-scheduling-board.png — 看板 3 任务分层 + 紫虚线覆盖 + 周末灰化
   - research/i11-schedule-modal.png — 排期面板（verify 实时计算 + 工期提示）
 - **关键 bug**（已修）：ScheduleModal DatePicker 传 string 触发 AntD 6 `qT(...).isValid is not a function`，改为 dayjs 对象包装
+- **v2 完善**（I11 续推）：
+  - 横轴真缩放：`scale` 接进 GanttLane，PX_DAY day=92 / week=44；周视图周一分隔线 + 周一格标 MM-DD、其余空格透明占位，周末灰化保留；layout/拖拽 effect 依赖加 scale
+  - 待排区筛选：关键字（单号/产品/客户/刻字）+ 按交期升序（池空显示「无匹配/池空了」）
+  - TaskModal「查看完整订单」：fetch /orders/:id → 打开共享 OrderDetailModal（单头+全部行）
+  - 组件抽取：订单详情弹窗上移为 `components/OrderDetailModal.tsx`（OrdersPage 列表「详情」与 SchedulingPage 共用），消除两处重复实现
+  - 验收：research/i11-board-day.png（92px/格）、i11-board-week.png（44px/格 周分隔）
+  - DOM 断言（research/i11-dom-check.cjs）：day 92/week 44 格宽切换、周一 MM-DD 标注、筛选框存在、任务条→任务简介→「查看完整订单」→订单详情 全链路无 console 错误；OrdersPage「详情」回归通过（SO-20260905-04）
 
 ## Ref
 

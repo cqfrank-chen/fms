@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { App as AntApp, Alert, Button, Card, DatePicker, Empty, Form, InputNumber, Modal, Segmented, Select, Space, Tag, Typography } from 'antd';
+import { App as AntApp, Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
+import type { Order } from '../lib/types';
+import OrderDetailModal from '../components/OrderDetailModal';
 import type { SchedTask, VerifyResult, WorkCenter, ProcessInfo } from '../lib/scheduling';
 
 const { Text } = Typography;
-const PX_DAY = 92;
 const BAR_H = 26;
 const LAYER_GAP = 30;
 const LANE_PAD = 6;
+const PX_DAY_BY_SCALE: Record<string, number> = { day: 92, week: 44 };
 
 const addDays = (_s: string, n: number): string => {
   const [y, m, d] = _s.split('-').map(Number);
@@ -30,18 +32,20 @@ type Drag = { id: number; startDay: number; lastDay: number; grabOff: number; or
 
 // =============== 内嵌：GanttLane ===============
 function GanttLane({
-  tasks, workCenters, onMoveBar, onClickBar,
+  tasks, workCenters, onMoveBar, onClickBar, scale,
 }: {
   tasks: SchedTask[];
   workCenters: WorkCenter[];
   onMoveBar: (lineId: number, wcKey: string, startDate: string) => Promise<void> | void;
   onClickBar: (t: SchedTask) => void;
+  scale: 'day' | 'week';
 }) {
   const { message } = AntApp.useApp();
   const gridRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+  const PX_DAY = PX_DAY_BY_SCALE[scale] ?? 92;
 
   const axis = useMemo(() => {
     const sched = tasks.filter((t) => t.scheduled && t.startDate);
@@ -100,7 +104,7 @@ function GanttLane({
       window.removeEventListener('pointerup', onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axis]);
+  }, [axis, scale]);
 
   const layout = useMemo(() => {
     const map = new Map<number, { left: number; top: number }>();
@@ -124,7 +128,7 @@ function GanttLane({
       }
     }
     return map;
-  }, [tasks, axis]);
+  }, [tasks, axis, scale]);
 
   const onPointerDown = (e: React.PointerEvent, t: SchedTask) => {
     if (!t.scheduled || !t.startDate) return;
@@ -143,10 +147,33 @@ function GanttLane({
               const dt = new Date(d + 'T00:00:00Z');
               const dow = dt.getUTCDay();
               const isWeekend = dow === 0 || dow === 6;
+              const isWeekStart = scale === 'week' && dow === 1; // 周一 = 周分隔线
+              const titleDay = d.slice(5);
               return (
-                <div key={d} style={{ width: PX_DAY, flexShrink: 0, textAlign: 'center', fontSize: 11, color: isWeekend ? '#bbb' : '#666', borderLeft: '1px solid #f5f5f5', background: isWeekend ? '#fafafa' : undefined, padding: '4px 0' }}>
-                  {d.slice(5)}
-                  <div style={{ color: '#bbb' }}>{['日', '一', '二', '三', '四', '五', '六'][dow]}</div>
+                <div
+                  key={d}
+                  title={d}
+                  style={{
+                    width: PX_DAY, flexShrink: 0, textAlign: 'center',
+                    fontSize: scale === 'week' ? 10 : 11,
+                    color: isWeekend ? '#bbb' : '#666',
+                    borderLeft: isWeekStart ? '1px solid #d9d9d9' : '1px solid #f5f5f5',
+                    background: isWeekend ? '#fafafa' : undefined,
+                    padding: '2px 0',
+                    lineHeight: '14px',
+                  }}
+                >
+                  {scale === 'week' ? (
+                    <>
+                      <div>{dt.getUTCDate()}</div>
+                      <div style={{ color: isWeekStart ? '#999' : 'transparent', height: 12, overflow: 'hidden' }}>{titleDay}</div>
+                    </>
+                  ) : (
+                    <>
+                      {titleDay}
+                      <div style={{ color: '#bbb' }}>{['日', '一', '二', '三', '四', '五', '六'][dow]}</div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -299,7 +326,12 @@ function ScheduleModal({
 }
 
 // =============== 任务简介 Modal ===============
-function TaskModal({ task, open, onCancel }: { task: SchedTask | null; open: boolean; onCancel: () => void }) {
+function TaskModal({ task, open, onCancel, onOpenOrder }: {
+  task: SchedTask | null;
+  open: boolean;
+  onCancel: () => void;
+  onOpenOrder: (t: SchedTask) => void;
+}) {
   return (
     <Modal open={open} onCancel={onCancel} footer={null} title={task ? `${task.planNo} 行${task.lineId}｜${task.productName}` : '任务简介'} width={460}>
       {task && (
@@ -317,6 +349,10 @@ function TaskModal({ task, open, onCancel }: { task: SchedTask | null; open: boo
             </div>
           )}
           <div style={{ fontSize: 12, color: '#999' }}>单价耗时（unitSeconds）：{task.unitSeconds ?? '未配置'}</div>
+          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button size="small" onClick={onCancel}>关闭</Button>
+            <Button size="small" type="primary" style={{ marginLeft: 8 }} onClick={() => onOpenOrder(task)}>查看完整订单 →</Button>
+          </div>
         </div>
       )}
     </Modal>
@@ -325,12 +361,15 @@ function TaskModal({ task, open, onCancel }: { task: SchedTask | null; open: boo
 
 // =============== 排程看板主页面 ===============
 export default function SchedulingPage() {
+  const { message } = AntApp.useApp();
   const [tasks, setTasks] = useState<SchedTask[]>([]);
   const [workCenters, setWorkCenters] = useState<WorkCenter[]>([]);
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [scale, setScale] = useState<'day' | 'week'>('day');
   const [scheduleTarget, setScheduleTarget] = useState<SchedTask | null>(null);
   const [taskDetail, setTaskDetail] = useState<SchedTask | null>(null);
+  const [pendingKw, setPendingKw] = useState('');
+  const [orderDetail, setOrderDetail] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
     const [t, w, p] = await Promise.all([
@@ -346,7 +385,12 @@ export default function SchedulingPage() {
   useEffect(() => { load(); }, [load]);
 
   const scheduled = tasks.filter((t) => t.scheduled);
-  const pending = tasks.filter((t) => !t.scheduled);
+  const kw = pendingKw.trim().toLowerCase();
+  const pending = tasks
+    .filter((t) => !t.scheduled)
+    .filter((t) => !kw || [t.planNo, t.productName, t.customerName, t.engraving ?? '']
+      .some((s) => s.toLowerCase().includes(kw)))
+    .sort((a, b) => (a.dueDate ?? '9999-99-99').localeCompare(b.dueDate ?? '9999-99-99'));
 
   const moveBar = async (lineId: number, wcKey: string, startDate: string) => {
     const t = tasks.find((x) => x.lineId === lineId);
@@ -367,11 +411,23 @@ export default function SchedulingPage() {
     await load();
   };
 
+  const openOrder = async (t: SchedTask) => {
+    setTaskDetail(null);
+    try {
+      const res = await fetch(`/api/orders/${t.orderId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setOrderDetail(await res.json());
+    } catch (e: any) {
+      message.error(`订单加载失败：${e?.message || e}`);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', gap: 12 }}>
       {/* 待排区 */}
       <Card title={`待排区（已确认计划单·未排期 ${pending.length}）`} size="small" style={{ width: 280, flexShrink: 0 }}>
-        {pending.length === 0 && <Empty description="池空了" />}
+        <Input.Search placeholder="筛 单号/产品/客户/刻字" size="small" allowClear onSearch={setPendingKw} style={{ marginBottom: 8 }} />
+        {pending.length === 0 && <Empty description={kw ? '无匹配' : '池空了'} />}
         {pending.map((t) => (
           <div
             key={t.lineId}
@@ -396,7 +452,7 @@ export default function SchedulingPage() {
         {scheduled.length === 0 ? (
           <Empty description="无已排期任务（请到左侧待排区点击排期）" />
         ) : (
-          <GanttLane tasks={tasks} workCenters={workCenters} onMoveBar={moveBar} onClickBar={setTaskDetail} />
+          <GanttLane tasks={tasks} workCenters={workCenters} onMoveBar={moveBar} onClickBar={setTaskDetail} scale={scale} />
         )}
       </div>
 
@@ -408,7 +464,8 @@ export default function SchedulingPage() {
         onCancel={() => setScheduleTarget(null)}
         onSubmit={submitSchedule}
       />
-      <TaskModal task={taskDetail} open={!!taskDetail} onCancel={() => setTaskDetail(null)} />
+      <TaskModal task={taskDetail} open={!!taskDetail} onCancel={() => setTaskDetail(null)} onOpenOrder={openOrder} />
+      <OrderDetailModal order={orderDetail} open={!!orderDetail} onClose={() => setOrderDetail(null)} />
     </div>
   );
 }
