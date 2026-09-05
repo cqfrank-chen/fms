@@ -6,7 +6,9 @@ import { AccountingModule } from './accounting/accounting.module';
 import { CustomersModule } from './customers/customers.module';
 import { OperatorsModule } from './operators/operators.module';
 import { OrdersModule } from './orders/orders.module';
+import { PlanSheetsModule } from './plan-sheets/plan-sheets.module';
 import { ProductsModule } from './products/products.module';
+import { SchedulingModule } from './scheduling/scheduling.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { TestProductsModule } from './test-products/test-products.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
@@ -20,8 +22,10 @@ import { WarehouseModule } from './warehouse/warehouse.module';
     SuppliersModule,
     OperatorsModule,
     OrdersModule,
+    PlanSheetsModule,
     WarehouseModule,
     AccountingModule,
+    SchedulingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

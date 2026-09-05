@@ -24,12 +24,23 @@ Spec: spec.md §5
 
 ## Acceptance
 
-- [ ] 待排区→排期面板→确认全流程可走
-- [ ] 工期推算/覆盖正确；重叠分层；超期标红
-- [ ] 报工后看板状态自动变化
-- [ ] **阶段④验收（部分）**：甘特拖排可用
+- [x] 待排区→排期面板→确认全流程可走
+- [x] 工期推算/覆盖正确；重叠分层；超期标红
+- [x] 报工后看板状态自动变化
+- [x] **阶段④验收（部分）**：甘特拖排可用
+
+## 实施摘要
+
+- **DB**（迁移 0007）：work_centers(6 泳道) / processes(13 工序字典) / product_processes(产品×工序路线·单件耗时·换型) + plan_sheet_lines 加 wc_key/start_date/cover_days；种子：6 泳道 + 13 工序
+- **API**：SchedulingModule 6 端点（work-centers/processes/tasks/verify + 排期/取消 POST/DELETE）
+- **WEB**：SchedulingPage（待排区 + 自研 React 泳道甘特 + ScheduleModal 排期面板 + TaskModal 简介），贪心分层、拖拽改开始日、超期红框、报工驱动色标（蓝/黄/绿）、覆盖紫虚线
+- **验收**：
+  - research/i11-scheduling-board.png — 看板 3 任务分层 + 紫虚线覆盖 + 周末灰化
+  - research/i11-schedule-modal.png — 排期面板（verify 实时计算 + 工期提示）
+- **关键 bug**（已修）：ScheduleModal DatePicker 传 string 触发 AntD 6 `qT(...).isValid is not a function`，改为 dayjs 对象包装
 
 ## Ref
 
 - spec.md §5
 - 原型 index.html（排程看板）
+- research/10-gantt-selection.md（自研决策）

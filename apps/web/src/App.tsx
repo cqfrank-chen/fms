@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Badge, Button, Card, Col, Descriptions, Empty, Form, Input, Layout, Menu, Modal, Row, Space, Table, Tag, Typography, message } from 'antd'
+import { Badge, Button, Card, Col, Descriptions, Form, Input, Layout, Menu, Modal, Row, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import SetupPage from './pages/SetupPage'
 import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
+import SchedulingPage from './pages/SchedulingPage'
 import WarehousePage from './pages/WarehousePage'
 import AccountingPage from './pages/AccountingPage'
 
@@ -83,7 +84,7 @@ export default function App() {
           {page === 'orders' && <OrdersPage />}
           {page === 'setup' && <SetupPage />}
           {page === 'plans' && <PlansPage />}
-          {page === 'schedule' && <ComingSoon title="排程" desc="I11 实施：甘特拖排（I10 先验证甘特库选型）" />}
+          {page === 'schedule' && <SchedulingPage />}
           {page === 'warehouse' && <WarehousePage />}
           {page === 'accounting' && <AccountingPage />}
         </Content>
@@ -92,23 +93,6 @@ export default function App() {
   )
 }
 
-function ComingSoon({ title, desc }: { title: string; desc: string }) {
-  return (
-    <Card>
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={
-          <Space direction="vertical" size={4}>
-            <Typography.Text strong>{title}</Typography.Text>
-            <Typography.Text type="secondary">{desc}</Typography.Text>
-          </Space>
-        }
-      />
-    </Card>
-  )
-}
-
-/** 首页：地基状态 + I01 技术验证 CRUD 演示 */
 function OverviewPage() {
   return (
     <Row gutter={[16, 16]}>
@@ -138,15 +122,15 @@ function AlertStrip() {
             { label: 'I07 反查', done: true },
             { label: 'I08 仓储', done: true },
             { label: 'I09 账目', done: true },
-            { label: 'I10 甘特验证', done: false },
-            { label: 'I11 排程', done: false },
+            { label: 'I10 甘特验证', done: true },
+            { label: 'I11 排程', done: true },
             { label: 'I12 AI 一期', done: false },
           ].map((t) => (
             <Tag key={t.label} color={t.done ? 'success' : 'default'}>{t.label}</Tag>
           ))}
         </Space>
         <Typography.Text type="secondary">
-          阶段 ③ 仓储已交付（I08）：入库确认/出库 OQC 先检后出/FIFO 扣库存/来料登记/盘点校准/冲销。正在实施 I09 账目域。
+          阶段 ④ 排期 AI 线：I10 甘特库选型完成（自研 React 泳道甘特，跳出 frappe/dhtmlx 任务树模型）、I11 排程看板落地（待排区+6泳道+贪心分层+拖拽改开始日+超期红框+报工驱动色标）。
         </Typography.Text>
       </Space>
     </Card>

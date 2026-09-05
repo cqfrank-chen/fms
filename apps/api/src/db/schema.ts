@@ -1,4 +1,4 @@
-import { integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /** 技术验证演示实体（I01）：最小 CRUD 的载体，订单线完成后下线 */
 export const testProducts = pgTable('test_products', {
@@ -192,12 +192,57 @@ export const planSheetLines = pgTable('plan_sheet_lines', {
   completedQuantity: integer('completed_quantity').default(0).notNull(), // 完成数量（I06 行报工）
   engraving: text('engraving'), // 刻字（快照自订单行）
   packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求快照
+  // 排期域（I11）——独立排期状态字段，不进五态
+  wcKey: text('wc_key'), // 排入泳道（工序产能池 key）；null=未排期
+  startDate: date('start_date'), // 排期开始日 YYYY-MM-DD；null=未排期
+  coverDays: integer('cover_days'), // 工期覆盖（天）；null=按产品×工序单件耗时自动推算
 });
 
 export type PlanSheet = typeof planSheets.$inferSelect;
 export type NewPlanSheet = typeof planSheets.$inferInsert;
 export type PlanSheetLine = typeof planSheetLines.$inferSelect;
 export type NewPlanSheetLine = typeof planSheetLines.$inferInsert;
+
+// ============================================================
+// 排期主数据（I11，spec §5 / research/04-process-data.md）
+// 工作中心（6 泳道）→ 工序字典（13 道种子）→ 产品×工序路线（运行期前端填写耗时）
+// ============================================================
+
+/** 工作中心（工序产能池）：设备数=可并行台数；key 即甘特图横排泳道键 */
+export const workCenters = pgTable('work_centers', {
+  key: text('key').primaryKey(), // 主键即泳道键（如 'cut'/'turn'/'drill'/'thread'/'finish'/'pack'）
+  name: text('name').notNull(), // 中文名（泳道标题）
+  machines: integer('machines').default(1).notNull(), // 可并行设备数
+  sortOrder: integer('sort_order').default(0).notNull(), // 看板纵轴顺序
+});
+
+/** 工序字典（13 道种子） */
+export const processes = pgTable('processes', {
+  id: serial('id').primaryKey(),
+  key: text('key').notNull().unique(), // 工序编码（'cut'/'turn'/'drill_c'/'drill_p'/'thread'/'mill'/'braze'/'ream'/'polish'/'wash'/'test'/'pack'/'iqc'）
+  name: text('name').notNull(), // 工序中文名
+  wcKey: text('wc_key').notNull().references(() => workCenters.key), // 所属泳道
+  sortOrder: integer('sort_order').default(0).notNull(), // 字典顺序
+});
+
+/** 产品×工序路线（运行期前端配置）：含单件耗时（秒）与换型时间（分钟） */
+export const productProcesses = pgTable(
+  'product_processes',
+  {
+    productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+    processId: integer('process_id').notNull().references(() => processes.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(), // 该产品工序顺序（从 1 起）
+    unitSeconds: numeric('unit_seconds', { precision: 8, scale: 2 }), // 单件耗时（秒）；null 表示未填
+    changeoverMinutes: integer('changeover_minutes').default(0).notNull(), // 换型时间（分钟）
+  },
+  (t) => ({
+    pk: uniqueIndex('product_processes_pk').on(t.productId, t.processId),
+  }),
+);
+
+export type WorkCenter = typeof workCenters.$inferSelect;
+export type Process = typeof processes.$inferSelect;
+export type ProductProcess = typeof productProcesses.$inferSelect;
 
 // ============================================================
 // 仓储（I06 报工触发入库草稿；I08 完整：确认入账/库存/出库/来料/盘点/冲销）
