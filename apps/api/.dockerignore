@@ -1,0 +1,4 @@
+# docker build context = apps/api（apps/api/Dockerfile 用）
+node_modules
+dist
+*.tsbuildinfo

@@ -1,0 +1,11 @@
+# docker build context = 仓库根（deploy/Dockerfile 用）
+# 排除开发/内部资产，缩小构建上下文
+.git
+.scratch
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+.env
+backups
