@@ -82,8 +82,11 @@ const formVal = (page) => page.evaluate(() => window.__orderForm?.getFieldsValue
   await page.waitForFunction(() => document.body.innerText.includes('已驳回'), { timeout: 8000 }).catch(() => {});
   await sleep(600);
   const s2a = await hasText(page, '已驳回');
-  const s2b = !(await hasText(page, targetPlan)); // 已从草稿列表消失
-  console.log('STEP2 驳回:', 'Popconfirm:', popOk && popDesc ? 'OK' : 'FAIL', '| 驳回消息:', s2a ? 'OK' : 'FAIL', '| 草稿列表已移除:', s2b ? 'OK' : 'FAIL');
+  // 计划单仍在列表（状态筛选=全部）但状态已变「已作废」、操作按钮消失——驳回轨迹可见
+  const s2b = await rowHasText(page, targetPlan, '已作废');
+  const s2c = !(await rowHasText(page, targetPlan, '不通过'));
+  console.log('STEP2 驳回:', 'Popconfirm:', popOk && popDesc ? 'OK' : 'FAIL', '| 驳回消息:', s2a ? 'OK' : 'FAIL',
+    '| 状态已作废可见:', s2b ? 'OK' : 'FAIL', '| 不再可驳回:', s2c ? 'OK' : 'FAIL');
   await page.screenshot({ path: `${outDir}/s3-rejected.png`, fullPage: true });
 
   // 3. 订单列表：退回草稿行出现「编辑」
