@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
@@ -9,7 +9,7 @@ import type { Customer, Order, OrderLine, PlanSheet } from '../lib/types'
 const { Text } = Typography
 
 const statusColor = (v: string) =>
-  v === 'completed' ? 'success' : v === 'draft' ? 'default' : v === 'cancelled' ? 'error' : 'processing'
+  v === 'completed' ? 'success' : v === 'draft' ? 'default' : v === 'cancelled' || v === 'voided' ? 'error' : 'processing'
 
 /** 计划单五态筛选白名单（计划单无 cancelled，订单无 voided，勿共用 STATUS_LABEL 全表） */
 const PLAN_FILTER = ['draft', 'confirmed', 'production', 'completed', 'voided']
@@ -27,6 +27,7 @@ function PlansPage() {
   const [kw, setKw] = useState('')
   const [detail, setDetail] = useState<PlanSheet | null>(null)
   const [auditingId, setAuditingId] = useState<number | null>(null)
+  const [rejectingId, setRejectingId] = useState<number | null>(null)
   const [reportPlan, setReportPlan] = useState<PlanSheet | null>(null)
   const [reportLineId, setReportLineId] = useState<number>()
   const [reportQty, setReportQty] = useState<number | null>(null)
@@ -66,6 +67,18 @@ function PlansPage() {
     } catch (e) {
       message.error('审核失败：' + (e as Error).message)
     } finally { setAuditingId(null) }
+  }
+
+  /** 审核不通过：计划单作废 + 订单退回草稿（订单列表可编辑后重新确认） */
+  async function doReject(r: PlanSheet) {
+    setRejectingId(r.id)
+    try {
+      const updated = await api<PlanSheet>(`/plan-sheets/${r.id}/reject`, { method: 'POST' })
+      message.success(`已驳回：计划单 ${updated.planNo} 作废；订单 ${updated.orderNo} 退回草稿，可到「订单列表」编辑后重新确认`)
+      fetchRows()
+    } catch (e) {
+      message.error('驳回失败：' + (e as Error).message)
+    } finally { setRejectingId(null) }
   }
 
   function openReport(r: PlanSheet) {
@@ -124,11 +137,21 @@ function PlansPage() {
       render: (v: string) => <Tag color={statusColor(v)}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
     {
-      title: '操作', width: 210,
+      title: '操作', width: 250,
       render: (_, r) => (
         <Space size={4}>
           {r.status === 'draft' && (
-            <Button type="primary" size="small" loading={auditingId === r.id} onClick={() => doAudit(r)}>审核</Button>
+            <>
+              <Popconfirm
+                title="审核不通过？"
+                description={`计划单 ${r.planNo} 将作废，订单 ${r.orderNo} 退回草稿（可到订单列表编辑后重新确认，生成新计划单）`}
+                okText="驳回" okButtonProps={{ danger: true }} cancelText="取消"
+                onConfirm={() => doReject(r)}
+              >
+                <Button danger size="small" loading={rejectingId === r.id}>不通过</Button>
+              </Popconfirm>
+              <Button type="primary" size="small" loading={auditingId === r.id} onClick={() => doAudit(r)}>审核</Button>
+            </>
           )}
           {(r.status === 'confirmed' || r.status === 'production') && (
             <Button type="primary" size="small" ghost onClick={() => openReport(r)}>报工</Button>
@@ -137,7 +160,7 @@ function PlansPage() {
         </Space>
       ),
     },
-  ], [auditingId])
+  ], [auditingId, rejectingId])
 
   const filterBar = (
     <Space wrap style={{ marginBottom: 12 }}>

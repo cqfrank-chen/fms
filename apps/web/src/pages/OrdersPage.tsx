@@ -18,15 +18,33 @@ const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, lab
 
 const { Text } = Typography
 
-/** 订单页：新建（一单多产品+复合包装） / 订单列表（筛选+详情） / 归档（已完成反查） */
+/** 订单页：新建（一单多产品+复合包装） / 订单列表（筛选+详情+编辑） / 归档（已完成反查） */
 export default function OrdersPage() {
+  // 编辑闭环（I05 补）：订单列表「编辑」→ 跳转新建 Tab 预填为编辑模式 → 保存(PATCH)后回列表刷新
+  const [tab, setTab] = useState('new')
+  const [editOrder, setEditOrder] = useState<Order | null>(null)
+  const [listTick, setListTick] = useState(0)
+  function startEdit(o: Order) {
+    setEditOrder(o)
+    setTab('new')
+  }
+  function cancelEdit() {
+    setEditOrder(null)
+    setTab('list')
+  }
+  function onEdited() {
+    setEditOrder(null)
+    setListTick((t) => t + 1)
+    setTab('list')
+  }
   return (
     <div>
       <Typography.Title level={4} style={{ marginTop: 0 }}>订单</Typography.Title>
       <Tabs
+        activeKey={tab} onChange={setTab}
         items={[
-          { key: 'new', label: '+ 新建订单', children: <OrderCreateCard /> },
-          { key: 'list', label: '订单列表', children: <OrderListTable archived={false} /> },
+          { key: 'new', label: '+ 新建订单', children: <OrderCreateCard editOrder={editOrder} onEdited={onEdited} onCancelEdit={cancelEdit} /> },
+          { key: 'list', label: '订单列表', children: <OrderListTable archived={false} refreshTick={listTick} onEdit={startEdit} /> },
           { key: 'archive', label: '归档（已完成）', children: <OrderListTable archived /> },
         ]}
       />
@@ -34,8 +52,13 @@ export default function OrdersPage() {
   )
 }
 
-/** 新建订单：单头 + 多产品行（行含刻字/复合包装）；承接 AI 导入草稿（未建档客户/产品快速建档） */
-function OrderCreateCard() {
+/** 新建/编辑订单：单头 + 多产品行（行含刻字/复合包装）；承接 AI 导入草稿（未建档客户/产品快速建档） */
+function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
+  editOrder: Order | null
+  onEdited: () => void
+  onCancelEdit: () => void
+}) {
+  const editing = !!editOrder
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [form] = Form.useForm()
@@ -45,6 +68,27 @@ function OrderCreateCard() {
     api<Customer[]>('/customers').then(setCustomers).catch(() => {})
     api<Product[]>('/products').then(setProducts).catch(() => {})
   }, [])
+
+  // 编辑模式（I05 驳回重做闭环）：外部选定草稿订单 → 整单载入表单
+  useEffect(() => {
+    if (!editOrder) return
+    form.setFieldsValue({
+      customerId: editOrder.customerId,
+      poNo: editOrder.poNo || undefined,
+      dueDate: editOrder.dueDate ? dayjs(editOrder.dueDate) : undefined,
+      note: editOrder.note || undefined,
+      lines: editOrder.lines.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        currency: l.currency,
+        engraving: l.engraving || undefined,
+        packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
+      })),
+    })
+    setPending(null)
+    setImportTexts({})
+  }, [editOrder]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 临时诊断挂载：暴露 form 实例便于 headless 回归读真实 store（保留可随时移除）
   useEffect(() => {
@@ -189,24 +233,34 @@ function OrderCreateCard() {
     // 行校验：产品必选、数量/单价为正
     const lines = (values.lines ?? []).filter((l: OrderLine) => l.productId)
     if (!lines.length) { message.warning('至少加一个产品行'); return }
+    const body = {
+      customerId: values.customerId,
+      poNo: values.poNo,
+      dueDate: values.dueDate.toISOString(),
+      note: values.note,
+      lines: lines.map((l: OrderLine) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        currency: l.currency,
+        engraving: l.engraving || undefined,
+        packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
+      })),
+    }
     setSaving(true)
     try {
+      if (editing && editOrder) {
+        const updated = await api<Order>(`/orders/${editOrder.id}`, { method: 'PATCH', body })
+        message.success(`订单 ${updated.orderNo} 已更新（草稿）—— 重新「确认」即生成新计划单`)
+        form.resetFields()
+        setPending(null)
+        setImportTexts({})
+        onEdited()
+        return
+      }
       const created = await api<Order>('/orders', {
         method: 'POST',
-        body: {
-          customerId: values.customerId,
-          poNo: values.poNo,
-          dueDate: values.dueDate.toISOString(),
-          note: values.note,
-          lines: lines.map((l: OrderLine) => ({
-            productId: l.productId,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            currency: l.currency,
-            engraving: l.engraving || undefined,
-            packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
-          })),
-        },
+        body,
       })
       // 建单成功：清除 AI 单槽草稿 + 学习反馈（真实最终稿回流）
       api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
@@ -328,8 +382,13 @@ function OrderCreateCard() {
   ]
 
   return (
-    <Card title="新建订单" extra={<Typography.Text type="secondary">保存即草稿；确认生成计划单为 I05 动作</Typography.Text>}>
-      <AiOrderImport onReviewDone={fillFromAI} />
+    <Card title={editing && editOrder ? `编辑订单 ${editOrder.orderNo}` : '新建订单'}
+      extra={editing ? (
+        <Button size="small" onClick={onCancelEdit}>返回列表（取消编辑）</Button>
+      ) : (
+        <Typography.Text type="secondary">保存即草稿；确认生成计划单为 I05 动作</Typography.Text>
+      )}>
+      {!editing && <AiOrderImport onReviewDone={fillFromAI} />}
 
       {(pending?.customer || unmatchedEntries.length > 0) && (
         <Alert
@@ -386,7 +445,7 @@ function OrderCreateCard() {
               />
               <Space>
                 <Button onClick={() => add({ ...defaultLine })}>+ 加一行</Button>
-                <Button type="primary" loading={saving} onClick={handleSave}>保存订单（草稿）</Button>
+                <Button type="primary" loading={saving} onClick={handleSave}>{editing ? '保存修改' : '保存订单（草稿）'}</Button>
               </Space>
             </>
           )}
@@ -430,8 +489,12 @@ function OrderCreateCard() {
   )
 }
 
-/** 订单列表 / 归档（archived=已完成） */
-function OrderListTable({ archived }: { archived: boolean }) {
+/** 订单列表 / 归档（archived=已完成）；draft 行提供 编辑/确认（I05 驳回重做闭环） */
+function OrderListTable({ archived, refreshTick, onEdit }: {
+  archived: boolean
+  refreshTick?: number
+  onEdit?: (o: Order) => void
+}) {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [rows, setRows] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
@@ -467,7 +530,7 @@ function OrderListTable({ archived }: { archived: boolean }) {
       message.error('加载失败：' + (e as Error).message)
     } finally { setLoading(false) }
   }
-  useEffect(() => { fetchRows() }, [archived, status, customerId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const columns: ColumnsType<Order> = useMemo(() => [
     { title: '订单号', dataIndex: 'orderNo', width: 170, render: (v: string) => <Text strong>{v}</Text> },
@@ -490,11 +553,14 @@ function OrderListTable({ archived }: { archived: boolean }) {
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
     {
-      title: '操作', width: 170,
+      title: '操作', width: 220,
       render: (_, r) => (
         <Space size={4}>
           {r.status === 'draft' && (
-            <Button type="primary" size="small" loading={confirmingId === r.id} onClick={() => doConfirm(r)}>确认</Button>
+            <>
+              {onEdit && <Button size="small" onClick={() => onEdit(r)}>编辑</Button>}
+              <Button type="primary" size="small" loading={confirmingId === r.id} onClick={() => doConfirm(r)}>确认</Button>
+            </>
           )}
           <Button size="small" onClick={() => setDetail(r)}>详情</Button>
         </Space>

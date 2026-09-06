@@ -23,6 +23,12 @@ export class PlanSheetsController {
     return this.service.audit(id);
   }
 
+  /** 审核不通过：计划单作废 + 订单退回草稿（可编辑后重新确认） */
+  @Post(':id/reject')
+  reject(@Param('id', ParseIntPipe) id: number) {
+    return this.service.reject(id);
+  }
+
   /** 行报工（I06）：录完成数量 → 状态聚合 → 触发入库单草稿 */
   @Post(':id/report')
   report(@Param('id', ParseIntPipe) id: number, @Body() dto: ReportDto) {

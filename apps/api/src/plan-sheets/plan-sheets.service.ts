@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, goodsReceiptLines, goodsReceipts, orderLines, orders,
@@ -35,7 +35,10 @@ export class PlanSheetsService {
     if (order.status !== 'draft')
       throw new BadRequestException(`仅草稿订单可确认（当前：${order.status}）`);
 
-    const existing = await db.select().from(planSheets).where(eq(planSheets.orderId, orderId));
+    const existing = await db
+      .select()
+      .from(planSheets)
+      .where(and(eq(planSheets.orderId, orderId), ne(planSheets.status, 'voided')));
     if (existing.length)
       throw new BadRequestException(`订单已存在计划单（${existing[0].planNo}），勿重复确认`);
 
@@ -78,6 +81,27 @@ export class PlanSheetsService {
       .where(eq(planSheets.id, planId))
       .returning();
     return this.findOne(updated.id);
+  }
+
+  /** 审核不通过：草稿计划单作废 + 来源订单退回草稿（可编辑后重新确认，生成新计划单） */
+  async reject(planId: number) {
+    const [plan] = await db.select().from(planSheets).where(eq(planSheets.id, planId));
+    if (!plan) throw new NotFoundException('计划单不存在');
+    if (plan.status !== 'draft')
+      throw new BadRequestException(`仅草稿计划单可驳回（当前：${plan.status}）`);
+    const [order] = await db.select().from(orders).where(eq(orders.id, plan.orderId));
+    if (!order) throw new NotFoundException('来源订单不存在');
+    if (order.status !== 'confirmed')
+      throw new BadRequestException(`仅来源订单为「已确认」时可驳回（当前订单：${order.status}）`);
+    await db.transaction(async (tx) => {
+      // 1. 删计划单行（行快照引用订单行，若保留会挡后续订单行编辑的 FK）
+      await tx.delete(planSheetLines).where(eq(planSheetLines.planSheetId, planId));
+      // 2. 计划单作废（保留单头作驳回轨迹）
+      await tx.update(planSheets).set({ status: 'voided' }).where(eq(planSheets.id, planId));
+      // 3. 订单退回草稿：可编辑/删除，重新确认即生成新计划单
+      await tx.update(orders).set({ status: 'draft' }).where(eq(orders.id, plan.orderId));
+    });
+    return this.findOne(planId);
   }
 
   // ---------- I06 行报工 + 状态聚合 + 入库草稿 ----------
