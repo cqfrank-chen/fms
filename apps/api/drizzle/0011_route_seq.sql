@@ -1,0 +1,1 @@
+ALTER TABLE "plan_sheet_lines" ADD COLUMN "route_seq" integer DEFAULT 1 NOT NULL;

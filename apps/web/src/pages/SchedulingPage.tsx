@@ -22,11 +22,17 @@ const todayISO = (): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const STATUS_COLOR = (t: SchedTask) => {
-  if (t.progress >= 1) return '#52c41a';
-  if (t.progress > 0) return '#faad14';
-  return '#1677ff';
+  if (t.progress >= 1) return '#52c41a'; // 成品完成
+  // 进行中：无路由=已部分成品；有路由=已推进（routeSeq>1，正在第 ≥2 道或末道）
+  const inProgress = t.routeTotal ? t.routeSeq > 1 : t.completed > 0;
+  if (inProgress) return '#faad14';
+  return '#1677ff'; // 已排未动
 };
-const barLabel = (t: SchedTask) => `${t.planNo}·行${t.lineId} ${Math.round(t.progress * 100)}%`;
+const barLabel = (t: SchedTask) => {
+  const step = t.routeTotal ? `[${t.currentStepName ?? ''} ${Math.min(t.routeSeq, t.routeTotal)}/${t.routeTotal}]` : '';
+  const pct = t.routeTotal && t.progress === 0 ? '' : ` ${Math.round(t.progress * 100)}%`;
+  return `${t.planNo}·行${t.lineId}${step}${pct}`;
+};
 
 type Drag = { id: number; startDay: number; lastDay: number; grabOff: number; origWc: string };
 
@@ -214,7 +220,7 @@ function GanttLane({
                         boxShadow: t.overdue ? '0 0 0 2px #ff4d4f' : undefined,
                         outline: t.coverDays != null ? '2px dashed #722ed1' : undefined,
                       }}
-                      title={`${t.planNo}·行${t.lineId}｜${t.productName} ×${t.quantity}\n客户 ${t.customerName}\n交期 ${t.dueDate}｜进度 ${Math.round(t.progress * 100)}%`}
+                      title={`${t.planNo}·行${t.lineId}｜${t.productName} ×${t.quantity}\n客户 ${t.customerName}｜交期 ${t.dueDate}\n${t.routeTotal ? `工序 ${t.currentStepName}（${Math.min(t.routeSeq, t.routeTotal)}/${t.routeTotal}）｜` : ''}成品 ${t.completed}（${Math.round(t.progress * 100)}%）${t.overdue ? '\n⚠ 预计超期' : ''}`}
                       onPointerDown={(e) => onPointerDown(e, t)}
                       onClick={() => onClickBar(t)}
                     >
@@ -291,6 +297,15 @@ function ScheduleModal({
           <div style={{ marginBottom: 8 }}>
             <Text type="secondary">产品行</Text>　{task.productName} ×{task.quantity}　<Text type="secondary">客户</Text>　{task.customerName}
           </div>
+          {task.routeTotal ? (
+            <Alert type="info" showIcon style={{ marginBottom: 12 }}
+              title={`当前工序「${task.currentStepName}」（${Math.min(task.routeSeq, task.routeTotal)}/${task.routeTotal}）`}
+              description="建议把该行排入当前工序所在泳道；报工该工序后将自动推进到下一道并顺延排期。" />
+          ) : (
+            <Alert type="warning" showIcon style={{ marginBottom: 12 }}
+              title="该产品未配置工序路线"
+              description="按成品直报；建议到「设置 → 产品工序」补齐工序链以按工种逐道推进。" />
+          )}
           <Form layout="vertical" size="small">
             <Form.Item label="排入工序（泳道）" required>
               <Select value={wcKey} onChange={(v) => setWcKey(v as string)}>
@@ -339,7 +354,12 @@ function TaskModal({ task, open, onCancel, onOpenOrder }: {
           <div><Text type="secondary">来源</Text>　{task.orderNo}（订单 {task.orderId}）</div>
           <div><Text type="secondary">客户</Text>　{task.customerName}</div>
           <div><Text type="secondary">计划单</Text>　{task.planNo}（{task.planStatus}）</div>
-          <div><Text type="secondary">数量</Text>　{task.quantity} 只｜完成 {task.completed}（{Math.round(task.progress * 100)}%）</div>
+          <div><Text type="secondary">工序</Text>　{task.routeTotal
+            ? (task.routeSeq > task.routeTotal
+              ? '✅ 全部工序完成'
+              : `当前「${task.currentStepName}」（${Math.min(task.routeSeq, task.routeTotal)}/${task.routeTotal}）—— 报工即推进下一道`)
+            : '—（未配路由·成品直报）'}</div>
+          <div><Text type="secondary">数量</Text>　{task.quantity} 只｜成品 {task.completed}（{Math.round(task.progress * 100)}%）</div>
           <div><Text type="secondary">排程</Text>　{task.scheduled ? `${task.startDate} → ${task.endDate}（${task.durDays} 天，${task.wcName}）` : '未排期'}{task.coverDays != null ? '（工期已覆盖）' : ''}</div>
           <div><Text type="secondary">交期</Text>　{task.dueDate ?? '—'} {task.overdue ? <Tag color="red">⚠预计超期</Tag> : null}</div>
           {task.engraving && <div><Text type="secondary">刻字</Text>　{task.engraving}</div>}
@@ -425,21 +445,27 @@ export default function SchedulingPage() {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
       {/* 待排区 */}
-      <Card title={`待排区（已确认计划单·未排期 ${pending.length}）`} size="small" style={{ width: 280, flexShrink: 0 }}>
+      <Card title={`待排区（已确认/生产中·未排期 ${pending.length}）`} size="small" style={{ width: 300, flexShrink: 0 }}>
         <Input.Search placeholder="筛 单号/产品/客户/刻字" size="small" allowClear onSearch={setPendingKw} style={{ marginBottom: 8 }} />
         {pending.length === 0 && <Empty description={kw ? '无匹配' : '池空了'} />}
-        {pending.map((t) => (
-          <div
-            key={t.lineId}
-            onClick={() => setScheduleTarget(t)}
-            style={{ border: '1px solid #e8e8e8', borderLeft: '4px solid #1677ff', borderRadius: 6, padding: '8px 10px', marginBottom: 8, cursor: 'pointer' }}
-            title="点击 → 排期面板"
-          >
-            <div style={{ fontWeight: 500 }}>{t.planNo}·行{t.lineId}</div>
-            <div style={{ fontSize: 11, color: '#666' }}>{t.productName}{t.engraving ? ` ✒${t.engraving}` : ''}</div>
-            <div style={{ fontSize: 11, color: '#1677ff' }}>{t.quantity} 只 · 交期 {t.dueDate}</div>
-          </div>
-        ))}
+        {pending.map((t) => {
+          const inProgress = t.routeTotal ? t.routeSeq > 1 : t.completed > 0;
+          return (
+            <div
+              key={t.lineId}
+              onClick={() => setScheduleTarget(t)}
+              style={{ border: '1px solid #e8e8e8', borderLeft: `4px solid ${inProgress ? '#faad14' : '#1677ff'}`, borderRadius: 6, padding: '8px 10px', marginBottom: 8, cursor: 'pointer' }}
+              title="点击 → 排期面板"
+            >
+              <div style={{ fontWeight: 500 }}>{t.planNo}·行{t.lineId}{t.planStatus === 'production' ? <Tag color="gold" style={{ marginLeft: 6 }}>生产中</Tag> : null}</div>
+              <div style={{ fontSize: 11, color: '#666' }}>{t.productName}{t.engraving ? ` ✒${t.engraving}` : ''}</div>
+              {t.routeTotal ? (
+                <div style={{ fontSize: 11, color: '#fa8c16' }}>工序 {t.currentStepName}（{Math.min(t.routeSeq, t.routeTotal)}/{t.routeTotal}）</div>
+              ) : null}
+              <div style={{ fontSize: 11, color: '#1677ff' }}>{t.quantity} 只 · 交期 {t.dueDate}</div>
+            </div>
+          );
+        })}
       </Card>
 
       {/* 看板 */}

@@ -54,6 +54,13 @@ export interface PlanSheetLine {
   completedQuantity?: number
   engraving?: string | null
   packaging?: PackagingSpec | null
+  // 工序推进（I06 整批逐道，后端 attachLines 附加）
+  routeSeq?: number // 当前工序序号（1-based）
+  routeTotal?: number // 产品工序路由总道数；0 = 未配路由（成品直报）
+  currentStepName?: string | null // 当前工序名（无路由为 null）
+  currentWcKey?: string | null
+  finished?: boolean // 行是否已全工序走完/成品完成
+  requiredQty?: number // 本次报工应报数（中间道=整批；末道/无路由=剩余）
 }
 
 export interface PlanSheet {

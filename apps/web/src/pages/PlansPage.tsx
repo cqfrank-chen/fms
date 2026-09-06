@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Alert, Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
@@ -87,6 +87,13 @@ function PlansPage() {
     setReportQty(null)
   }
 
+  /** 选中报工行：带入当前工序应报数（整批逐道：中间道=整批；末道/无路由=剩余） */
+  function pickReportLine(id: number) {
+    setReportLineId(id)
+    const line = reportPlan?.lines.find((l) => l.id === id)
+    setReportQty(line && line.requiredQty != null ? line.requiredQty : null)
+  }
+
   async function doReport() {
     if (!reportPlan || !reportLineId || reportQty == null) {
       message.warning('请选择产品行并填写本次完成数量')
@@ -94,8 +101,15 @@ function PlansPage() {
     }
     setReporting(true)
     try {
-      await api(`/plan-sheets/${reportPlan.id}/report`, { method: 'POST', body: { lineId: reportLineId, doneQty: reportQty } })
-      message.success('报工成功：完成数量已累计，入库草稿已生成（仓管确认 I08）')
+      const updated = await api<PlanSheet>(`/plan-sheets/${reportPlan.id}/report`, { method: 'POST', body: { lineId: reportLineId, doneQty: reportQty } })
+      const line = updated.lines.find((l) => l.id === reportLineId)
+      if (line && (line.routeTotal ?? 0) > 0) {
+        message.success(line.finished
+          ? `报工成功：「${line.currentStepName}」末道完成 → 成品 ${line.completedQuantity ?? 0} 只，计划单已完成，入库草稿已生成（仓管确认 I08）`
+          : `报工成功：「${line.currentStepName}」（${line.routeSeq}/${line.routeTotal}）完成，已推进到下一道工序`)
+      } else {
+        message.success('报工成功：完成数量已累计，入库草稿已生成（仓管确认 I08）')
+      }
       setReportPlan(null)
       fetchRows()
     } catch (e) {
@@ -120,11 +134,13 @@ function PlansPage() {
         <Space direction="vertical" size={2}>
           {r.lines?.map((l, i) => {
             const done = l.completedQuantity ?? 0
-            const mark = done >= l.quantity ? '✅' : done > 0 ? '🔄' : ''
+            const tot = l.routeTotal ?? 0
+            const stepDone = tot > 0 && !(done >= l.quantity)
             return (
               <div key={i} style={{ fontSize: 12 }}>
-                {mark} {l.productName} × {l.quantity}
-                {done > 0 && <Text type={done >= l.quantity ? 'success' : undefined}>（{done}/{l.quantity}）</Text>}
+                {done >= l.quantity ? '✅' : done > 0 ? '🔄' : ''} {l.productName} × {l.quantity}
+                {done > 0 && <Text type={done >= l.quantity ? 'success' : undefined}>（成品 {done}/{l.quantity}）</Text>}
+                {stepDone && <Text type="warning" style={{ fontSize: 12 }}> 🔧{l.currentStepName}（{Math.min(l.routeSeq ?? 1, tot)}/{tot}）</Text>}
                 {l.engraving ? ` ✒${l.engraving}` : ''}
               </div>
             )
@@ -185,34 +201,63 @@ function PlansPage() {
       <Modal
         title={`行报工 ${reportPlan?.planNo ?? ''}`}
         open={!!reportPlan} onCancel={() => setReportPlan(null)}
-        onOk={doReport} confirmLoading={reporting} okText="提交报工" width={540}
+        onOk={doReport} confirmLoading={reporting} okText="提交报工" width={620}
       >
-        {reportPlan && (
-          <Space direction="vertical" style={{ width: '100%' }} size={16}>
-            <div>
-              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
-                选择产品行（办公室 PC 代录，按纸单填本次完成数量）
+        {reportPlan && (() => {
+          const reportLine = reportPlan.lines.find((l) => l.id === reportLineId)
+          const tot = reportLine?.routeTotal ?? 0
+          const seq = Math.min(reportLine?.routeSeq ?? 1, Math.max(1, tot))
+          const hasRoute = tot > 0
+          const isLast = hasRoute && seq >= tot
+          return (
+            <Space direction="vertical" style={{ width: '100%' }} size={16}>
+              <div>
+                <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                  选择产品行（办公室 PC 代录；配了工序路线的产品按「当前工序」整批逐道推进）
+                </Typography.Text>
+                <Select
+                  style={{ width: '100%' }} value={reportLineId} onChange={pickReportLine} placeholder="选择产品行"
+                  options={reportPlan.lines
+                    ?.filter((l) => (l.completedQuantity ?? 0) < l.quantity && !l.finished)
+                    .map((l) => ({
+                      value: l.id,
+                      label: (l.routeTotal ?? 0) > 0
+                        ? `${l.productName} × ${l.quantity} ｜工序 ${l.currentStepName}（${Math.min(l.routeSeq ?? 1, l.routeTotal!)}/${l.routeTotal}）`
+                        : `${l.productName} × ${l.quantity}（成品直报，剩余 ${l.requiredQty}）`,
+                    }))}
+                />
+              </div>
+              {reportLine && hasRoute && (
+                <Alert
+                  type="info" showIcon style={{ marginBottom: 0 }}
+                  message={isLast
+                    ? `末道工序「${reportLine.currentStepName}」：报满 ${reportLine.requiredQty} 只 → 成品完成（${reportLine.completedQuantity ?? 0}/${reportLine.quantity}）→ 计划单/订单完成 + 入库草稿`
+                    : `当前工序「${reportLine.currentStepName}」（${seq}/${tot}）：整批 ${reportLine.requiredQty} 只一次报完 → 自动推进到下一道，排程随之前进`}
+                />
+              )}
+              {reportLine && !hasRoute && (
+                <Alert
+                  type="warning" showIcon style={{ marginBottom: 0 }}
+                  message="该产品未配置工序路线 → 按成品直接报工（可分批，每次 ≤ 剩余数量）。建议到「设置 → 产品工序」为它补齐工序链，报工将按工种逐道推进。"
+                />
+              )}
+              <div>
+                <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                  本次完成数量{hasRoute ? '（整批固定）' : ''}
+                </Typography.Text>
+                <InputNumber style={{ width: '100%' }} min={1}
+                  max={reportLine?.requiredQty} disabled={hasRoute}
+                  value={reportQty} onChange={(v) => setReportQty(v as number | null)}
+                  placeholder={hasRoute ? '整批一次报完' : '≥ 1'} />
+              </div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {hasRoute
+                  ? '提示：中间工序报工不产成品、不触发入库；全部工序走完（末道）才累计成品并生成入库草稿（批次 FG-YYYYMMDD-NN，仓管确认在 I08）。'
+                  : '提示：报工累计成品并推进计划单/订单状态；同时生成入库单草稿（批次 FG-YYYYMMDD-NN，仓管确认在 I08）。'}
               </Typography.Text>
-              <Select
-                style={{ width: '100%' }} value={reportLineId} onChange={setReportLineId} placeholder="选择产品行"
-                options={reportPlan.lines
-                  ?.filter((l) => (l.completedQuantity ?? 0) < l.quantity)
-                  .map((l) => ({
-                    value: l.id,
-                    label: `${l.productName} × ${l.quantity}（已完成 ${l.completedQuantity ?? 0}，可报 ${l.quantity - (l.completedQuantity ?? 0)}）`,
-                  }))}
-              />
-            </div>
-            <div>
-              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>本次完成数量</Typography.Text>
-              <InputNumber style={{ width: '100%' }} min={1} value={reportQty}
-                onChange={(v) => setReportQty(v as number | null)} placeholder="≥ 1" />
-            </div>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              提示：报工自动累计完成量并推进计划单/订单状态；同时生成入库单草稿（批次 FG-YYYYMMDD-NN，仓管确认在 I08）。
-            </Typography.Text>
-          </Space>
-        )}
+            </Space>
+          )
+        })()}
       </Modal>
     </Card>
   )
@@ -248,7 +293,17 @@ function PlanDetail({ plan, onClose, onTrace }: { plan: PlanSheet; onClose: () =
         columns={[
           { title: '产品', dataIndex: 'productName' },
           { title: '数量', dataIndex: 'quantity', width: 80 },
-          { title: '已完成', dataIndex: 'completedQuantity', width: 80, render: (v?: number) => v ?? 0 },
+          { title: '成品', dataIndex: 'completedQuantity', width: 90, render: (v?: number) => v ?? 0 },
+          {
+            title: '工序进度', width: 190,
+            render: (_, l) => {
+              const ll = l as unknown as { routeTotal?: number; routeSeq?: number; currentStepName?: string | null; finished?: boolean }
+              if (ll.finished || (l as unknown as { completedQuantity?: number; quantity?: number }).completedQuantity! >= (l as unknown as { quantity?: number }).quantity!) return '✅ 全部完成'
+              return (ll.routeTotal ?? 0) > 0
+                ? `🔧${ll.currentStepName}（${Math.min(ll.routeSeq ?? 1, ll.routeTotal!)}/${ll.routeTotal}）`
+                : '—（未配路由·成品直报）'
+            },
+          },
           { title: '刻字', dataIndex: 'engraving', width: 140, render: (v?: string | null) => (v ? `✒${v}` : '—') },
           { title: '包装要求', width: 220, render: (_, l) => {
             const pack = (l as unknown as { packaging?: Record<string, string> }).packaging ?? {}

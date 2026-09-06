@@ -50,6 +50,11 @@ export interface SchedTask {
   overdue: boolean;
   engraving?: string | null;
   packaging?: PackagingSpec | null;
+  // 工序推进（I06 整批逐道；无路由产品 routeTotal=0 成品直报）
+  routeSeq: number;
+  routeTotal: number;
+  stepIdx: number; // 当前工序序号（1-based；0=无路由）
+  currentStepName: string | null; // 当前工序名
 }
 
 export interface VerifyResult {

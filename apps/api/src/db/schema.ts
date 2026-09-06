@@ -189,11 +189,13 @@ export const planSheetLines = pgTable('plan_sheet_lines', {
     .notNull()
     .references(() => products.id),
   quantity: integer('quantity').notNull(), // 计划数量（=订单行数量）
-  completedQuantity: integer('completed_quantity').default(0).notNull(), // 完成数量（I06 行报工）
+  completedQuantity: integer('completed_quantity').default(0).notNull(), // 成品完成数（末道工序报工累计；无路由产品=直接成品口径）
+  // 工序推进（I06 整批逐道）：当前工序序号（1-based），随报工推进 +1；产品无工序路由时忽略（成品直报）
+  routeSeq: integer('route_seq').default(1).notNull(),
   engraving: text('engraving'), // 刻字（快照自订单行）
   packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求快照
   // 排期域（I11）——独立排期状态字段，不进五态
-  wcKey: text('wc_key'), // 排入泳道（工序产能池 key）；null=未排期
+  wcKey: text('wc_key'), // 排入泳道（工序产能池 key，随报工推进换下一道泳道）；null=未排期
   startDate: date('start_date'), // 排期开始日 YYYY-MM-DD；null=未排期
   coverDays: integer('cover_days'), // 工期覆盖（天）；null=按产品×工序单件耗时自动推算
 });

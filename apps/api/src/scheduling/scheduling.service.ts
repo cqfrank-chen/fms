@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers,
@@ -45,7 +45,7 @@ export class SchedulingService {
     return db.select().from(processes).orderBy(asc(processes.sortOrder));
   }
 
-  /** 排期任务池：已确认计划单的全部行（每计划单行一任务） */
+  /** 排期任务池：已确认/生产中计划单的全部行（每计划单行一任务；生产中行保留以便逐工序推进） */
   async listTasks() {
     const rows = await db
       .select({
@@ -62,14 +62,16 @@ export class SchedulingService {
       .innerJoin(orderLines, eq(orderLines.id, planSheetLines.orderLineId))
       .innerJoin(products, eq(products.id, planSheetLines.productId))
       .leftJoin(customers, eq(customers.id, orders.customerId))
-      .where(eq(planSheets.status, 'confirmed'))
+      .where(inArray(planSheets.status, ['confirmed', 'production']))
       .orderBy(asc(planSheets.planNo), asc(planSheetLines.id));
 
-    // 预拉所有产品×工序耗时，避免 N+1
+    // 预拉所有产品×工序路由（耗时 + 工序名/泳道），避免 N+1
     const ppRows = await db
       .select({
         productId: productProcesses.productId,
+        processId: productProcesses.processId,
         wcKey: processes.wcKey,
+        processName: processes.name,
         unitSeconds: productProcesses.unitSeconds,
         seq: productProcesses.seq,
       })
@@ -77,10 +79,15 @@ export class SchedulingService {
       .innerJoin(processes, eq(processes.id, productProcesses.processId))
       .orderBy(asc(productProcesses.seq));
     const unitMap = new Map<string, number>(); // key=`${productId}:${wcKey}` -> unitSeconds
+    const routeByProduct = new Map<number, Array<{ processId: number; name: string; wcKey: string; seq: number }>>();
     for (const r of ppRows) {
-      if (r.unitSeconds == null) continue;
-      const k = `${r.productId}:${r.wcKey}`;
-      if (!unitMap.has(k)) unitMap.set(k, Number(r.unitSeconds));
+      if (r.unitSeconds != null) {
+        const k = `${r.productId}:${r.wcKey}`;
+        if (!unitMap.has(k)) unitMap.set(k, Number(r.unitSeconds));
+      }
+      const arr = routeByProduct.get(r.productId) ?? [];
+      arr.push({ processId: r.processId, name: r.processName, wcKey: r.wcKey, seq: r.seq });
+      routeByProduct.set(r.productId, arr);
     }
     const wcMap = new Map((await db.select().from(workCenters)).map((w) => [w.key, w]));
 
@@ -97,6 +104,11 @@ export class SchedulingService {
         ? addDays(line.startDate as unknown as string, Math.max(1, durDays) - 1)
         : null;
       const overdue = scheduled && due && endDate && progress < 1 ? endDate >= due : false;
+      // 工序推进信息（routeSeq 由报工推进，I06 整批逐道）
+      const route = routeByProduct.get(line.productId) ?? [];
+      const L = route.length;
+      const seq = line.routeSeq ?? 1;
+      const stepIdx = L ? Math.min(seq, L) : 0;
       return {
         lineId: line.id,
         planId: plan.id,
@@ -125,6 +137,11 @@ export class SchedulingService {
         overdue,
         engraving: line.engraving,
         packaging: line.packaging,
+        // 工序推进（无路由产品 routeTotal=0，成品直报）
+        routeSeq: seq,
+        routeTotal: L,
+        stepIdx,
+        currentStepName: stepIdx ? route[stepIdx - 1].name : null,
       };
     });
   }
