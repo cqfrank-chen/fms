@@ -1,7 +1,7 @@
 # I11 · 排程看板（甘特图拖排）
 
 Type: task
-Status: open
+Status: open → resolved
 Phase: ④ 排期AI线
 Blocked by: I05（已确认计划单进池）、I10（甘特库定版）
 Spec: spec.md §5
@@ -48,6 +48,7 @@ Spec: spec.md §5
   - 组件抽取：订单详情弹窗上移为 `components/OrderDetailModal.tsx`（OrdersPage 列表「详情」与 SchedulingPage 共用），消除两处重复实现
   - 验收：research/i11-board-day.png（92px/格）、i11-board-week.png（44px/格 周分隔）
   - DOM 断言（research/i11-dom-check.cjs）：day 92/week 44 格宽切换、周一 MM-DD 标注、筛选框存在、任务条→任务简介→「查看完整订单」→订单详情 全链路无 console 错误；OrdersPage「详情」回归通过（SO-20260905-04）
+- **v3 工序推进联动**（I06 修订，2026-09-06）：排期池条件 confirmed → confirmed+production（生产中的行保留在看板逐道推进，不因首报退池）；任务返回 routeSeq/routeTotal/stepIdx/currentStepName；甘特块标注 [当前工序 x/y]、黄=已推进（routeSeq>1 或部分成品）、随报工自动换道顺延；待排区可含生产中任务；排期面板提示当前工序与"建议排入当前工序泳道"
 
 ## Ref
 

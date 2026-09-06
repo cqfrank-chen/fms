@@ -1,7 +1,7 @@
 # I10 · 甘特库技术验证
 
 Type: task（技术验证）
-Status: open
+Status: open → resolved
 Phase: ④ 排期AI线
 Blocked by: —
 Spec: spec.md §5.3
@@ -19,11 +19,16 @@ Spec: spec.md §5.3
 
 ## Acceptance
 
-- [ ] 选定一个库，给出理由（许可证/能力/集成成本）
-- [ ] 行级任务块可拖拽、事件回调可用
-- [ ] 决策折进 I11
+- [x] 选定方案并给出理由：**自研 React 泳道甘特**（许可证/集成成本最简；验证记录 research/10-gantt-selection.md）
+- [x] 行级任务块可拖拽（改开始日）、事件回调可用（拖完 POST schedule）
+- [x] 决策折进 I11（SchedulingPage 甘特 + 分层/周视图/超期/覆盖 UI）
+
+## 实施摘要
+
+frappe-gantt（MIT）与 dhtmlx-gantt（商业）对比后选型自研：I11 实现 6 泳道 React 甘特（贪心分层、拖拽改期、日/周缩放、周末灰化、超期红框、覆盖紫虚线），2026-09-06 随 I06 工序推进修订继续扩展（生产任务保留池内、块标 [工序 x/y] 随报工换泳道）。
 
 ## Ref
 
 - ADR-0001（排期风险点）
 - spec.md §5.3
+- research/10-gantt-selection.md

@@ -1,7 +1,7 @@
 # I07 · 计划单列表筛选/反查（订单线收尾）
 
 Type: task
-Status: open
+Status: open → resolved
 Phase: ② 订单线
 Blocked by: I06
 Spec: spec.md §4.5
@@ -18,9 +18,13 @@ Spec: spec.md §4.5
 
 ## Acceptance
 
-- [ ] 三种筛选生效
-- [ ] 反查弹窗字段齐全
-- [ ] **阶段②订单线验收**：录单→审核→报工→订单完成全流程走通（对照原型）
+- [x] 三种筛选生效（PlansPage 状态含已作废筛选；驳回闭环后作废单轨迹可见，repro-i05-voided-visible 单点验证）
+- [x] 反查弹窗字段齐全（OrderTraceModal 单头+单价/币种/小计/刻字/包装）
+- [x] **阶段②订单线验收**：录单→审核→报工→订单完成全流程走通（含本轮驳回重做 + 工序推进修订回归）
+
+## 实施摘要
+
+PlansPage 筛选/详情 + OrderTraceModal 反查（共享 OrderDetailModal 关联单）；I05 驳回闭环、I06 工序推进均在其上迭代，验收覆盖见各票 repro。
 
 ## Ref
 
