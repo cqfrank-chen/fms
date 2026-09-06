@@ -49,6 +49,14 @@ Spec: spec.md §5
   - 验收：research/i11-board-day.png（92px/格）、i11-board-week.png（44px/格 周分隔）
   - DOM 断言（research/i11-dom-check.cjs）：day 92/week 44 格宽切换、周一 MM-DD 标注、筛选框存在、任务条→任务简介→「查看完整订单」→订单详情 全链路无 console 错误；OrdersPage「详情」回归通过（SO-20260905-04）
 - **v3 工序推进联动**（I06 修订，2026-09-06）：排期池条件 confirmed → confirmed+production（生产中的行保留在看板逐道推进，不因首报退池）；任务返回 routeSeq/routeTotal/stepIdx/currentStepName；甘特块标注 [当前工序 x/y]、黄=已推进（routeSeq>1 或部分成品）、随报工自动换道顺延；待排区可含生产中任务；排期面板提示当前工序与"建议排入当前工序泳道"
+- **v4 拖拽手感 + 入口 Provider 修复**（用户反馈"拖动手感很差"，2026-09-06）：
+  - **选中浮起**（pointerdown）：原块 opacity 0.35 留位 + 浮层出现（scale 1.05 + 大阴影 + cursor grabbing + zIndex 20 + pointerEvents:none 穿透）；记录像素级 grabOffPx 供平滑跟手；拖动 effect 依赖 axis/scale 用 onMoveBarRef 闭包拿最新回调（无 stale 风险）
+  - **拖动跟手**（window pointermove，ref 直改 DOM 零 React 重渲染）：浮层 left 平滑像素级跟随指针、落点日期提示条浮在块上方、泳道落点指示竖线（display:block，mousedown 时显示）
+  - **松手落定**（window pointerup + pointercancel）：未移→原位放下（不调接口）；已移→浮层吸附目标日 phase:'settle' + suppressClick 抑制 600ms 内 click（防误弹详情）+ 调 onMoveBar → 列表刷新后原块已渲染在新位置（无跳变感）
+  - **入口 Provider 修复**（隐藏多年的 bug）：main.tsx 包 `<AntApp>` Provider。**此前 useApp 拿到残缺 message → 排程保存成功/失败提示一直在 console 抛 `a.error is not a function`**（自首版 I11 上线起所有 message 调用都没真正显示过，但用户没察觉因为没听过成功提示声）
+  - **点块详情修复**（隐藏 bug 顺手）：拿起的原块**不再设 pointerEvents:none**——puppeteer/物理 click hit-test 在 preventDefault 后若原块 none 会穿透到泳道容器，click target 错位使点块弹不出详情（回归 STEP5 抓到）；拖动误弹由 suppressClick 抑制，块仍需 pointer-events:auto
+  - **moveBar 错误透传**：加 `res.ok` 检查 → 失败 throw Error(message) → catch message.error 真正显示（修好 Provider 后才能正常报错）
+  - **验收**：research/repro-i11-drag-feel.cjs 5 步全绿（拿起浮起 / 拖动跟手+落点线+目标日 / 松手落位+不误弹 / 拖回原位 / 轻点弹详情）+ research/shots-i11-drag/{s1-lift,s2-restored,s3-click-detail}.png
 
 ## Ref
 
