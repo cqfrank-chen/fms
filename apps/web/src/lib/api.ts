@@ -3,7 +3,7 @@ const API = '/api'
 
 export async function api<T = unknown>(
   path: string,
-  options: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown } = {},
+  options: { method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; body?: unknown } = {},
 ): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method: options.method ?? 'GET',
