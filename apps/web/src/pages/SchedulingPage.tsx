@@ -34,7 +34,15 @@ const barLabel = (t: SchedTask) => {
   return `${t.planNo}·行${t.lineId}${step}${pct}`;
 };
 
-type Drag = { id: number; startDay: number; lastDay: number; grabOff: number; origWc: string };
+type Drag = {
+  id: number; startDay: number; lastDay: number;
+  grabOff: number; grabOffPx: number; origWc: string; moved: boolean; w: number;
+};
+/** 拖拽浮层：选中浮起（drag）→ 松开放下落定（settle，等待刷新） */
+type DragUi = {
+  lineId: number; wcKey: string; top: number; color: string; label: string; w: number;
+  phase: 'drag' | 'settle'; leftPx: number;
+};
 
 // =============== 内嵌：GanttLane ===============
 function GanttLane({
@@ -49,6 +57,13 @@ function GanttLane({
   const { message } = AntApp.useApp();
   const gridRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
+  const [dragUi, setDragUi] = useState<DragUi | null>(null); // 拖动浮层（选中/拖动/落定）
+  const floatRef = useRef<HTMLDivElement>(null); // 浮层 DOM：拖动中直改 left 跟手（零 React 重渲染）
+  const dateTagRef = useRef<HTMLDivElement>(null); // 浮层上的目标日期提示
+  const guideRef = useRef<HTMLDivElement>(null); // 落点指示竖线
+  const suppressClickRef = useRef(false); // 拖动结束后抑制误触发的 click（弹详情）
+  const onMoveBarRef = useRef(onMoveBar); // 始终指向最新回调（effect 依赖 axis/scale 不重建）
+  onMoveBarRef.current = onMoveBar;
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
   const PX_DAY = PX_DAY_BY_SCALE[scale] ?? 92;
@@ -74,40 +89,62 @@ function GanttLane({
     return { start, days, list, idxOf: (s: string) => list.indexOf(s) };
   }, [tasks]);
 
-  const dayAt = (clientX: number) => {
-    const rect = gridRef.current!.getBoundingClientRect();
-    return Math.round((clientX - rect.left) / PX_DAY);
-  };
-
   useEffect(() => {
     const onMove = (ev: PointerEvent) => {
       const d = drag.current;
       if (!d) return;
-      const idx = dayAt(ev.clientX) - d.grabOff;
+      const gridRect = gridRef.current!.getBoundingClientRect();
+      // 吸附到的目标日
+      const idx = Math.round((ev.clientX - gridRect.left) / PX_DAY) - d.grabOff;
       const lastDay = Math.max(0, Math.min(axis.days - 1, idx));
-      if (lastDay === d.lastDay) return;
       d.lastDay = lastDay;
+      if (lastDay !== d.startDay) d.moved = true;
+      // 浮层平滑跟手（直接改 DOM，零 React 重渲染）
+      const maxL = axis.days * PX_DAY - d.w;
+      const leftPx = Math.max(0, Math.min(maxL, ev.clientX - gridRect.left - d.grabOffPx));
+      if (floatRef.current) {
+        floatRef.current.style.left = `${leftPx}px`;
+        floatRef.current.style.display = 'block';
+      }
+      if (guideRef.current) {
+        guideRef.current.style.display = 'block';
+        guideRef.current.style.left = `${(lastDay + 0.5) * PX_DAY}px`;
+      }
+      if (dateTagRef.current) {
+        dateTagRef.current.style.display = 'block';
+        dateTagRef.current.textContent = axis.list[lastDay] ?? '';
+      }
     };
     const onUp = async () => {
       const d = drag.current;
       if (!d) return;
       drag.current = null;
-      if (d.lastDay === d.startDay) return;
+      if (guideRef.current) guideRef.current.style.display = 'none';
+      if (dateTagRef.current) dateTagRef.current.style.display = 'none';
+      // 松开放下：没挪动 = 原位放下（不调接口）；挪动了 = 浮层落定到目标日，保存成功等刷新归位
+      if (d.lastDay === d.startDay) { setDragUi(null); return; }
       const newStart = axis.list[d.lastDay];
+      setDragUi((prev) => (prev ? { ...prev, phase: 'settle', leftPx: d.lastDay * PX_DAY + 4 } : null));
+      suppressClickRef.current = true; // 吞掉这次拖动触发的 click，避免误弹任务详情
+      setTimeout(() => { suppressClickRef.current = false; }, 600);
       const t = tasksRef.current.find((x) => x.lineId === d.id);
-      if (!t) return;
       try {
-        await onMoveBar(d.id, t.wcKey || 'cut', newStart);
+        if (!t) throw new Error('任务已不在排期池');
+        await onMoveBarRef.current(d.id, t.wcKey || 'cut', newStart);
         message.success(`已排 ${t.planNo}·行${t.lineId} 至 ${newStart}`);
       } catch (e: any) {
         message.error(`保存失败：${e?.message || e}`);
+      } finally {
+        setDragUi(null); // 数据刷新后原块已在新位置渲染，撤掉浮层
       }
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [axis, scale]);
@@ -139,8 +176,23 @@ function GanttLane({
   const onPointerDown = (e: React.PointerEvent, t: SchedTask) => {
     if (!t.scheduled || !t.startDate) return;
     e.preventDefault();
+    const gridRect = gridRef.current!.getBoundingClientRect();
     const s = axis.idxOf(t.startDate);
-    drag.current = { id: t.lineId, startDay: s, lastDay: s, grabOff: dayAt(e.clientX) - s, origWc: t.wcKey || '' };
+    const pos = layout.get(t.lineId);
+    if (s < 0 || !pos) return;
+    const w = t.durDays * PX_DAY - 8;
+    // 选中浮起：记录像素级抓取偏移（供平滑跟手），浮层初始即原块位置（不闪现）
+    drag.current = {
+      id: t.lineId, startDay: s, lastDay: s,
+      grabOff: Math.round((e.clientX - gridRect.left) / PX_DAY) - s,
+      grabOffPx: e.clientX - gridRect.left - pos.left,
+      origWc: t.wcKey || '', moved: false, w,
+    };
+    setDragUi({
+      lineId: t.lineId, wcKey: t.wcKey || '', top: pos.top,
+      color: STATUS_COLOR(t), label: barLabel(t), w,
+      phase: 'drag', leftPx: pos.left,
+    });
   };
 
   return (
@@ -198,6 +250,7 @@ function GanttLane({
                 {laneTasks.map((t) => {
                   const pos = layout.get(t.lineId);
                   if (!pos) return null;
+                  const lifted = dragUi?.lineId === t.lineId;
                   return (
                     <div
                       key={t.lineId}
@@ -215,19 +268,83 @@ function GanttLane({
                         padding: '0 8px',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
-                        cursor: 'grab',
+                        cursor: lifted ? 'grabbing' : 'grab',
                         boxSizing: 'border-box',
                         boxShadow: t.overdue ? '0 0 0 2px #ff4d4f' : undefined,
                         outline: t.coverDays != null ? '2px dashed #722ed1' : undefined,
+                        // 选中浮起：原块半透明留位，实体交给浮层；
+                        // 注意不可 pointerEvents:none —— 否则 mouseup/click 的 hit-test 会穿透到
+                        // 泳道容器，导致松手后 click target 错位，点块弹不了详情（拖完由 suppressClick 抑制）
+                        opacity: lifted ? 0.35 : 1,
+                        transition: 'opacity 0.12s ease',
+                        zIndex: lifted ? 1 : undefined,
                       }}
                       title={`${t.planNo}·行${t.lineId}｜${t.productName} ×${t.quantity}\n客户 ${t.customerName}｜交期 ${t.dueDate}\n${t.routeTotal ? `工序 ${t.currentStepName}（${Math.min(t.routeSeq, t.routeTotal)}/${t.routeTotal}）｜` : ''}成品 ${t.completed}（${Math.round(t.progress * 100)}%）${t.overdue ? '\n⚠ 预计超期' : ''}`}
                       onPointerDown={(e) => onPointerDown(e, t)}
-                      onClick={() => onClickBar(t)}
+                      onClick={() => {
+                        if (suppressClickRef.current || lifted) return; // 拖动结束的 click 不弹详情
+                        onClickBar(t);
+                      }}
                     >
                       {barLabel(t)}
                     </div>
                   );
                 })}
+                {/* 拖拽浮层：选中浮起（drag，跟手）/ 松开放下（settle，停目标日等刷新） */}
+                {dragUi && dragUi.wcKey === wc.key && (
+                  <>
+                    <div
+                      ref={guideRef}
+                      style={{
+                        position: 'absolute', top: 0, bottom: 0, width: 2,
+                        left: 0, background: 'rgba(22,119,255,0.30)',
+                        display: 'none', pointerEvents: 'none', zIndex: 3,
+                      }}
+                    />
+                    <div
+                      ref={floatRef}
+                      style={{
+                        position: 'absolute',
+                        left: dragUi.leftPx,
+                        top: dragUi.top,
+                        width: dragUi.w,
+                        height: BAR_H,
+                        background: dragUi.color,
+                        borderRadius: 4,
+                        color: '#fff',
+                        fontSize: 11,
+                        lineHeight: `${BAR_H}px`,
+                        padding: '0 8px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        boxSizing: 'border-box',
+                        pointerEvents: 'none',
+                        zIndex: 20,
+                        cursor: dragUi.phase === 'drag' ? 'grabbing' : 'default',
+                        opacity: dragUi.phase === 'settle' ? 0.95 : 1,
+                        boxShadow: dragUi.phase === 'drag'
+                          ? '0 10px 20px rgba(0,0,0,0.30)'
+                          : '0 4px 10px rgba(0,0,0,0.20)',
+                        transform: dragUi.phase === 'drag' ? 'scale(1.05)' : undefined,
+                        transformOrigin: 'left center',
+                        transition: dragUi.phase === 'settle' ? 'box-shadow 0.15s ease' : undefined,
+                      }}
+                    >
+                      {dragUi.label}
+                      {/* 拖动中：目标日期提示条 */}
+                      <div
+                        ref={dateTagRef}
+                        style={{
+                          position: 'absolute', top: -24, left: 0,
+                          background: '#1677ff', color: '#fff', fontSize: 11,
+                          borderRadius: 3, padding: '0 6px', lineHeight: '18px',
+                          whiteSpace: 'nowrap', display: 'none', pointerEvents: 'none',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -414,11 +531,15 @@ export default function SchedulingPage() {
 
   const moveBar = async (lineId: number, wcKey: string, startDate: string) => {
     const t = tasks.find((x) => x.lineId === lineId);
-    await fetch(`/api/scheduling/plan-lines/${lineId}/schedule`, {
+    const res = await fetch(`/api/scheduling/plan-lines/${lineId}/schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wcKey, startDate, coverDays: t?.coverDays ?? null }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { message?: string }).message || `HTTP ${res.status}`);
+    }
     await load();
   };
 
