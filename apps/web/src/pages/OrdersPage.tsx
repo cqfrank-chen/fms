@@ -42,6 +42,11 @@ function OrderCreateCard() {
     api<Product[]>('/products').then(setProducts).catch(() => {})
   }, [])
 
+  // 临时诊断挂载：暴露 form 实例便于 headless 回归读真实 store（保留可随时移除）
+  useEffect(() => {
+    ;(window as unknown as { __orderForm?: typeof form }).__orderForm = form
+  }, [form])
+
   const defaultLine: OrderLine = {
     productId: undefined as unknown as number,
     quantity: 1000,
@@ -80,12 +85,23 @@ function OrderCreateCard() {
     } finally { setSaving(false) }
   }
 
-  const lineColumns = (remove: (index: number) => void) => [
+  // 行字段的"显式默认"，确保 mount 即写入 store（@rc-component/form 1.8.6
+  // 对 Form.List initialValue 的传播有边界条件，由单元格 Form.Item 兜底更稳）
+  const lineDefaults = useMemo(() => ({
+    quantity: 1000,
+    unitPrice: 3.5,
+    currency: 'RMB',
+  }), [])
+
+  // 列定义：以 record（Form.List 字段对象）定位行，避免 index 漂移导致 cell unmount。
+  // 删除按钮的 remove 由 Form.List children 闭包传入
+  const lineColumns = (remove: (i: number) => void): ColumnsType<{ name: number; key: number }> => [
     {
       title: '产品（目录）',
       width: 240,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Form.Item name={['lines', index, 'productId']} rules={[{ required: true, message: '必选产品' }]} style={{ marginBottom: 0 }}>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Form.Item key={`${record.key}-productId`} name={[record.name, 'productId']}
+          rules={[{ required: true, message: '必选产品' }]} style={{ marginBottom: 0 }}>
           <Select placeholder="选择产品" showSearch optionFilterProp="label"
             options={products.map((p) => ({ value: p.id, label: `${p.name}（${PRODUCT_TYPE_LABEL[p.type]}）` }))} />
         </Form.Item>
@@ -93,48 +109,55 @@ function OrderCreateCard() {
     },
     {
       title: '数量', width: 110,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Form.Item name={['lines', index, 'quantity']} rules={[{ required: true, message: '必填' }]} style={{ marginBottom: 0 }}>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Form.Item key={`${record.key}-quantity`} name={[record.name, 'quantity']}
+          initialValue={lineDefaults.quantity}
+          rules={[{ required: true, message: '必填' }]} style={{ marginBottom: 0 }}>
           <InputNumber min={1} style={{ width: '100%' }} />
         </Form.Item>
       ),
     },
     {
       title: '单价', width: 100,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Form.Item name={['lines', index, 'unitPrice']} rules={[{ required: true, message: '必填' }]} style={{ marginBottom: 0 }}>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Form.Item key={`${record.key}-unitPrice`} name={[record.name, 'unitPrice']}
+          initialValue={lineDefaults.unitPrice}
+          rules={[{ required: true, message: '必填' }]} style={{ marginBottom: 0 }}>
           <InputNumber min={0} precision={2} style={{ width: '100%' }} />
         </Form.Item>
       ),
     },
     {
       title: '币种', width: 80,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Form.Item name={['lines', index, 'currency']} style={{ marginBottom: 0 }}>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Form.Item key={`${record.key}-currency`} name={[record.name, 'currency']}
+          initialValue={lineDefaults.currency} style={{ marginBottom: 0 }}>
           <Select options={[{ value: 'RMB', label: 'RMB' }, { value: 'USD', label: 'USD' }]} />
         </Form.Item>
       ),
     },
     {
       title: '刻字需求', width: 160,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Form.Item name={['lines', index, 'engraving']} style={{ marginBottom: 0 }}>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Form.Item key={`${record.key}-engraving`} name={[record.name, 'engraving']}
+          style={{ marginBottom: 0 }}>
           <Input placeholder="如 LOGO/型号/批次 ✒" />
         </Form.Item>
       ),
     },
     {
       title: '包装要求（可多选）',
-      render: (_: unknown, __: unknown, index: number) => (
-        <Form.Item name={['lines', index, 'packaging']} style={{ marginBottom: 0 }}>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Form.Item key={`${record.key}-packaging`} name={[record.name, 'packaging']}
+          style={{ marginBottom: 0 }}>
           <PackComboEditor />
         </Form.Item>
       ),
     },
     {
       title: '', width: 48,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Button type="text" danger size="small" onClick={() => remove(index)}>删</Button>
+      render: (_: unknown, record: { name: number; key: number }) => (
+        <Button type="text" danger size="small" onClick={() => remove(record.name)}>删</Button>
       ),
     },
   ]
@@ -165,7 +188,7 @@ function OrderCreateCard() {
           {(fields, { add, remove }) => (
             <>
               <Table
-                rowKey={(_, i) => String(i)}
+                rowKey={(record) => String((record as { key: number }).key)}
                 pagination={false}
                 size="small"
                 style={{ marginTop: 8, marginBottom: 8 }}
