@@ -1,3 +1,7 @@
+// [DEPRECATED] I14 草稿闭环回归 —— 自 commit 3338882（I15）起不再适用：
+// AI 复核弹窗的「确认建单」已改为「按识别结果填入新建订单」（草稿在填入时即消费清除），
+// 不再直接 POST /orders。新链路回归见 repro-i15-fill-build.cjs（填入+建档+保存）。
+// 保留本文件仅作 I14 当时行为的历史证据，勿再运行。
 // I14 回归：AI 导入草稿单槽持久化（横幅→恢复→编辑自动保存→取消再恢复→放弃清除）
 const puppeteer = require('puppeteer-core');
 const fs = require('fs');
