@@ -177,12 +177,13 @@ function AiConfigCard() {
     }
     setSaving(true)
     try {
-      await api('/ai/config', { method: 'POST', body: JSON.stringify(patch) })
+      // 注意：api() 内部会对 body 做 JSON.stringify，此处必须传对象（传字符串会被二次序列化 → 400）
+      await api('/ai/config', { method: 'POST', body: patch })
       message.success('已保存并立即生效（无需重启）')
       setInput({})
       await load()
-    } catch {
-      message.error('保存失败')
+    } catch (e) {
+      message.error('保存失败：' + (e as Error).message)
     } finally {
       setSaving(false)
     }
@@ -190,7 +191,7 @@ function AiConfigCard() {
 
   const clearField = async (f: string) => {
     try {
-      await api('/ai/config', { method: 'POST', body: JSON.stringify({ [f]: '' }) })
+      await api('/ai/config', { method: 'POST', body: { [f]: '' } })
       message.success('已清除，回退默认配置')
       setInput((p) => ({ ...p, [f]: '' }))
       await load()
@@ -204,7 +205,7 @@ function AiConfigCard() {
     if (kind === 'vision' && !visOk) { message.warning('请先填写并保存识图 API Key'); return }
     setTesting(kind)
     try {
-      const r = await api<{ ok: boolean; message: string }>('/ai/test', { method: 'POST', body: JSON.stringify({ kind }) })
+      const r = await api<{ ok: boolean; message: string }>('/ai/test', { method: 'POST', body: { kind } })
       if (r.ok) message.success(r.message)
       else message.error('连接失败：' + r.message)
     } catch {
