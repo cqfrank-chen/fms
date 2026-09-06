@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert, Button, DatePicker, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, Upload, message,
 } from 'antd'
@@ -45,6 +45,14 @@ interface EditDraft {
 }
 
 const todayStr = () => dayjs().format('YYYY-MM-DD')
+const fmtTime = (iso: string) => dayjs(iso).format('MM-DD HH:mm')
+
+/** 后端单槽草稿（I14：GET/POST/DELETE /ai/orders/draft） */
+interface SavedDraft {
+  result: AiResolveResult
+  draft: EditDraft
+  updatedAt: string
+}
 
 /** AI 订单导入：图片/文本 → 解析预览（低置信标红）→ 人工修正 → 确认建单 */
 export default function AiOrderImport({ onCreated }: Props) {
@@ -56,6 +64,60 @@ export default function AiOrderImport({ onCreated }: Props) {
   const [textOpen, setTextOpen] = useState(false)
   const [textVal, setTextVal] = useState('')
   const [saving, setSaving] = useState(false)
+  // ---- I14 草稿单槽持久化：saved=后端已有未提交草稿；draft/result 打开编辑时由防抖自动保存 ----
+  const [saved, setSaved] = useState<SavedDraft | null>(null)
+  const saveTimer = useRef<number>(0)
+  const failNotified = useRef(false)
+
+  async function saveDraft(result: AiResolveResult, draft: EditDraft) {
+    try {
+      await api('/ai/orders/draft', { method: 'POST', body: { result, draft } })
+      failNotified.current = false
+    } catch {
+      if (!failNotified.current) {
+        failNotified.current = true
+        message.warning('草稿自动保存失败，请暂勿刷新/关闭页面')
+      }
+    }
+  }
+
+  /** 进入组件：拉取上次未提交草稿（有则顶部横幅提示可恢复） */
+  useEffect(() => {
+    api<{ draft: SavedDraft | null }>('/ai/orders/draft')
+      .then((d) => { if (d?.draft) setSaved(d.draft) })
+      .catch(() => {})
+  }, [])
+
+  /** 编辑中（result&&draft 同时存在）→ 防抖自动保存，任何一步修正都不丢 */
+  useEffect(() => {
+    if (!result || !draft) return
+    window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => { saveDraft(result, draft) }, 700)
+    return () => window.clearTimeout(saveTimer.current)
+  }, [result, draft])
+
+  /** 关闭复核弹窗：先落最终稿 → 存为可恢复草稿 → 清空内存（不吞人工修正） */
+  function cancelReview() {
+    if (result && draft) {
+      setSaved({ result, draft, updatedAt: new Date().toISOString() })
+      saveDraft(result, draft)
+    }
+    setResult(null); setDraft(null)
+  }
+
+  /** 恢复上次草稿：载入 → 弹复核窗继续编辑 */
+  function restoreSaved() {
+    if (!saved) return
+    setResult(saved.result)
+    setDraft(saved.draft)
+    setSaved(null)
+  }
+
+  /** 放弃草稿：删除后端记录并隐藏横幅 */
+  function discardSaved() {
+    api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
+    setSaved(null)
+  }
 
   useEffect(() => {
     api<Customer[]>('/customers').then(setCustomers).catch(() => {})
@@ -89,6 +151,23 @@ export default function AiOrderImport({ onCreated }: Props) {
   }
 
   async function doParse(body: { text?: string; image?: string }, from: string) {
+    // I14：已有未提交草稿时，新解析覆盖前需二次确认（不误吞修正内容）
+    if (saved) {
+      const go = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: '已有未提交的 AI 订单草稿',
+          content: `上次草稿保存于 ${fmtTime(saved.updatedAt)}。重新解析将覆盖它，继续？`,
+          okText: '覆盖并重新解析',
+          okType: 'danger',
+          cancelText: '取消',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        })
+      })
+      if (!go) return
+      await api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
+      setSaved(null)
+    }
     setBusy(true)
     try {
       const r = await api<AiResolveResult>('/ai/orders/parse', { method: 'POST', body })
@@ -155,6 +234,9 @@ export default function AiOrderImport({ onCreated }: Props) {
           },
         }).catch(() => {})
       }
+      // 建单成功 → 清除单槽草稿（I14）
+      api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
+      setSaved(null)
       setResult(null); setDraft(null)
     } catch (e) {
       message.error('保存失败：' + (e as Error).message)
@@ -176,6 +258,18 @@ export default function AiOrderImport({ onCreated }: Props) {
         <Text type="secondary" style={{ fontSize: 12 }}>支持客户邮件/微信传单/拍照图 → AI 识别成草稿，低置信字段标红人工复核（I12）</Text>
       </div>
 
+      {/* I14：上次未提交草稿（刷新/误关自动保存，可恢复继续编辑） */}
+      {saved && !draft && (
+        <div style={{ border: '1px solid #ffd591', borderRadius: 8, padding: '6px 10px', marginBottom: 12, background: '#fff7e6', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Text style={{ color: '#d46b08', fontSize: 13 }}>💾 有未提交的 AI 订单草稿（上次编辑于 {fmtTime(saved.updatedAt)}，已自动保存）</Text>
+          <Space size={6}>
+            <Button size="small" type="primary" onClick={restoreSaved}>恢复草稿</Button>
+            <Button size="small" danger onClick={discardSaved}>放弃</Button>
+          </Space>
+          <Text type="secondary" style={{ fontSize: 12 }}>中途刷新/误关弹窗都不丢，确认建单后自动清除</Text>
+        </div>
+      )}
+
       {/* 文本导入 */}
       <Modal title="粘贴订单文本（邮件正文/Excel 转文本）" open={textOpen} onCancel={() => setTextOpen(false)}
         onOk={() => { if (textVal.trim()) doParse({ text: textVal.trim() }, '文本') }}
@@ -190,14 +284,14 @@ export default function AiOrderImport({ onCreated }: Props) {
           {result?.directPass ? '可直接确认' : result?.confidence === 'low' ? '低置信·需复核' : '需复核'}
         </Tag></>}
         open={!!result && !!draft}
-        onCancel={() => { setResult(null); setDraft(null) }}
+        onCancel={cancelReview}
         width={980}
         footer={
           <Space>
             <Text type="secondary" style={{ fontSize: 12 }}>
               {result?.directPass ? 'AI 全字段通过规则校验，可一键确认' : `尚有 ${errCount} 处红色问题需处理（见下方标红）`}
             </Text>
-            <Button onClick={() => { setResult(null); setDraft(null) }}>取消</Button>
+            <Button onClick={cancelReview}>取消</Button>
             <Button type="primary" loading={saving} disabled={errCount > 0} onClick={confirmCreate}>
               {result?.directPass ? '识别无误 · 确认建单' : '修正后确认建单'}
             </Button>

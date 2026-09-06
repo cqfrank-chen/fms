@@ -71,6 +71,13 @@
       "when": 1788675660034,
       "tag": "0009_young_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788703873739,
+      "tag": "0010_bouncy_iron_fist",
+      "breakpoints": true
     }
   ]
 }

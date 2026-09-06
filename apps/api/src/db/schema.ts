@@ -531,6 +531,22 @@ export type AiParseFeedback = typeof aiParseFeedback.$inferSelect;
 export type NewAiParseFeedback = typeof aiParseFeedback.$inferInsert;
 
 // ============================================================
+// AI 导入草稿（I14）——解析→人工修正→确认建单中途的未提交草稿
+// 单槽自动保存（id 恒为 1），刷新/误关弹窗/换机均可恢复，确认建单或显式放弃后清除
+// ============================================================
+
+export const aiParseDrafts = pgTable('ai_parse_drafts', {
+  id: integer('id').primaryKey(), // 恒为 1：单槽草稿
+  result: jsonb('result').$type<Record<string, unknown>>().notNull(), // AI 解析原始快照（恢复后重渲染 issues/直通/置信度）
+  draft: jsonb('draft').$type<Record<string, unknown>>().notNull(), // 可编辑草稿（客户/PO/交期/备注/行修正）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type AiParseDraft = typeof aiParseDrafts.$inferSelect;
+export type NewAiParseDraft = typeof aiParseDrafts.$inferInsert;
+
+// ============================================================
 // 应用级设置（运行时可改，DB 优先于 .env）——AI 服务配置等
 // 设置页写入后立即生效（网关每次请求读取）
 // ============================================================
