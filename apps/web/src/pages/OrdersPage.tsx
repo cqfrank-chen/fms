@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Button, Card, DatePicker, Form, Input, InputNumber,
-  Select, Space, Table, Tabs, Tag, Typography, message,
+  Alert, Button, Card, DatePicker, Form, Input, InputNumber,
+  Modal, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api } from '../lib/api'
-import { PRODUCT_TYPE_LABEL, STATUS_LABEL } from '../lib/labels'
+import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 import OrderDetailModal from '../components/OrderDetailModal'
 import AiOrderImport from '../components/AiOrderImport'
+import type { AiFillPayload, AiResolveResult } from '../components/AiOrderImport'
+
+const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_LABEL).map(([value, label]) => ({ value, label }))
+const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => ({ value, label }))
 
 const { Text } = Typography
 
@@ -30,7 +34,7 @@ export default function OrdersPage() {
   )
 }
 
-/** 新建订单：单头 + 多产品行（行含刻字/复合包装） */
+/** 新建订单：单头 + 多产品行（行含刻字/复合包装）；承接 AI 导入草稿（未建档客户/产品快速建档） */
 function OrderCreateCard() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -54,7 +58,133 @@ function OrderCreateCard() {
     currency: 'RMB',
   }
 
+  // ===== AI 导入承接：未建档客户/产品文本 → 快速建档（检测在建单前完成） =====
+  // 客户未建档：pending.customer 文本；产品未建档：importTexts（行 name → 识别文本）。
+  // 识别文本不进 Form store（无对应 Form.Item，setFieldsValue 数组路径会丢），用组件 state 承载。
+  const [pending, setPending] = useState<{ customer?: string; parsed?: AiResolveResult } | null>(null)
+  const [importTexts, setImportTexts] = useState<Record<number, string>>({})
+  const watchLines = Form.useWatch('lines', form) as Array<OrderLine & { productName?: string }> | undefined
+  const watchCustomerId = Form.useWatch('customerId', form)
+
+  // 用户在档案里选了客户 → 「未建档客户」提示自动消失
+  useEffect(() => {
+    if (watchCustomerId && pending?.customer) {
+      setPending((p) => (p ? { ...p, customer: undefined } : p))
+    }
+  }, [watchCustomerId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** 仍未建档/未选的未建档产品文本（行 productId 仍空才计） */
+  function liveUnmatchedTexts(): string[] {
+    return Object.entries(importTexts)
+      .filter(([name]) => !form.getFieldValue(['lines', Number(name), 'productId']))
+      .map(([, text]) => text)
+  }
+  /** 行已建档/改选 → 移除该行的未建档标记 */
+  function clearImportText(name: number) {
+    setImportTexts((p) => {
+      if (!(name in p)) return p
+      const q = { ...p }; delete q[name]; return q
+    })
+  }
+  /** 删除行：Form.List remove 后行 name 前移，同步平移 importTexts */
+  function deleteLine(remove: (i: number) => void, name: number) {
+    remove(name)
+    setImportTexts((p) => {
+      const q: Record<number, string> = {}
+      for (const [k, v] of Object.entries(p)) {
+        const n = Number(k)
+        q[n === name ? -1 : n > name ? n - 1 : n] = v
+      }
+      delete q[-1]
+      return q
+    })
+  }
+
+  /** AI 复核确认回调：按识别结果预填表单；未建档项带文本提示建档 */
+  function fillFromAI(p: AiFillPayload) {
+    form.setFieldsValue({
+      customerId: p.customerId ?? undefined,
+      poNo: p.poNo || undefined,
+      dueDate: p.dueDate ? dayjs(p.dueDate) : undefined,
+      note: p.note || undefined,
+      lines: p.lines.map((l) => ({
+        productId: l.productId ?? undefined,
+        quantity: l.quantity ?? undefined,
+        unitPrice: l.unitPrice ?? undefined,
+        currency: l.currency ?? 'RMB',
+        engraving: l.engraving,
+        packaging: l.packaging,
+      })),
+    })
+    const texts: Record<number, string> = {}
+    p.lines.forEach((l, i) => { if (l.productName && !l.productId) texts[i] = l.productName })
+    setImportTexts(texts)
+    setPending({ customer: p.customerText, parsed: p.result })
+    message.success('AI 草稿已填入下方新建订单表单：核对后处理「未建档」项再保存')
+  }
+
+  // 调试挂载：headless 回归模拟 AI 填入（随时可移除）
+  useEffect(() => {
+    ;(window as unknown as { __fillAI?: (p: AiFillPayload) => void }).__fillAI = fillFromAI
+  })
+
+  // ---- 快速客户建档 ----
+  const [custQuickOpen, setCustQuickOpen] = useState(false)
+  const [custQuickSaving, setCustQuickSaving] = useState(false)
+  const [custQuickName, setCustQuickName] = useState('')
+  const [custQuickSettle, setCustQuickSettle] = useState<string | undefined>()
+  async function submitQuickCustomer() {
+    const name = custQuickName.trim()
+    if (!name) { message.warning('请填写客户名称'); return }
+    setCustQuickSaving(true)
+    try {
+      const row = await api<Customer>('/customers', { method: 'POST', body: { name, settlement: custQuickSettle || undefined } })
+      setCustomers((cs) => [...cs, row])
+      form.setFieldValue('customerId', row.id)
+      setPending((p) => (p ? { ...p, customer: undefined } : p))
+      message.success(`客户「${name}」已建档并自动选用`)
+      setCustQuickOpen(false); setCustQuickName('')
+    } catch (e) {
+      message.error('建档失败：' + (e as Error).message)
+    } finally { setCustQuickSaving(false) }
+  }
+
+  // ---- 快速产品建档 ----
+  const [prodQuick, setProdQuick] = useState<{ name: number; text: string } | null>(null) // 待建档产品（行号+识别文本）
+  const [prodQuickSaving, setProdQuickSaving] = useState(false)
+  const [prodQuickType, setProdQuickType] = useState('uk_acetylene')
+  async function submitQuickProduct() {
+    if (!prodQuick) return
+    const name = prodQuick.text.trim()
+    setProdQuickSaving(true)
+    try {
+      const row = await api<Product>('/products', { method: 'POST', body: { name, type: prodQuickType, safetyStock: 0 } })
+      setProducts((ps) => [...ps, row])
+      // 回填该识别文本对应的行（行号仍有效则自动选中）
+      if (importTexts[prodQuick.name] === prodQuick.text) {
+        form.setFieldValue(['lines', prodQuick.name, 'productId'], row.id)
+        clearImportText(prodQuick.name)
+        message.success(`产品「${name}」已加入目录并填入行`)
+      } else {
+        message.success(`产品「${name}」已加入目录，请回到对应行手动选择`)
+      }
+      setProdQuick(null)
+    } catch (e) {
+      message.error('建档失败：' + (e as Error).message)
+    } finally { setProdQuickSaving(false) }
+  }
+
   async function handleSave() {
+    // 检测：AI 带来的未建档项必须先建档/改选，否则 FK 无法落库
+    const pendingTexts = liveUnmatchedTexts()
+    if (pendingTexts.length) {
+      message.warning(`仍有 ${pendingTexts.length} 个产品行未建档或未选择（${pendingTexts.map((t) => `「${t}」`).join('、')}）：请点上方「加入产品目录」或从目录改选`)
+      return
+    }
+    if (pending?.customer) {
+      message.warning(`客户「${pending.customer}」不在档案：请点「快速客户建档」或从档案选择`)
+      return
+    }
     const values = await form.validateFields()
     // 行校验：产品必选、数量/单价为正
     const lines = (values.lines ?? []).filter((l: OrderLine) => l.productId)
@@ -78,8 +208,33 @@ function OrderCreateCard() {
           })),
         },
       })
-      message.success(`订单已保存为草稿：${created.orderNo}（确认动作 I05 实施）`)
+      // 建单成功：清除 AI 单槽草稿 + 学习反馈（真实最终稿回流）
+      api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
+      if (pending?.parsed) {
+        api('/ai/feedback', {
+          method: 'POST',
+          body: {
+            source: 'ai_import',
+            parsed: pending.parsed,
+            corrected: {
+              customerId: values.customerId,
+              poNo: values.poNo,
+              dueDate: dayjs(values.dueDate).format('YYYY-MM-DD'),
+              note: values.note,
+              lines: lines.map((l: OrderLine) => ({
+                productId: l.productId, quantity: l.quantity, unitPrice: l.unitPrice,
+                currency: l.currency, engraving: l.engraving || undefined,
+                packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
+              })),
+            },
+            directPass: pending.parsed.directPass,
+          },
+        }).catch(() => {})
+      }
+      message.success(`订单已保存为草稿：${created.orderNo}（可到「订单列表」确认生成计划单）`)
       form.resetFields()
+      setPending(null)
+      setImportTexts({})
     } catch (e) {
       message.error('保存失败：' + (e as Error).message)
     } finally { setSaving(false) }
@@ -93,19 +248,29 @@ function OrderCreateCard() {
     currency: 'RMB',
   }), [])
 
+  // 卡片展示用：仍为空的未建档产品（行号+文本）
+  const unmatchedEntries = Object.entries(importTexts)
+    .filter(([name]) => !(watchLines ?? [])[Number(name)]?.productId)
+
   // 列定义：以 record（Form.List 字段对象）定位行，避免 index 漂移导致 cell unmount。
   // 删除按钮的 remove 由 Form.List children 闭包传入
   const lineColumns = (remove: (i: number) => void): ColumnsType<{ name: number; key: number }> => [
     {
       title: '产品（目录）',
       width: 240,
-      render: (_: unknown, record: { name: number; key: number }) => (
-        <Form.Item key={`${record.key}-productId`} name={[record.name, 'productId']}
-          rules={[{ required: true, message: '必选产品' }]} style={{ marginBottom: 0 }}>
-          <Select placeholder="选择产品" showSearch optionFilterProp="label"
-            options={products.map((p) => ({ value: p.id, label: `${p.name}（${PRODUCT_TYPE_LABEL[p.type]}）` }))} />
-        </Form.Item>
-      ),
+      render: (_: unknown, record: { name: number; key: number }) => {
+        const text = importTexts[record.name]
+        const unmatched = !!text
+        return (
+          <Form.Item key={`${record.key}-productId`} name={[record.name, 'productId']}
+            rules={[{ required: true, message: unmatched ? `「${text}」未建档：请建档或从目录选择` : '必选产品' }]}
+            style={{ marginBottom: 0 }}>
+            <Select placeholder={unmatched ? `⚠ ${text}（未建档，见上方提示）` : '选择产品'}
+              showSearch optionFilterProp="label" status={unmatched ? 'error' : undefined}
+              options={products.map((p) => ({ value: p.id, label: `${p.name}（${PRODUCT_TYPE_LABEL[p.type]}）` }))} />
+          </Form.Item>
+        )
+      },
     },
     {
       title: '数量', width: 110,
@@ -157,14 +322,37 @@ function OrderCreateCard() {
     {
       title: '', width: 48,
       render: (_: unknown, record: { name: number; key: number }) => (
-        <Button type="text" danger size="small" onClick={() => remove(record.name)}>删</Button>
+        <Button type="text" danger size="small" onClick={() => deleteLine(remove, record.name)}>删</Button>
       ),
     },
   ]
 
   return (
     <Card title="新建订单" extra={<Typography.Text type="secondary">保存即草稿；确认生成计划单为 I05 动作</Typography.Text>}>
-      <AiOrderImport />
+      <AiOrderImport onReviewDone={fillFromAI} />
+
+      {(pending?.customer || unmatchedEntries.length > 0) && (
+        <Alert
+          type="warning" showIcon style={{ marginBottom: 12 }}
+          message={`AI 识别出 ${[pending?.customer ? '客户 1 个' : '', unmatchedEntries.length ? `产品 ${unmatchedEntries.length} 个` : ''].filter(Boolean).join('、')} 不在档案 —— 建档后自动填入本单（也可直接在表单改选，保存前会检测）`}
+          description={(
+            <Space direction="vertical" size={6} style={{ marginTop: 6, width: '100%' }}>
+              {pending?.customer && (
+                <Space size={8} wrap>
+                  <Text strong style={{ color: '#d46b08' }}>客户：{pending.customer}</Text>
+                  <Button size="small" type="primary" onClick={() => { setCustQuickName(pending.customer ?? ''); setCustQuickOpen(true) }}>快速客户建档</Button>
+                </Space>
+              )}
+              {unmatchedEntries.map(([name, text]) => (
+                <Space key={name} size={8} wrap>
+                  <Text strong style={{ color: '#d46b08' }}>产品：{text}</Text>
+                  <Button size="small" type="primary" onClick={() => { setProdQuick({ name: Number(name), text }); setProdQuickType('uk_acetylene') }}>加入产品目录</Button>
+                </Space>
+              ))}
+            </Space>
+          )}
+        />
+      )}
 
       <Form form={form} layout="vertical" initialValues={{}}>
         <Space wrap align="start" size={16}>
@@ -204,6 +392,40 @@ function OrderCreateCard() {
           )}
         </Form.List>
       </Form>
+
+      {/* 快速客户建档：AI 识别客户不在档案时一键建档并选用 */}
+      <Modal title="快速客户建档（AI 识别客户不在档案）" open={custQuickOpen}
+        onCancel={() => setCustQuickOpen(false)}
+        onOk={submitQuickCustomer} okText="建档并选用" confirmLoading={custQuickSaving} width={420}>
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>客户名称 *</div>
+            <Input value={custQuickName} onChange={(e) => setCustQuickName(e.target.value)} placeholder="AI 识别名，可修正" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>结算方式</div>
+            <Select style={{ width: '100%' }} allowClear placeholder="选填（默认现结）" value={custQuickSettle}
+              onChange={setCustQuickSettle} options={SETTLEMENT_OPTIONS} />
+          </div>
+        </Space>
+      </Modal>
+
+      {/* 快速产品建档：AI 识别产品不在目录时一键建档并填入行 */}
+      <Modal title="快速产品建档（AI 识别产品不在目录）" open={!!prodQuick}
+        onCancel={() => setProdQuick(null)}
+        onOk={submitQuickProduct} okText="加入目录并填入行" confirmLoading={prodQuickSaving} width={460}>
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>产品名称（沿用 AI 识别名）</div>
+            <Input value={prodQuick?.text ?? ''} disabled />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>制式类型 *（影响后续工序路线/排期）</div>
+            <Select style={{ width: '100%' }} value={prodQuickType} onChange={setProdQuickType}
+              options={PRODUCT_TYPE_OPTIONS} />
+          </div>
+        </Space>
+      </Modal>
     </Card>
   )
 }
