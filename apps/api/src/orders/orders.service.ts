@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { customers, orderLines, orders, products } from '../db/schema';
+import { customers, orderLines, orders, planSheets, products } from '../db/schema';
 import type { OrderStatus } from '../db/schema';
 
 export interface OrderLineDto {
@@ -148,10 +148,27 @@ export class OrdersService {
     return this.findOne(id);
   }
 
-  /** 删除（仅草稿） */
+  /**
+   * 删除（仅草稿）。
+   * I05 驳回会把来源订单退回草稿并保留一张 voided 计划单轨迹——
+   * 此时删除订单须伴随清理该 voided 计划单（级联删其行），否则 FK 报错；
+   * 若关联的是有效计划单则拒绝删除（已确认订单走变更/驳回流程）。
+   */
   async remove(id: number) {
     await this.requireDraft(id);
-    await db.delete(orders).where(eq(orders.id, id));
+    await db.transaction(async (tx) => {
+      const plans = await tx.select().from(planSheets).where(eq(planSheets.orderId, id));
+      for (const p of plans) {
+        if (p.status !== 'voided') {
+          throw new BadRequestException('订单已生成有效计划单，不可删除（可走驳回/变更流程）');
+        }
+      }
+      if (plans.length) {
+        await tx.delete(planSheets).where(eq(planSheets.orderId, id)); // 行随 cascade 一并删除
+      }
+      await tx.delete(orderLines).where(eq(orderLines.orderId, id));
+      await tx.delete(orders).where(eq(orders.id, id));
+    });
   }
 
   // ---------- helpers ----------

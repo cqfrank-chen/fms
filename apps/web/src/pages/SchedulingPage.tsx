@@ -593,13 +593,37 @@ export default function SchedulingPage() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <Space style={{ marginBottom: 8 }}>
           <Segmented options={[{ label: '日', value: 'day' }, { label: '周', value: 'week' }]} value={scale} onChange={(v) => setScale(v as any)} />
-          <Text type="secondary">蓝=待办 / 黄=进行中 / 绿=完成 / 红框=超期 / 紫虚线框=工期已人工覆盖</Text>
           <Button onClick={load} size="small">刷新</Button>
         </Space>
         {scheduled.length === 0 ? (
           <Empty description="无已排期任务（请到左侧待排区点击排期）" />
         ) : (
-          <GanttLane tasks={tasks} workCenters={workCenters} onMoveBar={moveBar} onClickBar={setTaskDetail} scale={scale} />
+          <>
+            <GanttLane tasks={tasks} workCenters={workCenters} onMoveBar={moveBar} onClickBar={setTaskDetail} scale={scale} />
+            {/* 图例：任务条底色 / 描边含义（置于看板下方） */}
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', marginTop: 8, padding: '6px 12px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 6, fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 18, height: 12, borderRadius: 3, background: '#1677ff', display: 'inline-block', flexShrink: 0 }} />
+                蓝底=已排未动（待开工）
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 18, height: 12, borderRadius: 3, background: '#faad14', display: 'inline-block', flexShrink: 0 }} />
+                黄底=进行中（部分工序/数量已报工）
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 18, height: 12, borderRadius: 3, background: '#52c41a', display: 'inline-block', flexShrink: 0 }} />
+                绿底=成品已报齐（完成）
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 18, height: 12, borderRadius: 3, background: '#fff', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 0 2px #ff4d4f' }} />
+                红框=预计超期
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 18, height: 12, borderRadius: 3, background: '#fff', display: 'inline-block', flexShrink: 0, outline: '2px dashed #722ed1' }} />
+                紫虚线框=工期人工指定（非自动推算）
+              </span>
+            </div>
+          </>
         )}
       </div>
 

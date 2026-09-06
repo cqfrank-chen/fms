@@ -24,5 +24,8 @@ export async function api<T = unknown>(
     throw new Error(detail)
   }
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  // 成功但空 body（如部分 DELETE 返回 200 无内容）→ 判空返回，避免 res.json() 抛 SyntaxError
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as Promise<T>
 }

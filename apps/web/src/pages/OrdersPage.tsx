@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Button, Card, DatePicker, Form, Input, InputNumber,
-  Modal, Select, Space, Table, Tabs, Tag, Typography, message,
+  Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -18,12 +18,44 @@ const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, lab
 
 const { Text } = Typography
 
+// ---------- AI 学习反馈：失败本地暂存，随下次成功自动补传（P0 修复，不再静默丢） ----------
+const FEEDBACK_QUEUE_KEY = 'fms_ai_feedback_queue'
+type QueuedFeedback = { payload: unknown; ts: number }
+
+/** 上报失败 → 入 localStorage 队列（上限 50 条，尽力而为） */
+function queueFeedback(payload: unknown) {
+  try {
+    const q: QueuedFeedback[] = JSON.parse(localStorage.getItem(FEEDBACK_QUEUE_KEY) || '[]')
+    q.push({ payload, ts: Date.now() })
+    localStorage.setItem(FEEDBACK_QUEUE_KEY, JSON.stringify(q.slice(-50)))
+  } catch { /* localStorage 不可用时丢弃（尽力而为） */ }
+}
+
+/** 补传积压反馈；返回仍失败的条数（0 = 全部送达） */
+async function flushFeedbackQueue(): Promise<number> {
+  let q: QueuedFeedback[] = []
+  try { q = JSON.parse(localStorage.getItem(FEEDBACK_QUEUE_KEY) || '[]') } catch { q = [] }
+  if (!q.length) return 0
+  const remain: QueuedFeedback[] = []
+  for (const it of q) {
+    try {
+      await api('/ai/feedback', { method: 'POST', body: it.payload })
+    } catch {
+      remain.push(it)
+    }
+  }
+  try { localStorage.setItem(FEEDBACK_QUEUE_KEY, JSON.stringify(remain.slice(-50))) } catch { /* ignore */ }
+  return remain.length
+}
+
 /** 订单页：新建（一单多产品+复合包装） / 订单列表（筛选+详情+编辑） / 归档（已完成反查） */
 export default function OrdersPage() {
   // 编辑闭环（I05 补）：订单列表「编辑」→ 跳转新建 Tab 预填为编辑模式 → 保存(PATCH)后回列表刷新
   const [tab, setTab] = useState('new')
   const [editOrder, setEditOrder] = useState<Order | null>(null)
   const [listTick, setListTick] = useState(0)
+  // 进入订单页：自动补传积压的 AI 学习反馈（P0；静默，失败留待下次）
+  useEffect(() => { void flushFeedbackQueue().catch(() => {}) }, [])
   function startEdit(o: Order) {
     setEditOrder(o)
     setTab('new')
@@ -262,28 +294,33 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
         method: 'POST',
         body,
       })
-      // 建单成功：清除 AI 单槽草稿 + 学习反馈（真实最终稿回流）
+      // 建单成功：清除 AI 单槽草稿 + 学习反馈（真实最终稿回流；失败本地暂存待重试，不再静默丢）
       api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
       if (pending?.parsed) {
-        api('/ai/feedback', {
-          method: 'POST',
-          body: {
-            source: 'ai_import',
-            parsed: pending.parsed,
-            corrected: {
-              customerId: values.customerId,
-              poNo: values.poNo,
-              dueDate: dayjs(values.dueDate).format('YYYY-MM-DD'),
-              note: values.note,
-              lines: lines.map((l: OrderLine) => ({
-                productId: l.productId, quantity: l.quantity, unitPrice: l.unitPrice,
-                currency: l.currency, engraving: l.engraving || undefined,
-                packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
-              })),
-            },
-            directPass: pending.parsed.directPass,
+        const feedback = {
+          source: 'ai_import',
+          parsed: pending.parsed,
+          corrected: {
+            customerId: values.customerId,
+            poNo: values.poNo,
+            dueDate: dayjs(values.dueDate).format('YYYY-MM-DD'),
+            note: values.note,
+            lines: lines.map((l: OrderLine) => ({
+              productId: l.productId, quantity: l.quantity, unitPrice: l.unitPrice,
+              currency: l.currency, engraving: l.engraving || undefined,
+              packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
+            })),
           },
-        }).catch(() => {})
+          directPass: pending.parsed.directPass,
+        }
+        api('/ai/feedback', { method: 'POST', body: feedback })
+          .then(() => { void flushFeedbackQueue().catch(() => {}) }) // 本次送达后顺带补传积压
+          .catch(() => {
+            queueFeedback(feedback)
+            message.warning('AI 学习反馈暂未送达，已本地保存、下次自动重试')
+          })
+      } else {
+        void flushFeedbackQueue().catch(() => {}) // 手工建单也顺带清积压
       }
       message.success(`订单已保存为草稿：${created.orderNo}（可到「订单列表」确认生成计划单）`)
       form.resetFields()
@@ -503,6 +540,18 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [kw, setKw] = useState('')
   const [detail, setDetail] = useState<Order | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  async function doDelete(r: Order) {
+    setDeletingId(r.id)
+    try {
+      await api(`/orders/${r.id}`, { method: 'DELETE' })
+      message.success(`已删除草稿订单 ${r.orderNo}`)
+      fetchRows()
+    } catch (e) {
+      message.error('删除失败：' + (e as Error).message)
+    } finally { setDeletingId(null) }
+  }
 
   async function doConfirm(r: Order) {
     setConfirmingId(r.id)
@@ -553,20 +602,28 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
     {
-      title: '操作', width: 220,
+      title: '操作', width: 300,
       render: (_, r) => (
         <Space size={4}>
           {r.status === 'draft' && (
             <>
               {onEdit && <Button size="small" onClick={() => onEdit(r)}>编辑</Button>}
               <Button type="primary" size="small" loading={confirmingId === r.id} onClick={() => doConfirm(r)}>确认</Button>
+              <Popconfirm
+                title={`删除草稿订单 ${r.orderNo}？`}
+                description="整单（含产品行）将永久删除，不可恢复；确认过的订单不能删除。"
+                okText="删除" okButtonProps={{ danger: true }} cancelText="取消"
+                onConfirm={() => doDelete(r)}
+              >
+                <Button danger size="small" loading={deletingId === r.id}>删除</Button>
+              </Popconfirm>
             </>
           )}
           <Button size="small" onClick={() => setDetail(r)}>详情</Button>
         </Space>
       ),
     },
-  ], [confirmingId])
+  ], [confirmingId, deletingId])
 
   const filterBar = !archived && (
     <Space wrap style={{ marginBottom: 12 }}>
