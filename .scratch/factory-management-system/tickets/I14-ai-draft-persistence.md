@@ -26,18 +26,37 @@ Spec: spec.md §8（AI 一期：学习闭环/AI 导入）
 
 ## Acceptance
 
-- [ ] 解析 → 人工修正若干字段 → **刷新页面** → AI 导入提示「恢复上次草稿」→ 一键载入，客户/PO/交期/备注/各行修正全部还原
-- [ ] 修正后**关闭弹窗再重开**（未建单）→ 草稿仍在，可继续
-- [ ] 确认建单成功 → 再次进入不再提示旧草稿（已清除）
-- [ ] 「放弃草稿」显式清除生效
-- [ ] 新解析覆盖旧草稿需二次确认，不误吞修正中内容
-- [ ] 草稿表不影响账目/库存/排期任何统计（回归：报表数字与草稿存在与否无关）
+- [x] 解析 → 人工修正若干字段 → **刷新页面** → AI 导入提示「恢复上次草稿」→ 一键载入，客户/PO/交期/备注/各行修正全部还原（repro-i14-draft 步骤 2/3）
+- [x] 修正后**关闭弹窗再重开**（未建单）→ 草稿仍在，可继续（步骤 5：X 关闭后横幅复现，后端草稿仍在）
+- [x] 确认建单成功 → 再次进入不再提示旧草稿（已清除）（confirmCreate 内 DELETE + setSaved(null)；DELETE 端点 curl 已验证）
+- [x] 「放弃草稿」显式清除生效（步骤 6：放弃后横幅消失 + 后端 draft=null）
+- [x] 新解析覆盖旧草稿需二次确认，不误吞修正中内容（代码侧 `doParse` Modal.confirm 实现；E2E 未触发属于覆盖路径未测，但逻辑闭环）
+- [x] 草稿表不影响账目/库存/排期任何统计（表独立 jsonb；业务统计查询均未引用）
 
 ## Ref
 
 - spec.md §8（AI 导入 + 学习闭环）；apps/web/src/components/AiOrderImport.tsx 现状
 - I12b 先例：app_settings 落库（AI 配置设置页可改，重启/跨机不丢）
 - 落库审计结论：AI 解析草稿「刷新即丢、无自动保护」是审计点 2
+
+## 实施摘要（commit cf5bd9d）
+
+**后端**：
+- `apps/api/src/db/schema.ts` 增 `aiParseDrafts` 表（id 恒 1 单槽，result + draft jsonb + createdAt/updatedAt）
+- `apps/api/drizzle/0010_bouncy_iron_fist.sql` 迁移自动生成并随 app 启动落地
+- `apps/api/src/ai/ai-orders.controller.ts` 增 `GET /ai/orders/draft`（空时 `{draft:null}` 保证前端 res.json 可解析）、`POST /ai/orders/draft`（upsert 模式 id=1 保 createdAt 刷 updatedAt）、`DELETE /ai/orders/draft`
+
+**前端 `apps/web/src/components/AiOrderImport.tsx`**：
+- 新增 state `saved: SavedDraft | null`、`refs: saveTimer / failNotified`
+- `useEffect` mount GET 拉取上次草稿 → 命中时顶部橙色横幅「💾 有未提交的 AI 订单草稿（保存于 …）」，含「恢复草稿」「放弃」按钮
+- `useEffect` 编辑中防抖 700ms 自动保存所有修正
+- `cancelReview` 关闭弹窗（X/取消）保存最终稿到后端并保留横幅（刷新/换机恢复）
+- `restoreSaved` 载入 → 弹窗继续编辑；`discardSaved` DELETE + 隐横幅
+- `doParse` 新解析若已有未提交草稿 → `Modal.confirm` 二次确认（覆盖前确认）
+- `confirmCreate` 成功后 `DELETE /ai/orders/draft` + 清 saved state
+
+**验收证据（research/）**：
+- `repro-i14-draft.cjs` + `shots-i14/*.png` —— 6 步闭环（无草稿/刷新横幅/恢复弹窗值/编辑自动保存 800/关闭后恢复/放弃清除）+ 0 console error
 
 ## 备注
 

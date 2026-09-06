@@ -30,17 +30,33 @@ Spec: spec.md §6.3（工序产能池）；research/04-process-data.md（工序�
 
 ## Acceptance
 
-- [ ] 后端写端点落库成功：配置 N 道工序 → product_processes 行数正确；重复工序被拒；未勾选工序从该产品移除
-- [ ] 前端编辑器可用：产品选择 → 勾选/排序/填耗时 → 保存后重开可见；未配置产品一键套模板可用
-- [ ] 排期生效：为演示产品配置完整路线 → 该产品计划单行不再显示「未配置」，工期按耗时推算；无耗时的产品/工序仍 1 天占位不回归
-- [ ] 删除产品 → 其路线级联清除（已由 schema onDelete cascade 保证，回归确认）
-- [ ] 数据回归：既有计划单、已排期行、订单/账目数据不受影响（本票只增写路径，不改动现有读逻辑语义）
+- [x] 后端写端点落库成功：配置 N 道工序 → product_processes 行数正确；重复工序被拒；未勾选工序从该产品移除（curl API：重复 400、负耗时 400、清空 items OK、不存在产品 404）
+- [x] 前端编辑器可用：产品选择 → 勾选/排序/填耗时 → 保存后重开可见；未配置产品一键套模板可用（repro-i13-routes 步骤 2/3）
+- [x] 排期生效：为演示产品配置完整路线 → 该产品计划单行不再显示「未配置」，工期按耗时推算；无耗时的产品/工序仍 1 天占位不回归（GET /scheduling/tasks：line 6 wcKey=drill unitSeconds=30；line 5/7 wcKey=cut unitSeconds=null 走 1 天占位）
+- [x] 删除产品 → 其路线级联清除（已由 schema onDelete cascade 保证，回归确认）
+- [x] 数据回归：既有计划单、已排期行、订单/账目数据不受影响（本票只增写路径，不改动现有读逻辑语义）
 
 ## Ref
 
 - research/04-process-data.md（工序字典 13 道种子 + 产品×工序序列模板）
 - spec.md §6.3；scheduling.service.ts 工期推算现状
 - 落库审计结论：product_processes 无写端点是当前唯一「表存在但无法录入」的主数据缺口
+
+## 实施摘要（commit 1cefa4d）
+
+**后端 `apps/api/src/products/`**：
+- `products.service.ts` 增 `listProcessDictionary / listProcessRoutes / replaceProcessRoutes`（事务整表替换；服务端重排 seq 1..N；校验 processId 在字典、unitSeconds 可空且 >0、changeoverMinutes ≥0）
+- `products.controller.ts` 增 `@Get('processes')` / `@Get(':id/process-routes')` / `@Put(':id/process-routes')`
+
+**前端**：
+- `apps/web/src/components/ProcessRouteCard.tsx`（新建）—— 字典 13 行编辑器：勾选 / ↑↓ 顺序 / 单件耗时(秒) / 换型(分钟) / 「套用字典模板（全勾选）」「全部清空」「保存路线」+ dirty 标记
+- `apps/web/src/pages/SetupPage.tsx` 在操作人卡之后、AI 配置卡之前插入 `<ProcessRouteCard />`
+- `apps/web/src/lib/api.ts` 增 `PUT` 方法类型
+
+**验收证据（research/）**：
+- `repro-i13-routes.cjs` + `shots-i13/*.png` —— 5 步闭环 + 0 console error
+
+**口径备忘**：当前 `scheduling.unitMap` 按 `productId + wcKey` 取首条 seq 的 unitSeconds；同泳道多工序场景下（已知：drill_c 与 drill_p 都属 drill 泳道）若未来需累加，约定改在 scheduling.service.unitSecondsFor 加 SUM 而非本票范围。
 
 ## 备注
 
