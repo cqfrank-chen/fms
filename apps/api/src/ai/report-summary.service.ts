@@ -89,7 +89,7 @@ export class ReportSummaryService {
     let summary: string;
     let provider: 'llm' | 'template';
     let mock = false;
-    if (this.llm.live) {
+    if (await this.llm.hasChatKey()) {
       const messages: LlmMessage[] = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `[利润月报数据]\n${ctx}\n[END]\n请输出执行摘要。` },

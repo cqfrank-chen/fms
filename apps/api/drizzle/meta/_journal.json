@@ -64,6 +64,13 @@
       "when": 1788626219573,
       "tag": "0008_clean_the_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788675660034,
+      "tag": "0009_young_black_queen",
+      "breakpoints": true
     }
   ]
 }

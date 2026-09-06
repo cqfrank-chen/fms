@@ -211,7 +211,7 @@ export class QaService {
       calls.push({ name, args, result });
     };
 
-    if (!this.llm.live) {
+    if (!(await this.llm.hasChatKey())) {
       const r = this.route(question);
       await runCall(r.name, r.args);
       const answer = `（mock 路由）已查询「${r.name}」：\n${calls[0].result}`;

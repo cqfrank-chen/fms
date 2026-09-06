@@ -130,7 +130,7 @@ export class OrderParserService {
    *  stub：仅 mock（未配 AI_API_KEY）时用于验收/离线测试直通 LLM 输出；真 key 环境忽略 */
   async parseAndResolve(input: { text?: string; image?: string; stub?: ParsedOrder }): Promise<ResolveResult> {
     let parsed: ParsedOrder;
-    if (input.stub && !this.llm.live) parsed = input.stub;
+    if (input.stub && !(await this.llm.hasChatKey())) parsed = input.stub;
     else if (input.image) parsed = await this.visionParse(input.image);
     else parsed = await this.textParse(input.text ?? '');
     return this.resolve(parsed);

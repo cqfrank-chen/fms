@@ -529,3 +529,17 @@ export const aiParseFeedback = pgTable('ai_parse_feedback', {
 
 export type AiParseFeedback = typeof aiParseFeedback.$inferSelect;
 export type NewAiParseFeedback = typeof aiParseFeedback.$inferInsert;
+
+// ============================================================
+// 应用级设置（运行时可改，DB 优先于 .env）——AI 服务配置等
+// 设置页写入后立即生效（网关每次请求读取）
+// ============================================================
+
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type AppSetting = typeof appSettings.$inferSelect;
+export type NewAppSetting = typeof appSettings.$inferInsert;

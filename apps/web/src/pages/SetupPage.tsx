@@ -1,10 +1,12 @@
-import { Space, Typography } from 'antd'
+import { Button, Card, Divider, Form, Input, Popconfirm, Space, Tag, Typography, message } from 'antd'
+import { useEffect, useState } from 'react'
 import CrudResource from '../components/CrudResource'
 import type { FieldConfig } from '../components/CrudResource'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL } from '../lib/labels'
 import { api } from '../lib/api'
-import { useEffect, useState } from 'react'
 import type { ColumnsType } from 'antd/es/table'
+
+const { Text } = Typography
 
 const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => ({ value, label }))
 const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_LABEL).map(([value, label]) => ({ value, label }))
@@ -93,7 +95,7 @@ function EntityStats() {
   )
 }
 
-/** 设置页：主数据四实体（spec §3），列表 + 弹窗直接生效 */
+/** 设置页：主数据四实体（spec §3）+ AI 服务配置，列表 + 弹窗直接生效 */
 export default function SetupPage() {
   return (
     <div style={{ maxWidth: 1240 }}>
@@ -129,7 +131,161 @@ export default function SetupPage() {
           columns={OPERATOR_COLUMNS}
           fields={OPERATOR_FIELDS}
         />
+        <AiConfigCard />
       </div>
     </div>
+  )
+}
+
+// =============== AI 服务配置（运行时改，DB 优先 .env，保存立即生效） ===============
+interface AiFieldState { keySet?: boolean; keyHint?: string; value?: string; default?: string }
+type AiConfigResp = Record<string, AiFieldState>
+
+function AiConfigCard() {
+  const [cfg, setCfg] = useState<AiConfigResp | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState<'chat' | 'vision' | null>(null)
+  const [input, setInput] = useState<Record<string, string>>({})
+
+  const load = async () => {
+    try {
+      setCfg(await api<AiConfigResp>('/ai/config'))
+    } catch {
+      message.error('加载 AI 配置失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { load() }, [])
+
+  const s = (f: string) => cfg?.[f]
+  const chatOk = !!cfg?.chatApiKey?.keySet
+  const visOk = !!cfg?.visionApiKey?.keySet
+
+  const save = async () => {
+    const patch: Record<string, string> = {}
+    for (const [f, v] of Object.entries(input)) {
+      const cur = f.endsWith('ApiKey') ? '' : (s(f)?.value ?? '')
+      if (v.trim() && v.trim() !== cur) patch[f] = v.trim()
+    }
+    if (!Object.keys(patch).length) {
+      message.info('没有需要保存的改动（输入框留空 = 不改动）')
+      return
+    }
+    setSaving(true)
+    try {
+      await api('/ai/config', { method: 'POST', body: JSON.stringify(patch) })
+      message.success('已保存并立即生效（无需重启）')
+      setInput({})
+      await load()
+    } catch {
+      message.error('保存失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const clearField = async (f: string) => {
+    try {
+      await api('/ai/config', { method: 'POST', body: JSON.stringify({ [f]: '' }) })
+      message.success('已清除，回退默认配置')
+      setInput((p) => ({ ...p, [f]: '' }))
+      await load()
+    } catch {
+      message.error('清除失败')
+    }
+  }
+
+  const test = async (kind: 'chat' | 'vision') => {
+    if (kind === 'chat' && !chatOk) { message.warning('请先填写并保存对话 API Key'); return }
+    if (kind === 'vision' && !visOk) { message.warning('请先填写并保存识图 API Key'); return }
+    setTesting(kind)
+    try {
+      const r = await api<{ ok: boolean; message: string }>('/ai/test', { method: 'POST', body: JSON.stringify({ kind }) })
+      if (r.ok) message.success(r.message)
+      else message.error('连接失败：' + r.message)
+    } catch {
+      message.error('测试请求失败')
+    } finally {
+      setTesting(null)
+    }
+  }
+
+  const inputProps = (f: string, ph: string, isKey = false) => {
+    const st = s(f)
+    const isKeyConfigured = isKey ? !!st?.keySet : !!(st?.value ?? '')
+    const shown = isKey ? (st?.keyHint ? `当前已配置 ${st.keyHint}（留空=不改动）` : '未配置（留空=不改动）') : `${ph}（当前：${st?.value ?? '默认 ' + (st?.default ?? '')}；留空=不改动）`
+    return {
+      value: input[f] ?? '',
+      placeholder: shown,
+      status: (isKeyConfigured ? undefined : 'warning') as 'warning' | undefined,
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setInput((p) => ({ ...p, [f]: e.target.value })),
+      style: { width: 380 },
+      disabled: loading,
+      ...(isKey ? { type: 'password' as const, autoComplete: 'new-password' } : {}),
+    }
+  }
+
+  const fieldRow = (f: string, label: string, ph: string, isKey = false) => {
+    const st = s(f)
+    const configured = isKey ? !!st?.keySet : !!st?.value
+    return (
+      <Space key={f} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ width: 110, fontSize: 13, color: '#666' }}>{label}</div>
+        <Input {...inputProps(f, ph, isKey)} />
+        {isKey && configured && (
+          <Popconfirm title="清除后回退默认（.env）配置？" onConfirm={() => clearField(f)} okText="清除" okButtonProps={{ danger: true }}>
+            <Button size="small" type="link" danger>清除</Button>
+          </Popconfirm>
+        )}
+      </Space>
+    )
+  }
+
+  return (
+    <Card
+      title={
+        <Space>
+          AI 服务配置
+          <Tag color={chatOk ? 'success' : 'default'}>{chatOk ? '对话已配置' : '对话未配置'}</Tag>
+          <Tag color={visOk ? 'success' : 'default'}>{visOk ? '识图已配置' : '识图未配置'}</Tag>
+        </Space>
+      }
+      size="small"
+      loading={loading}
+      extra={<Button size="small" onClick={load} icon={<span>↻</span>}>刷新</Button>}
+    >
+      <div style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>
+        在系统内直接填写/修改，保存立即生效无需重启（存于系统数据库，优先于 .env；输入框留空 = 不改动）
+      </div>
+      <Form layout="vertical" style={{ maxWidth: 720 }}>
+        <Typography.Text strong>💬 对话 AI（订单解析文本 / 查数问答 / 报表摘要）</Typography.Text>
+        <div style={{ margin: '10px 0 16px' }}>
+          {fieldRow('chatApiKey', 'API Key', 'sk-…', true)}
+          {fieldRow('chatBaseUrl', '接口地址', 'https://api.deepseek.com/v1')}
+          {fieldRow('chatModel', '模型', 'deepseek-chat')}
+          <Button size="small" loading={testing === 'chat'} onClick={() => test('chat')} style={{ marginTop: 6 }}>测试对话连接</Button>
+        </div>
+        <Divider style={{ margin: '8px 0 12px' }} />
+        <Typography.Text strong>🖼️ 识图 AI（订单图片解析）</Typography.Text>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '2px 0 8px' }}>
+          需支持视觉的模型 key（如阿里云百炼 qwen3-vl-flash）。识图接口地址留空时复用对话地址。
+        </Typography.Paragraph>
+        <div style={{ marginBottom: 16 }}>
+          {fieldRow('visionApiKey', 'API Key', 'sk-…', true)}
+          {fieldRow('visionBaseUrl', '接口地址', 'https://dashscope.aliyuncs.com/compatible-mode/v1')}
+          {fieldRow('visionModel', '模型', 'qwen3-vl-flash')}
+          <Button size="small" loading={testing === 'vision'} onClick={() => test('vision')} style={{ marginTop: 6 }}>测试识图连接</Button>
+        </div>
+        <Divider style={{ margin: '4px 0 12px' }} />
+        <Space>
+          <Button type="primary" loading={saving} onClick={save}>保存 AI 配置</Button>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            保存后：AI 助手页 / 订单 AI 导入 立即切换为真实模型
+          </Text>
+        </Space>
+      </Form>
+    </Card>
   )
 }

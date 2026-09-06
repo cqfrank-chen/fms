@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { AiConfigService } from './ai-config.service';
+import type { AiConfig } from './ai-config.service';
 
 /**
  * LLM 网关（I12）：OpenAI 兼容统一入口，供应商可切换。
@@ -51,25 +52,37 @@ export interface ChatResult {
 @Injectable()
 export class LlmGatewayService {
   private readonly logger = new Logger(LlmGatewayService.name);
+  /** 生效配置缓存（AiConfigService.load = env 默认 + DB 覆盖）；保存配置后调 refreshConfig() 失效重载 */
+  private cache: AiConfig | null = null;
 
-  constructor(private readonly cfg: ConfigService) {}
+  constructor(private readonly aiCfg: AiConfigService) {}
 
-  get live(): boolean {
-    return !!this.cfg.get<string>('AI_API_KEY');
+  /** 当前生效配置（缓存） */
+  async getConfig(): Promise<AiConfig> {
+    if (!this.cache) this.cache = await this.aiCfg.load();
+    return this.cache;
   }
 
-  private baseUrl(): string {
-    return (this.cfg.get<string>('AI_BASE_URL') ?? 'https://api.deepseek.com/v1').replace(/\/$/, '');
+  /** 配置被修改后调用：清缓存，下次请求重新 load（立即生效） */
+  async refreshConfig(): Promise<AiConfig> {
+    this.cache = await this.aiCfg.load();
+    return this.cache;
   }
 
-  private chatModel(): string {
-    return this.cfg.get<string>('AI_CHAT_MODEL') ?? 'deepseek-chat';
+  /** 对话通道是否已配 key（live）；DB/设置页配置也计入 */
+  async hasChatKey(): Promise<boolean> {
+    return !!(await this.getConfig()).chatApiKey;
+  }
+
+  /** 视觉通道是否已配 key */
+  async hasVisionKey(): Promise<boolean> {
+    return !!(await this.getConfig()).visionApiKey;
   }
 
   /** OpenAI 兼容 /chat/completions */
   async chat(messages: LlmMessage[], opts: ChatOptions = {}): Promise<ChatResult> {
     const mode = opts.mode ?? 'auto';
-    if (mode === 'mock' || (mode === 'auto' && !this.live)) {
+    if (mode === 'mock' || (mode === 'auto' && !(await this.hasChatKey()))) {
       return this.mockResult(messages, opts);
     }
     return this.liveChat(messages, opts);
@@ -77,10 +90,11 @@ export class LlmGatewayService {
 
   /** 视觉通道（订单图片解析）；视觉 key 缺失抛错由上层降级 */
   async vision(images: string[], prompt: string, opts: ChatOptions = {}): Promise<ChatResult> {
-    const vKey = this.cfg.get<string>('AI_VISION_KEY');
-    if (!vKey) throw new Error('AI_VISION_KEY 未配置：图片订单解析需视觉模型 key（如阿里云百炼 qwen3-vl-flash）');
-    const vBase = (this.cfg.get<string>('AI_VISION_BASE_URL') ?? this.baseUrl()).replace(/\/$/, '');
-    const vModel = this.cfg.get<string>('AI_VISION_MODEL') ?? 'qwen3-vl-flash';
+    const cfg = await this.getConfig();
+    const vKey = cfg.visionApiKey;
+    if (!vKey) throw new Error('识图 API Key 未配置：请到「设置 · 主数据 → AI 服务」填写（如阿里云百炼 qwen3-vl-flash）');
+    const vBase = (cfg.visionBaseUrl || cfg.chatBaseUrl).replace(/\/$/, '');
+    const vModel = cfg.visionModel;
     const content = [
       { type: 'text', text: prompt },
       ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
@@ -89,11 +103,44 @@ export class LlmGatewayService {
   }
 
   private async liveChat(messages: LlmMessage[], opts: ChatOptions): Promise<ChatResult> {
-    const model = opts.model ?? this.chatModel();
-    return this.postCompletion(this.baseUrl(), this.cfg.get<string>('AI_API_KEY')!, model, messages, opts);
+    const cfg = await this.getConfig();
+    const model = opts.model ?? cfg.chatModel;
+    return this.postCompletion(cfg.chatBaseUrl, cfg.chatApiKey, model, messages, opts);
   }
 
-  private async postCompletion(base: string, key: string, model: string, messages: unknown[], opts: ChatOptions): Promise<ChatResult> {
+  /** 连通性测试（设置页「测试连接」用）：真实发一条最小消息，返回可读结果 */
+  async testChat(): Promise<{ ok: boolean; message: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg.chatApiKey) return { ok: false, message: '对话 API Key 未配置' };
+    try {
+      await this.postCompletion(cfg.chatBaseUrl, cfg.chatApiKey, cfg.chatModel, [
+        { role: 'user', content: '回复 OK 两个字母即可' },
+      ], { temperature: 0 }, true);
+      return { ok: true, message: `连接成功（${cfg.chatModel} @ ${cfg.chatBaseUrl}）` };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+  }
+
+  /** 视觉连通性测试 */
+  async testVision(): Promise<{ ok: boolean; message: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg.visionApiKey) return { ok: false, message: '识图 API Key 未配置' };
+    const vBase = (cfg.visionBaseUrl || cfg.chatBaseUrl).replace(/\/$/, '');
+    // 1x1 红点 png（dataURL），仅验证鉴权与通道可达
+    const px = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    try {
+      await this.postCompletion(vBase, cfg.visionApiKey, cfg.visionModel, [{
+        role: 'user',
+        content: [{ type: 'text', text: '回复 OK' }, { type: 'image_url', image_url: { url: px } }],
+      } as never], { temperature: 0 }, true);
+      return { ok: true, message: `识图连接成功（${cfg.visionModel} @ ${vBase}）` };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+  }
+
+  private async postCompletion(base: string, key: string, model: string, messages: unknown[], opts: ChatOptions, strict = false): Promise<ChatResult> {
     const body: Record<string, unknown> = {
       model,
       messages,
@@ -126,6 +173,7 @@ export class LlmGatewayService {
       this.logger.log(`LLM ok: model=${model} toolCalls=${toolCalls.length} textLen=${text.length}`);
       return { provider: 'deepseek', text, toolCalls };
     } catch (e) {
+      if (strict) throw e; // 测试模式：错误透传（不降级 mock）
       // 网络/限流失败：不静默——记录并降级 mock，保证业务链路不被单点拖死
       this.logger.warn(`LLM call failed, fallback mock: ${(e as Error).message}`);
       return this.mockResult(messages as LlmMessage[], opts);
@@ -141,7 +189,7 @@ export class LlmGatewayService {
       const sample = MOCK_JSON_CASES[hint];
       if (sample) return { provider: 'mock', text: JSON.stringify(sample), mock: true };
     }
-    const echo = `[mock:未配置 AI_API_KEY] ${last.slice(0, 120)}`;
+    const echo = `[mock:未配置对话API Key，到设置页填写] ${last.slice(0, 120)}`;
     return { provider: 'mock', text: opts.json ? JSON.stringify({ mock: true, echo }) : echo, mock: true };
   }
 }
