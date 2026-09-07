@@ -64,7 +64,7 @@ export class AccountingService {
       .from(receivables)
       .leftJoin(customers, eq(receivables.customerId, customers.id))
       .leftJoin(outbounds, and(eq(outbounds.id, receivables.sourceId), eq(receivables.sourceType, 'outbound')))
-      .orderBy(asc(receivables.id));
+      .orderBy(desc(receivables.id));
     const orderNoBy = await this.resolveOrderNos(rows.map((x) => x.r));
     return rows.map(({ r, ...rest }) =>
       this.decorateReceivable(r, rest.customerName, rest.shipNo, orderNoBy.get(r.sourceId) ?? ''),
@@ -94,7 +94,7 @@ export class AccountingService {
       .from(payables)
       .leftJoin(suppliers, eq(payables.supplierId, suppliers.id))
       .leftJoin(incomingGoods, and(eq(incomingGoods.id, payables.sourceId), eq(payables.sourceType, 'incoming')))
-      .orderBy(asc(payables.id));
+      .orderBy(desc(payables.id));
     return rows.map(({ p, ...rest }) => ({
       ...p,
       supplierName: rest.supplierName ?? '',

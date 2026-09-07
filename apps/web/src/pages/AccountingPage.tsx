@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert, Button, Card, Col, Descriptions, Empty, Input, InputNumber, Modal, Popconfirm, Radio,
   Row, Select, Space, Statistic, Table, Tabs, Tag, Typography, message,
@@ -13,6 +13,9 @@ import type {
 
 const { Text } = Typography
 const fmt = (n: number | undefined | null) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+/** 按 value 去重的下拉选项 */
+const uniqOpts = (arr: Array<{ value: number | string; label: string }>) =>
+  [...new Map(arr.map((o) => [String(o.value), o])).values()]
 
 /** 账目页（I09）：应收/应付/收款/付款/对账/利润/月度成本 + 四表导出 */
 function AccountingPage() {
@@ -143,10 +146,12 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
   )
 }
 
-/** 应收记录 + 账龄 */
+/** 应收记录 + 账龄（默认最新在前） */
 function ReceivableTab() {
   const [rows, setRows] = useState<Receivable[]>([])
   const [loading, setLoading] = useState(false)
+  const [custId, setCustId] = useState<number>()
+  const [st, setSt] = useState<string>()
   const load = useCallback(async () => {
     setLoading(true)
     try { setRows(await api<Receivable[]>('/receivables')) }
@@ -154,6 +159,19 @@ function ReceivableTab() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
+
+  const custOpts = useMemo(
+    () => uniqOpts(rows.map((r) => ({ value: r.customerId, label: r.customerName || `#${r.customerId}` }))),
+    [rows],
+  )
+  const filtered = useMemo(() => rows.filter((r) => {
+    if (custId !== undefined && r.customerId !== custId) return false
+    if (st === 'open') return r.status !== 'voided' && r.remain > 0
+    if (st === 'overdue') return r.status !== 'voided' && r.remain > 0 && r.overDue
+    if (st === 'settled') return r.status !== 'voided' && r.remain <= 0
+    if (st === 'voided') return r.status === 'voided'
+    return true
+  }), [rows, custId, st])
 
   const bucketTag = (r: Receivable) => {
     if (r.status === 'voided') return <Tag color="error">已冲销</Tag>
@@ -174,16 +192,36 @@ function ReceivableTab() {
     { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
   ]
   return (
-    <Table<Receivable> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
-      pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
-      locale={{ emptyText: <Empty description="暂无应收 —— 订单确认时自动生成，出货不重复开立" /> }} />
+    <div>
+      <Space size={8} wrap style={{ marginBottom: 12 }}>
+        <Select size="small" style={{ width: 170 }} allowClear showSearch optionFilterProp="label"
+          placeholder="按客户筛选" value={custId} onChange={(v) => setCustId(v as number)} options={custOpts} />
+        <Select size="small" style={{ width: 130 }} allowClear placeholder="按状态筛选"
+          value={st} onChange={setSt}
+          options={[
+            { value: 'open', label: '未结清' },
+            { value: 'overdue', label: '逾期' },
+            { value: 'settled', label: '已结清' },
+            { value: 'voided', label: '已冲销' },
+          ]} />
+        {(custId !== undefined || st !== undefined) && (
+          <Button size="small" onClick={() => { setCustId(undefined); setSt(undefined) }}>清空筛选</Button>
+        )}
+        <Text type="secondary" style={{ fontSize: 12 }}>{filtered.length} / {rows.length} 条</Text>
+      </Space>
+      <Table<Receivable> rowKey="id" size="small" loading={loading} columns={columns} dataSource={filtered}
+        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+        locale={{ emptyText: <Empty description={rows.length && !filtered.length ? '无符合筛选条件的记录' : '暂无应收 —— 订单确认时自动生成，出货不重复开立'} /> }} />
+    </div>
   )
 }
 
-/** 应付记录 */
+/** 应付记录（默认最新在前） */
 function PayableTab() {
   const [rows, setRows] = useState<Payable[]>([])
   const [loading, setLoading] = useState(false)
+  const [supId, setSupId] = useState<number>()
+  const [st, setSt] = useState<string>()
   const load = useCallback(async () => {
     setLoading(true)
     try { setRows(await api<Payable[]>('/payables')) }
@@ -191,6 +229,19 @@ function PayableTab() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
+
+  const supOpts = useMemo(
+    () => uniqOpts(rows.map((r) => ({ value: r.supplierId, label: r.supplierName || `#${r.supplierId}` }))),
+    [rows],
+  )
+  const filtered = useMemo(() => rows.filter((r) => {
+    if (supId !== undefined && r.supplierId !== supId) return false
+    if (st === 'open') return r.status !== 'voided' && r.remain > 0
+    if (st === 'settled') return r.status !== 'voided' && r.remain <= 0
+    if (st === 'voided') return r.status === 'voided'
+    return true
+  }), [rows, supId, st])
+
   const columns: ColumnsType<Payable> = [
     { title: '应付号', dataIndex: 'payNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
     { title: '供应商', dataIndex: 'supplierName', width: 150 },
@@ -202,9 +253,26 @@ function PayableTab() {
     { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
   ]
   return (
-    <Table<Payable> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
-      pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
-      locale={{ emptyText: <Empty description="暂无应付 —— 来料登记自动生成" /> }} />
+    <div>
+      <Space size={8} wrap style={{ marginBottom: 12 }}>
+        <Select size="small" style={{ width: 170 }} allowClear showSearch optionFilterProp="label"
+          placeholder="按供应商筛选" value={supId} onChange={(v) => setSupId(v as number)} options={supOpts} />
+        <Select size="small" style={{ width: 130 }} allowClear placeholder="按状态筛选"
+          value={st} onChange={setSt}
+          options={[
+            { value: 'open', label: '未结' },
+            { value: 'settled', label: '已结清' },
+            { value: 'voided', label: '已冲销' },
+          ]} />
+        {(supId !== undefined || st !== undefined) && (
+          <Button size="small" onClick={() => { setSupId(undefined); setSt(undefined) }}>清空筛选</Button>
+        )}
+        <Text type="secondary" style={{ fontSize: 12 }}>{filtered.length} / {rows.length} 条</Text>
+      </Space>
+      <Table<Payable> rowKey="id" size="small" loading={loading} columns={columns} dataSource={filtered}
+        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+        locale={{ emptyText: <Empty description={rows.length && !filtered.length ? '无符合筛选条件的记录' : '暂无应付 —— 来料登记自动生成'} /> }} />
+    </div>
   )
 }
 
@@ -214,6 +282,9 @@ function CollectTab() {
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [acting, setActing] = useState<number | null>(null)
+  const [custId, setCustId] = useState<number>()
+  const [mode, setMode] = useState<string>()
+  const [st, setSt] = useState<string>()
   const load = useCallback(async () => {
     setLoading(true)
     try { setRows(await api<CollectionSlip[]>('/collection-slips')) }
@@ -227,6 +298,19 @@ function CollectTab() {
     catch (e) { message.error((e as Error).message) }
     finally { setActing(null) }
   }
+
+  const custOpts = useMemo(
+    () => uniqOpts(rows.map((r) => ({ value: r.customerId, label: r.customerName || `#${r.customerId}` }))),
+    [rows],
+  )
+  const filtered = useMemo(() => rows.filter((r) => {
+    if (custId !== undefined && r.customerId !== custId) return false
+    if (mode && r.mode !== mode) return false
+    if (st && r.status !== st) return false
+    return true
+  }), [rows, custId, mode, st])
+  const hasFilter = custId !== undefined || mode !== undefined || st !== undefined
+
   const columns: ColumnsType<CollectionSlip> = [
     {
       title: '关联订单', width: 200,
@@ -254,8 +338,26 @@ function CollectTab() {
         <Button type="primary" onClick={() => setOpen(true)}>+ 新建收款单</Button>
         <Text type="secondary" style={{ marginLeft: 12, fontSize: 12 }}>核销应收=确认营收（现金收付制）；预收模式覆盖 OEM 30% 定金</Text>
       </div>
-      <Table<CollectionSlip> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
-        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }} />
+      <Space size={8} wrap style={{ marginBottom: 12 }}>
+        <Select size="small" style={{ width: 170 }} allowClear showSearch optionFilterProp="label"
+          placeholder="按客户筛选" value={custId} onChange={(v) => setCustId(v as number)} options={custOpts} />
+        <Select size="small" style={{ width: 130 }} allowClear placeholder="按模式筛选"
+          value={mode} onChange={setMode}
+          options={Object.entries(SLIP_MODE_LABEL).map(([value, label]) => ({ value, label }))} />
+        <Select size="small" style={{ width: 130 }} allowClear placeholder="按状态筛选"
+          value={st} onChange={setSt}
+          options={[
+            { value: 'confirmed', label: '生效' },
+            { value: 'voided', label: '已冲销' },
+          ]} />
+        {hasFilter && (
+          <Button size="small" onClick={() => { setCustId(undefined); setMode(undefined); setSt(undefined) }}>清空筛选</Button>
+        )}
+        <Text type="secondary" style={{ fontSize: 12 }}>{filtered.length} / {rows.length} 条</Text>
+      </Space>
+      <Table<CollectionSlip> rowKey="id" size="small" loading={loading} columns={columns} dataSource={filtered}
+        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+        locale={{ emptyText: <Empty description={rows.length && !filtered.length ? '无符合筛选条件的记录' : '暂无收款单 —— 点击上方「新建收款单」登记'} /> }} />
       <SlipModal open={open} direction="collect" onClose={(reload) => { setOpen(false); if (reload) load() }} />
     </div>
   )
@@ -267,6 +369,9 @@ function PayTab() {
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [acting, setActing] = useState<number | null>(null)
+  const [supId, setSupId] = useState<number>()
+  const [mode, setMode] = useState<string>()
+  const [st, setSt] = useState<string>()
   const load = useCallback(async () => {
     setLoading(true)
     try { setRows(await api<PaymentSlip[]>('/payment-slips')) }
@@ -280,6 +385,19 @@ function PayTab() {
     catch (e) { message.error((e as Error).message) }
     finally { setActing(null) }
   }
+
+  const supOpts = useMemo(
+    () => uniqOpts(rows.map((r) => ({ value: r.supplierId, label: r.supplierName || `#${r.supplierId}` }))),
+    [rows],
+  )
+  const filtered = useMemo(() => rows.filter((r) => {
+    if (supId !== undefined && r.supplierId !== supId) return false
+    if (mode && r.mode !== mode) return false
+    if (st && r.status !== st) return false
+    return true
+  }), [rows, supId, mode, st])
+  const hasFilter = supId !== undefined || mode !== undefined || st !== undefined
+
   const columns: ColumnsType<PaymentSlip> = [
     { title: '付款单号', dataIndex: 'payNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
     { title: '日期', dataIndex: 'createdAt', width: 110, render: (v: string) => v.slice(0, 10) },
@@ -299,8 +417,26 @@ function PayTab() {
         <Button type="primary" onClick={() => setOpen(true)}>+ 新建付款单</Button>
         <Text type="secondary" style={{ marginLeft: 12, fontSize: 12 }}>核销应付；预付模式覆盖供应商定金（与收款单同构）</Text>
       </div>
-      <Table<PaymentSlip> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
-        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }} />
+      <Space size={8} wrap style={{ marginBottom: 12 }}>
+        <Select size="small" style={{ width: 170 }} allowClear showSearch optionFilterProp="label"
+          placeholder="按供应商筛选" value={supId} onChange={(v) => setSupId(v as number)} options={supOpts} />
+        <Select size="small" style={{ width: 130 }} allowClear placeholder="按模式筛选"
+          value={mode} onChange={setMode}
+          options={Object.entries(SLIP_MODE_LABEL).map(([value, label]) => ({ value, label }))} />
+        <Select size="small" style={{ width: 130 }} allowClear placeholder="按状态筛选"
+          value={st} onChange={setSt}
+          options={[
+            { value: 'confirmed', label: '生效' },
+            { value: 'voided', label: '已冲销' },
+          ]} />
+        {hasFilter && (
+          <Button size="small" onClick={() => { setSupId(undefined); setMode(undefined); setSt(undefined) }}>清空筛选</Button>
+        )}
+        <Text type="secondary" style={{ fontSize: 12 }}>{filtered.length} / {rows.length} 条</Text>
+      </Space>
+      <Table<PaymentSlip> rowKey="id" size="small" loading={loading} columns={columns} dataSource={filtered}
+        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+        locale={{ emptyText: <Empty description={rows.length && !filtered.length ? '无符合筛选条件的记录' : '暂无付款单 —— 点击上方「新建付款单」登记'} /> }} />
       <SlipModal open={open} direction="pay" onClose={(reload) => { setOpen(false); if (reload) load() }} />
     </div>
   )
