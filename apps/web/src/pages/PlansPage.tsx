@@ -152,6 +152,7 @@ function PlansPage() {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: string) => <Tag color={statusColor(v)}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD HH:mm')}</Text> : '—') },
     {
       title: '操作', width: 250,
       render: (_, r) => (

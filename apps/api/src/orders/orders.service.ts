@@ -46,14 +46,14 @@ const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.ge
 
 @Injectable()
 export class OrdersService {
-  /** 生成单号 SO-YYYYMMDD-NN（当天序号） */
+  /** 生成单号 SO-YYYYMMDD-NN（当天最大序号+1；count 在删除后会复用旧号，改 max 根治） */
   private async nextOrderNo(now: Date): Promise<string> {
     const prefix = `SO-${ymd(now)}-`;
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
+    const [row] = await db
+      .select({ mx: sql<number | null>`max(substring(order_no from '[0-9]+$')::int)` })
       .from(orders)
       .where(like(orders.orderNo, `${prefix}%`));
-    return `${prefix}${pad2(count + 1)}`;
+    return `${prefix}${pad2((row?.mx ?? 0) + 1)}`;
   }
 
   /** 创建订单（单头+行，事务）；I05 前状态恒为草稿 */
@@ -128,6 +128,7 @@ export class OrdersService {
           poNo: dto.poNo !== undefined ? (dto.poNo ?? null) : existing.poNo,
           dueDate,
           note: dto.note !== undefined ? (dto.note ?? null) : existing.note,
+          updatedAt: new Date(),
         })
         .where(eq(orders.id, id));
       if (dto.lines) {
@@ -199,6 +200,7 @@ export class OrdersService {
     return rows.map(({ order, customerName }) => ({
       ...order,
       customerName,
+      totalAmount: (byOrder.get(order.id) ?? []).reduce((s, l) => s + l.quantity * l.unitPrice, 0),
       lines: byOrder.get(order.id) ?? [],
     }));
   }

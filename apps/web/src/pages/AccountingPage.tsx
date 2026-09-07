@@ -163,19 +163,20 @@ function ReceivableTab() {
   }
 
   const columns: ColumnsType<Receivable> = [
-    { title: '应收号', dataIndex: 'recvNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '客户', dataIndex: 'customerName', width: 150 },
-    { title: '来源出库', dataIndex: 'shipNo', width: 160, render: (v?: string) => v || '—' },
-    { title: '金额', width: 110, render: (_, r) => (r.status === 'voided' ? <Text type="secondary" delete>{fmt(r.amount)}</Text> : `${fmt(r.amount)} ${r.currency}`) },
-    { title: '已核销', dataIndex: 'settledAmount', width: 100, render: (v: number) => fmt(v) },
-    { title: '未结', width: 100, render: (_, r) => (r.status === 'voided' ? <Tag color="error">已冲销</Tag> : <Text strong style={{ color: r.remain > 0 && r.overDue ? '#cf1322' : undefined }}>{fmt(r.remain)}</Text>) },
-    { title: '到期日', dataIndex: 'dueDate', width: 110, render: (v?: string | null) => (v ? v.slice(0, 10) : '—') },
-    { title: '账龄', width: 120, render: (_, r) => bucketTag(r) },
+    { title: '关联订单', dataIndex: 'orderNo', width: 170, render: (v?: string) => (v ? <Text strong style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary">—</Text>) },
+    { title: '应收号', dataIndex: 'recvNo', width: 150, render: (v: string) => <Text strong>{v}</Text> },
+    { title: '客户', dataIndex: 'customerName', width: 140 },
+    { title: '金额', width: 105, render: (_, r) => (r.status === 'voided' ? <Text type="secondary" delete>{fmt(r.amount)}</Text> : `${fmt(r.amount)} ${r.currency}`) },
+    { title: '已核销', dataIndex: 'settledAmount', width: 95, render: (v: number) => fmt(v) },
+    { title: '未结', width: 95, render: (_, r) => (r.status === 'voided' ? <Tag color="error">已冲销</Tag> : <Text strong style={{ color: r.remain > 0 && r.overDue ? '#cf1322' : undefined }}>{fmt(r.remain)}</Text>) },
+    { title: '到期日', dataIndex: 'dueDate', width: 105, render: (v?: string | null) => (v ? v.slice(0, 10) : '—') },
+    { title: '账龄', width: 115, render: (_, r) => bucketTag(r) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
   ]
   return (
     <Table<Receivable> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
       pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
-      locale={{ emptyText: <Empty description="暂无应收 —— 出库 OQC 放行自动生成" /> }} />
+      locale={{ emptyText: <Empty description="暂无应收 —— 订单确认时自动生成，出货不重复开立" /> }} />
   )
 }
 
@@ -198,6 +199,7 @@ function PayableTab() {
     { title: '已核销', dataIndex: 'settledAmount', width: 100, render: (v: number) => fmt(v) },
     { title: '未结', dataIndex: 'remain', width: 100, render: (v: number) => <Text strong>{fmt(v)}</Text> },
     { title: '状态', width: 100, render: (_, r) => (r.settled ? <Tag color="success">已结清</Tag> : r.status === 'voided' ? <Tag color="error">已冲销</Tag> : <Tag>未结</Tag>) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
   ]
   return (
     <Table<Payable> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
@@ -226,14 +228,23 @@ function CollectTab() {
     finally { setActing(null) }
   }
   const columns: ColumnsType<CollectionSlip> = [
-    { title: '收款单号', dataIndex: 'collectNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '日期', dataIndex: 'createdAt', width: 110, render: (v: string) => v.slice(0, 10) },
-    { title: '客户', dataIndex: 'customerName', width: 150 },
-    { title: '模式', dataIndex: 'mode', width: 100, render: (v: string) => <Tag color={v === 'settle' ? 'blue' : 'purple'}>{SLIP_MODE_LABEL[v]}</Tag> },
-    { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => fmt(v) },
-    { title: '核销对象', width: 200, render: (_, r) => (r.lines?.length ? r.lines.map((l) => l.recvNo ?? '').filter(Boolean).join('、') : r.mode === 'prepay' ? '（挂客户预收余额）' : '—') },
-    { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v === 'confirmed' ? 'success' : 'error'}>{v === 'confirmed' ? '生效' : '已冲销'}</Tag> },
-    { title: '操作', width: 90, render: (_, r) => (r.status === 'confirmed'
+    {
+      title: '关联订单', width: 200,
+      render: (_, r) => {
+        const nos = [...new Set((r.lines ?? []).map((l) => l.orderNo).filter(Boolean))] as string[]
+        return nos.length
+          ? <Text strong style={{ fontSize: 12 }}>{nos.join('、')}</Text>
+          : <Text type="secondary" style={{ fontSize: 12 }}>{r.mode === 'prepay' ? '（预收）' : '—'}</Text>
+      },
+    },
+    { title: '收款单号', dataIndex: 'collectNo', width: 150, render: (v: string) => <Text strong>{v}</Text> },
+    { title: '日期', dataIndex: 'createdAt', width: 105, render: (v: string) => v.slice(0, 10) },
+    { title: '客户', dataIndex: 'customerName', width: 130 },
+    { title: '模式', dataIndex: 'mode', width: 90, render: (v: string) => <Tag color={v === 'settle' ? 'blue' : 'purple'}>{SLIP_MODE_LABEL[v]}</Tag> },
+    { title: '金额', dataIndex: 'amount', width: 105, render: (v: number) => fmt(v) },
+    { title: '核销对象', width: 170, render: (_, r) => (r.lines?.length ? r.lines.map((l) => l.recvNo ?? '').filter(Boolean).join('、') : r.mode === 'prepay' ? '（挂客户预收余额）' : '—') },
+    { title: '状态', dataIndex: 'status', width: 85, render: (v: string) => <Tag color={v === 'confirmed' ? 'success' : 'error'}>{v === 'confirmed' ? '生效' : '已冲销'}</Tag> },
+    { title: '操作', width: 85, render: (_, r) => (r.status === 'confirmed'
       ? <Popconfirm title="冲销将回滚核销，确认？" onConfirm={() => voidSlip(r.id)}><Button size="small" danger loading={acting === r.id}>冲销</Button></Popconfirm>
       : <Text type="secondary" style={{ fontSize: 12 }}>已冲销</Text>) },
   ]
@@ -277,6 +288,7 @@ function PayTab() {
     { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => fmt(v) },
     { title: '核销对象', width: 200, render: (_, r) => (r.lines?.length ? r.lines.map((l) => l.payNo ?? '').filter(Boolean).join('、') : r.mode === 'prepay' ? '（挂供应商预付余额）' : '—') },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v === 'confirmed' ? 'success' : 'error'}>{v === 'confirmed' ? '生效' : '已冲销'}</Tag> },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
     { title: '操作', width: 90, render: (_, r) => (r.status === 'confirmed'
       ? <Popconfirm title="冲销将回滚核销，确认？" onConfirm={() => voidSlip(r.id)}><Button size="small" danger loading={acting === r.id}>冲销</Button></Popconfirm>
       : <Text type="secondary" style={{ fontSize: 12 }}>已冲销</Text>) },

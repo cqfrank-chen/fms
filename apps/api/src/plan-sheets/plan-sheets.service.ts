@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, goodsReceiptLines, goodsReceipts, orderLines, orders,
-  planSheetLines, planSheets, processes, productProcesses, products, workCenters,
+  planSheetLines, planSheets, processes, productProcesses, products, receivables, workCenters,
 } from '../db/schema';
 import type { PlanStatus } from '../db/schema';
 
@@ -34,14 +34,14 @@ export interface RouteStep { processId: number; name: string; wcKey: string; seq
  */
 @Injectable()
 export class PlanSheetsService {
-  /** 生成计划单号 PS-YYYYMMDD-NN */
+  /** 生成计划单号 PS-YYYYMMDD-NN（当天最大序号+1，防删除后复用撞号） */
   private async nextPlanNo(now: Date): Promise<string> {
     const prefix = `PS-${ymd(now)}-`;
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
+    const [row] = await db
+      .select({ mx: sql<number | null>`max(substring(plan_no from '[0-9]+$')::int)` })
       .from(planSheets)
       .where(like(planSheets.planNo, `${prefix}%`));
-    return `${prefix}${pad2(count + 1)}`;
+    return `${prefix}${pad2((row?.mx ?? 0) + 1)}`;
   }
 
   /** 订单确认：草稿 → 已确认，同时自动生成计划单草稿（一单一计划单） */
@@ -50,6 +50,7 @@ export class PlanSheetsService {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== 'draft')
       throw new BadRequestException(`仅草稿订单可确认（当前：${order.status}）`);
+    const [cust] = await db.select().from(customers).where(eq(customers.id, order.customerId));
 
     const existing = await db
       .select()
@@ -60,7 +61,7 @@ export class PlanSheetsService {
 
     const plan = await db.transaction(async (tx) => {
       // 1. 订单置为已确认
-      await tx.update(orders).set({ status: 'confirmed' }).where(eq(orders.id, orderId));
+      await tx.update(orders).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(orders.id, orderId));
       // 2. 建计划单草稿
       const [created] = await tx
         .insert(planSheets)
@@ -80,6 +81,24 @@ export class PlanSheetsService {
           })),
         );
       }
+      // 4. 应收开立（决策修订：确认订单即生成订单级应收；出库不再生成；驳回订单时冲销）
+      if (lines.length) {
+        const now = new Date();
+        const [{ mx }] = await tx
+          .select({ mx: sql<number | null>`max(substring(recv_no from '[0-9]+$')::int)` })
+          .from(receivables)
+          .where(like(receivables.recvNo, `REC-${ymd(now)}-%`));
+        await tx.insert(receivables).values({
+          recvNo: `REC-${ymd(now)}-${pad2((mx ?? 0) + 1)}`,
+          customerId: order.customerId,
+          sourceType: 'order',
+          sourceId: orderId,
+          amount: lines.reduce((s, l) => s + l.quantity * Number(l.unitPrice), 0),
+          currency: lines[0]?.currency ?? 'RMB',
+          dueDate: (cust?.creditDays ?? 0) > 0 ? new Date(Date.now() + (cust?.creditDays ?? 0) * 86400000) : null,
+          status: 'draft',
+        });
+      }
       return created;
     });
     return this.findOne(plan.id);
@@ -93,7 +112,7 @@ export class PlanSheetsService {
       throw new BadRequestException(`仅草稿计划单可审核（当前：${plan.status}）`);
     const [updated] = await db
       .update(planSheets)
-      .set({ status: 'confirmed' })
+      .set({ status: 'confirmed', updatedAt: new Date() })
       .where(eq(planSheets.id, planId))
       .returning();
     return this.findOne(updated.id);
@@ -110,12 +129,21 @@ export class PlanSheetsService {
     if (order.status !== 'confirmed')
       throw new BadRequestException(`仅来源订单为「已确认」时可驳回（当前订单：${order.status}）`);
     await db.transaction(async (tx) => {
+      // 0. 撤销确认时开立的应收（若已核销则拒绝驳回，先冲收款）
+      const [recv] = await tx
+        .select()
+        .from(receivables)
+        .where(and(eq(receivables.sourceId, plan.orderId), eq(receivables.sourceType, 'order'), ne(receivables.status, 'voided')));
+      if (recv && recv.settledAmount > 0)
+        throw new BadRequestException(`应收 ${recv.recvNo} 已核销，请先冲销对应收款单再驳回`);
+      if (recv)
+        await tx.update(receivables).set({ status: 'voided', updatedAt: new Date() }).where(eq(receivables.id, recv.id));
       // 1. 删计划单行（行快照引用订单行，若保留会挡后续订单行编辑的 FK）
       await tx.delete(planSheetLines).where(eq(planSheetLines.planSheetId, planId));
       // 2. 计划单作废（保留单头作驳回轨迹）
-      await tx.update(planSheets).set({ status: 'voided' }).where(eq(planSheets.id, planId));
+      await tx.update(planSheets).set({ status: 'voided', updatedAt: new Date() }).where(eq(planSheets.id, planId));
       // 3. 订单退回草稿：可编辑/删除，重新确认即生成新计划单
-      await tx.update(orders).set({ status: 'draft' }).where(eq(orders.id, plan.orderId));
+      await tx.update(orders).set({ status: 'draft', updatedAt: new Date() }).where(eq(orders.id, plan.orderId));
     });
     return this.findOne(planId);
   }
@@ -170,9 +198,8 @@ export class PlanSheetsService {
         coverDays: null,
         ...(nextStartDate ? { startDate: nextStartDate } : {}),
       }).where(eq(planSheetLines.id, line.id));
-      // 首报开工：confirmed → production（留在排期池推进，池条件含 production）
-      if (plan.status === 'confirmed')
-        await tx.update(planSheets).set({ status: 'production' }).where(eq(planSheets.id, planId));
+      // 报工即算计划单「更新」（刷新时间；首报开工 confirmed→production 留在排期池推进）
+      await tx.update(planSheets).set({ status: plan.status === 'confirmed' ? 'production' : plan.status, updatedAt: new Date() }).where(eq(planSheets.id, planId));
     });
     return this.findOne(planId);
   }
@@ -203,17 +230,16 @@ export class PlanSheetsService {
         .set({ completedQuantity: newDone, ...(routeSeqFinal ? { routeSeq: routeSeqFinal } : {}) })
         .where(eq(planSheetLines.id, fresh.id));
 
-      // 2. 状态聚合：首报>0 → 生产中；全部行完成 → 计划单已完成
+      // 2. 状态聚合：首报>0 → 生产中；全部行完成 → 计划单已完成（报工始终刷新更新时间）
       const all = await tx.select().from(planSheetLines).where(eq(planSheetLines.planSheetId, planId));
       const allDone = all.length > 0 && all.every((l) => l.completedQuantity >= l.quantity);
       const anyDone = all.some((l) => l.completedQuantity > 0);
       const nextPlanStatus: PlanStatus = allDone ? 'completed' : anyDone ? 'production' : 'confirmed';
-      if (plan.status !== nextPlanStatus)
-        await tx.update(planSheets).set({ status: nextPlanStatus }).where(eq(planSheets.id, planId));
+      await tx.update(planSheets).set({ status: nextPlanStatus, updatedAt: new Date() }).where(eq(planSheets.id, planId));
 
       // 3. 订单联动：计划单已完成 → 订单已完成（进归档）
       if (allDone) {
-        await tx.update(orders).set({ status: 'completed' }).where(eq(orders.id, plan.orderId));
+        await tx.update(orders).set({ status: 'completed', updatedAt: new Date() }).where(eq(orders.id, plan.orderId));
       }
 
       // 4. 入库草稿 upsert：找未确认草稿，无则新建（批次=一计划单一批次）

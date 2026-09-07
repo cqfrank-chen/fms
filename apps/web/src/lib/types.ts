@@ -1,9 +1,9 @@
 /** 与后端 schema.ts / service 返回结构对齐的类型 */
 
-export interface Product { id: number; name: string; type: string; defaultPackaging?: string | null; defaultRouting?: string | null; safetyStock: number }
-export interface Customer { id: number; name: string; contact?: string | null; settlement?: string | null; creditDays: number }
-export interface Supplier { id: number; name: string; contact?: string | null; settlement?: string | null }
-export interface Operator { id: number; name: string; boundPc?: string | null; note?: string | null }
+export interface Product { id: number; name: string; type: string; defaultPackaging?: string | null; defaultRouting?: string | null; safetyStock: number; createdAt?: string; updatedAt?: string }
+export interface Customer { id: number; name: string; contact?: string | null; settlement?: string | null; creditDays: number; createdAt?: string; updatedAt?: string }
+export interface Supplier { id: number; name: string; contact?: string | null; settlement?: string | null; createdAt?: string; updatedAt?: string }
+export interface Operator { id: number; name: string; boundPc?: string | null; note?: string | null; createdAt?: string; updatedAt?: string }
 
 export type PackType = 'box' | 'bag' | 'carton' | 'label'
 export type PackagingSpec = Partial<Record<PackType, string>>
@@ -32,6 +32,8 @@ export interface Order {
   note?: string | null
   status: OrderStatus
   createdAt: string
+  updatedAt?: string
+  totalAmount?: number // 后端 attachLines 按行 Σ(数量×单价)
   lines: OrderLine[]
 }
 
@@ -76,6 +78,7 @@ export interface PlanSheet {
   orderStatus?: OrderStatus
   status: PlanStatus
   createdAt: string
+  updatedAt?: string
   lines: PlanSheetLine[]
 }
 
@@ -86,7 +89,7 @@ export type ReceiptStatus = 'draft' | 'confirmed' | 'voided'
 export interface ReceiptLine {
   id: number
   receiptId?: number
-  planSheetLineId: number
+  planSheetLineId?: number | null
   productId: number
   productName?: string
   quantity: number
@@ -95,12 +98,13 @@ export interface ReceiptLine {
 export interface GoodsReceipt {
   id: number
   receiptNo: string
-  planSheetId: number
+  planSheetId?: number | null // null=手动无单入库
   planNo?: string
   batchNo: string
   status: ReceiptStatus
   note?: string | null
   createdAt: string
+  updatedAt?: string
   confirmedAt?: string | null
   lines: ReceiptLine[]
 }
@@ -113,6 +117,7 @@ export interface InventoryRow {
   quantity: number
   safetyStock?: number
   low?: boolean
+  updatedAt?: string
 }
 
 export type OqcStatus = 'pending' | 'passed' | 'exempt'
@@ -138,6 +143,7 @@ export interface Outbound {
   status: OutboundStatus
   note?: string | null
   createdAt: string
+  updatedAt?: string
   shippedAt?: string | null
   generatedAmount?: number
   lines: OutboundLine[]
@@ -154,6 +160,7 @@ export interface IncomingGoods {
   batchNo?: string | null
   iqcStatus: 'pending' | 'passed'
   createdAt: string
+  updatedAt?: string
 }
 
 export interface Stocktake {
@@ -168,6 +175,7 @@ export interface Stocktake {
   status: ReceiptStatus
   note?: string | null
   createdAt: string
+  updatedAt?: string
   confirmedAt?: string | null
 }
 
@@ -180,6 +188,7 @@ export interface Receivable {
   customerName?: string
   sourceType: string
   sourceId: number
+  orderNo?: string // 关联订单（order 来源直接 / outbound 旧数据经出库单中转）
   shipNo?: string
   amount: number
   currency: string
@@ -187,6 +196,7 @@ export interface Receivable {
   status: ReceiptStatus
   dueDate?: string | null
   createdAt: string
+  updatedAt?: string
   remain: number
   overDue: boolean
   ageDays: number
@@ -206,6 +216,7 @@ export interface Payable {
   settledAmount: number
   status: ReceiptStatus
   createdAt: string
+  updatedAt?: string
   remain: number
   settled: boolean
 }
@@ -213,7 +224,7 @@ export interface Payable {
 export type SlipMode = 'settle' | 'prepay'
 export type SlipStatus = 'confirmed' | 'voided'
 
-export interface SlipLine { id: number; amount: number; recvNo?: string; payNo?: string }
+export interface SlipLine { id: number; amount: number; recvNo?: string; payNo?: string; orderNo?: string }
 export interface CollectionSlip {
   id: number
   collectNo: string
@@ -224,6 +235,7 @@ export interface CollectionSlip {
   status: SlipStatus
   note?: string | null
   createdAt: string
+  updatedAt?: string
   lines: SlipLine[]
 }
 export interface PaymentSlip {
@@ -236,6 +248,7 @@ export interface PaymentSlip {
   status: SlipStatus
   note?: string | null
   createdAt: string
+  updatedAt?: string
   lines: SlipLine[]
 }
 
@@ -267,4 +280,5 @@ export interface MonthlyCost {
   category: string
   amount: number
   note?: string | null
+  updatedAt?: string
 }

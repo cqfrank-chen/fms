@@ -21,7 +21,7 @@ export class ProductsService {
   }
 
   async update(id: number, data: Partial<NewProduct>) {
-    const [row] = await db.update(products).set(data).where(eq(products.id, id)).returning();
+    const [row] = await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id)).returning();
     return row;
   }
 
@@ -118,6 +118,7 @@ export class ProductsService {
           })),
         );
       }
+      await tx.update(products).set({ updatedAt: new Date() }).where(eq(products.id, productId));
     });
     return { ok: true, count: items?.length ?? 0 };
   }

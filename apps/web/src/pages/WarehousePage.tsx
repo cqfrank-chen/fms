@@ -21,7 +21,7 @@ function WarehousePage() {
   const [tab, setTab] = useState('stock')
   return (
     <Card size="small" styles={{ body: { paddingTop: 4 } }}>
-      <Tabs activeKey={tab} onChange={setTab} size="small" items={[
+      <Tabs activeKey={tab} onChange={setTab} size="small" destroyOnHidden items={[
         { key: 'stock', label: '库存列表', children: <StockTab /> },
         { key: 'inbound', label: '入库确认', children: <ReceiptsTab /> },
         { key: 'outbound', label: '出库单', children: <OutboundTab /> },
@@ -56,6 +56,7 @@ function StockTab() {
     },
     { title: '安全库存', dataIndex: 'safetyStock', width: 110 },
     { title: '状态', width: 110, render: (_, r) => (r.low ? <Tag color="error">低于安全库存</Tag> : <Tag color="success">正常</Tag>) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
   ]
   return (
     <div>
@@ -70,11 +71,15 @@ function StockTab() {
   )
 }
 
-/** 入库确认：报工草稿 → 仓管确认入账 → 冲销纠错 */
+/** 入库确认：报工草稿 / 手动无单入库 → 仓管确认入账 → 冲销纠错 */
 function ReceiptsTab() {
   const [rows, setRows] = useState<GoodsReceipt[]>([])
   const [loading, setLoading] = useState(false)
   const [acting, setActing] = useState<number | null>(null)
+  // 无单入库：备货/打样/返工回仓 手动建档（不进应收/成本账）
+  const [manualOpen, setManualOpen] = useState(false)
+  const [prods, setProds] = useState<Product[]>([])
+  const [mForm] = Form.useForm()
   const load = useCallback(async () => {
     setLoading(true)
     try { setRows(await api<GoodsReceipt[]>('/receipts')) }
@@ -82,6 +87,21 @@ function ReceiptsTab() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
+
+  const openManual = async () => {
+    setManualOpen(true)
+    try { setProds(await api<Product[]>('/products')) } catch { /* 产品下拉失败不阻塞 */ }
+  }
+  const saveManual = async () => {
+    const v = await mForm.validateFields()
+    try {
+      await api('/receipts/manual', { method: 'POST', body: v })
+      message.success('已生成入库草稿（来源：手动无单），核对后点「确认入库」入账')
+      setManualOpen(false)
+      mForm.resetFields()
+      load()
+    } catch (e) { message.error('创建失败：' + (e as Error).message) }
+  }
 
   async function act(id: number, action: string, okMsg: string) {
     setActing(id)
@@ -92,7 +112,12 @@ function ReceiptsTab() {
 
   const columns: ColumnsType<GoodsReceipt> = [
     { title: '入库单号', dataIndex: 'receiptNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '来源计划单', dataIndex: 'planNo', width: 160, render: (v?: string) => v || '—' },
+    {
+      title: '来源', dataIndex: 'planNo', width: 170,
+      render: (v?: string, r?: GoodsReceipt) => r?.planSheetId
+        ? v
+        : <Tag color="blue">手动无单入库</Tag>,
+    },
     {
       title: '入库产品', render: (_, r) => (
         <Space direction="vertical" size={2}>
@@ -104,6 +129,7 @@ function ReceiptsTab() {
     },
     { title: '批次', dataIndex: 'batchNo', width: 150 },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={stColor(v)}>{R[v]}</Tag> },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
     {
       title: '操作', width: 170, render: (_, r) => (
         <Space size={4}>
@@ -120,9 +146,31 @@ function ReceiptsTab() {
     },
   ]
   return (
-    <Table<GoodsReceipt> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
-      pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
-      locale={{ emptyText: <Empty description="暂无入库单 —— 计划单行报工后自动生成草稿（I06）" /> }} />
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>无订单成品入库（备货生产 / 打样 / 返工回仓）点右侧「无单入库」建档</Text>
+        <Button size="small" type="dashed" onClick={openManual}>＋ 无单入库</Button>
+      </div>
+      <Table<GoodsReceipt> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
+        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+        locale={{ emptyText: <Empty description="暂无入库单 —— 报工自动生成草稿，或点上方「无单入库」手动建档" /> }} />
+      <Modal title="无订单手动入库" open={manualOpen} onCancel={() => setManualOpen(false)} onOk={saveManual} okText="生成入库草稿" width={480}>
+        <Form form={mForm} layout="vertical" style={{ marginTop: 8 }}>
+          <Form.Item name="productId" label="产品" rules={[{ required: true, message: '请选择产品' }]}>
+            <Select placeholder="选择入库产品" options={prods.map((p) => ({ value: p.id, label: p.name }))} showSearch optionFilterProp="label" />
+          </Form.Item>
+          <Form.Item name="quantity" label="数量（只）" rules={[{ required: true, message: '请输入数量' }]}>
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="正数" />
+          </Form.Item>
+          <Form.Item name="batchNo" label="批次号（留空自动生成 FG-日期-序号）">
+            <Input placeholder="如：FG-20260907-12（返工回仓可自定便于追溯）" />
+          </Form.Item>
+          <Form.Item name="note" label="备注（说明来源，如：备货 / 打样 / 返工回仓）">
+            <Input placeholder="选填" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   )
 }
 
@@ -191,8 +239,8 @@ function OutboundTab() {
   async function act(id: number, action: string, okMsg: string) {
     setActing(id)
     try {
-      const r = await api<any>(`/outbounds/${id}/${action}`, { method: 'POST' })
-      message.success(okMsg + (r?.generatedAmount != null ? `（应收 ${r.generatedAmount}）` : ''))
+      await api<any>(`/outbounds/${id}/${action}`, { method: 'POST' })
+      message.success(okMsg)
       load()
     } catch (e) { message.error((e as Error).message) }
     finally { setActing(null) }
@@ -213,21 +261,22 @@ function OutboundTab() {
     },
     { title: 'OQC', dataIndex: 'oqc', width: 90, render: (v: string) => <Tag>{OQC_LABEL[v] ?? v}</Tag> },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: string) => <Tag color={stColor(v)}>{OUTBOUND_STATUS_LABEL[v] ?? v}</Tag> },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
     {
       title: '操作', width: 230, render: (_, r) => (
         <Space size={4}>
           {r.status === 'draft' && (
-            <Button type="primary" size="small" loading={acting === r.id} onClick={() => act(r.id, 'submit', r.oqc === 'exempt' ? '免检直出：库存-，应收已生成' : '已提交，OQC 待检')}>
+            <Button type="primary" size="small" loading={acting === r.id} onClick={() => act(r.id, 'submit', r.oqc === 'exempt' ? '免检直出：库存已扣' : '已提交，OQC 待检')}>
               {r.oqc === 'exempt' ? '确认出库' : '提交出库'}
             </Button>
           )}
           {r.status === 'pending' && (
-            <Popconfirm title="OQC 合格放行 → 扣库存并生成应收？" onConfirm={() => act(r.id, 'oqc-pass', 'OQC 放行：库存-，应收已生成')}>
+            <Popconfirm title="OQC 合格放行 → 扣减库存？" onConfirm={() => act(r.id, 'oqc-pass', 'OQC 放行：库存已扣')}>
               <Button type="primary" size="small" ghost loading={acting === r.id}>OQC 放行</Button>
             </Popconfirm>
           )}
           {r.status === 'shipped' && (
-            <Popconfirm title="冲销将回补库存并作废应收（未核销时），确认？" onConfirm={() => act(r.id, 'void', '已冲销：库存回补')}>
+            <Popconfirm title="冲销将回补库存，并按本次退回金额冲减订单应收（未核销部分），确认？" onConfirm={() => act(r.id, 'void', '已冲销：库存回补，订单应收已冲减')}>
               <Button size="small" danger loading={acting === r.id}>冲销</Button>
             </Popconfirm>
           )}
@@ -245,7 +294,7 @@ function OutboundTab() {
       <div style={{ marginBottom: 12 }}>
         <Button type="primary" onClick={openCreate}>+ 新建出库单</Button>
         <Text type="secondary" style={{ marginLeft: 12, fontSize: 12 }}>
-          挂订单发货 · 可分批 · OQC 先检后出（放行后扣库存 + 自动生成应收）
+          挂订单发货 · 可分批 · OQC 先检后出（应收在订单确认时已开立，放行仅扣库存）
         </Text>
       </div>
       <Table<Outbound> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
@@ -325,7 +374,7 @@ function IncomingTab() {
 
   const columns: ColumnsType<IncomingGoods> = [
     { title: '登记单号', dataIndex: 'incomingNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '日期', dataIndex: 'createdAt', width: 110, render: (v: string) => v.slice(0, 10) },
+    { title: '登记/更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string, r?: IncomingGoods) => <Text type="secondary" style={{ fontSize: 12 }}>{(v ?? r?.createdAt ?? '').slice(0, 16).replace('T', ' ')}</Text> },
     { title: '供应商', dataIndex: 'supplierName', width: 140 },
     { title: '物料', dataIndex: 'materialName' },
     { title: '数量', dataIndex: 'quantity', width: 90 },
@@ -424,6 +473,7 @@ function StocktakeTab() {
       render: (v: number) => <Text type={v === 0 ? 'secondary' : v > 0 ? 'success' : 'danger'}>{v > 0 ? `盘盈 +${v}` : v < 0 ? `盘亏 ${v}` : '无差异'}</Text>,
     },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={stColor(v)}>{R[v]}</Tag> },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
     {
       title: '操作', width: 110, render: (_, r) => (
         r.status === 'draft'

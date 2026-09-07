@@ -12,10 +12,13 @@ const { Text } = Typography
 const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => ({ value, label }))
 const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_LABEL).map(([value, label]) => ({ value, label }))
 
-interface ProductRow { id: number; name: string; type: string; defaultPackaging?: string | null; defaultRouting?: string | null; safetyStock: number }
-interface CustomerRow { id: number; name: string; contact?: string | null; settlement?: string | null; creditDays: number }
-interface SupplierRow { id: number; name: string; contact?: string | null; settlement?: string | null }
-interface OperatorRow { id: number; name: string; boundPc?: string | null; note?: string | null }
+interface ProductRow { id: number; name: string; type: string; defaultPackaging?: string | null; defaultRouting?: string | null; safetyStock: number; updatedAt?: string }
+interface CustomerRow { id: number; name: string; contact?: string | null; settlement?: string | null; creditDays: number; updatedAt?: string }
+interface SupplierRow { id: number; name: string; contact?: string | null; settlement?: string | null; updatedAt?: string }
+interface OperatorRow { id: number; name: string; boundPc?: string | null; note?: string | null; updatedAt?: string }
+
+/** 更新时间格式化（列共用） */
+const fmtDt = (v?: string) => (v ? v.slice(0, 16).replace('T', ' ') : '—')
 
 const PRODUCT_COLUMNS: ColumnsType<ProductRow> = [
   { title: '产品', dataIndex: 'name' },
@@ -23,6 +26,7 @@ const PRODUCT_COLUMNS: ColumnsType<ProductRow> = [
   { title: '默认包装', dataIndex: 'defaultPackaging', render: (v?: string | null) => v || '—' },
   { title: '默认工序路线', dataIndex: 'defaultRouting', render: (v?: string | null) => v || '—' },
   { title: '安全库存', dataIndex: 'safetyStock', width: 90, align: 'right' },
+  { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
 ]
 
 const CUSTOMER_COLUMNS: ColumnsType<CustomerRow> = [
@@ -30,18 +34,21 @@ const CUSTOMER_COLUMNS: ColumnsType<CustomerRow> = [
   { title: '联系人', dataIndex: 'contact', render: (v?: string | null) => v || '—' },
   { title: '结算方式', dataIndex: 'settlement', width: 190, render: (v?: string | null) => (v ? SETTLEMENT_LABEL[v] ?? v : '—') },
   { title: '账期（天）', dataIndex: 'creditDays', width: 100, align: 'right' },
+  { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
 ]
 
 const SUPPLIER_COLUMNS: ColumnsType<SupplierRow> = [
   { title: '供应商', dataIndex: 'name' },
   { title: '联系人', dataIndex: 'contact', render: (v?: string | null) => v || '—' },
   { title: '结算方式', dataIndex: 'settlement', width: 190, render: (v?: string | null) => (v ? SETTLEMENT_LABEL[v] ?? v : '—') },
+  { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
 ]
 
 const OPERATOR_COLUMNS: ColumnsType<OperatorRow> = [
   { title: '操作人', dataIndex: 'name' },
   { title: '绑定 PC', dataIndex: 'boundPc', width: 170, render: (v?: string | null) => v || '不绑定（机动）' },
   { title: '备注', dataIndex: 'note', render: (v?: string | null) => v || '—' },
+  { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
 ]
 
 const PRODUCT_FIELDS: FieldConfig[] = [

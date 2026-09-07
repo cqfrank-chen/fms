@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { and, asc, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
-  collectionSlipLines, collectionSlips, customers, incomingGoods, monthlyCosts, outbounds,
+  collectionSlipLines, collectionSlips, customers, incomingGoods, monthlyCosts, orders, outbounds,
   payables, paymentSlipLines, paymentSlips, receivables, suppliers,
 } from '../db/schema';
 
@@ -34,6 +34,30 @@ const owing = (r: { amount: number; settledAmount: number }) => r.amount - r.set
 @Injectable()
 export class AccountingService {
   // ==================== 应收/应付 ====================
+  /** 应收来源 → 订单号解析：order 来源直接关联订单；outbound 历史数据（旧规则出货生成）经出库单中转 */
+  private async resolveOrderNos(recvs: Array<{ sourceType: string | null; sourceId: number | null }>) {
+    const map = new Map<number, string>();
+    const orderIds = new Set<number>();
+    const outIds = new Set<number>();
+    for (const r of recvs) {
+      if (r.sourceType === 'order' && r.sourceId != null) orderIds.add(r.sourceId);
+      else if (r.sourceType === 'outbound' && r.sourceId != null) outIds.add(r.sourceId);
+    }
+    const ordRows = orderIds.size
+      ? await db.select({ id: orders.id, no: orders.orderNo }).from(orders).where(inArray(orders.id, [...orderIds]))
+      : [];
+    for (const o of ordRows) map.set(o.id, o.no);
+    const obRows = outIds.size
+      ? await db.select({ id: outbounds.id, orderId: outbounds.orderId }).from(outbounds).where(inArray(outbounds.id, [...outIds]))
+      : [];
+    const mid = obRows.length
+      ? await db.select({ id: orders.id, no: orders.orderNo }).from(orders).where(inArray(orders.id, obRows.map((x) => x.orderId)))
+      : [];
+    const noByOrder = new Map(mid.map((o) => [o.id, o.no]));
+    for (const ob of obRows) map.set(ob.id, noByOrder.get(ob.orderId) ?? '');
+    return map;
+  }
+
   async receivablesList() {
     const rows = await db
       .select({ r: receivables, customerName: customers.name, shipNo: outbounds.shipNo })
@@ -41,10 +65,13 @@ export class AccountingService {
       .leftJoin(customers, eq(receivables.customerId, customers.id))
       .leftJoin(outbounds, and(eq(outbounds.id, receivables.sourceId), eq(receivables.sourceType, 'outbound')))
       .orderBy(asc(receivables.id));
-    return rows.map(({ r, ...rest }) => this.decorateReceivable(r, rest.customerName, rest.shipNo));
+    const orderNoBy = await this.resolveOrderNos(rows.map((x) => x.r));
+    return rows.map(({ r, ...rest }) =>
+      this.decorateReceivable(r, rest.customerName, rest.shipNo, orderNoBy.get(r.sourceId) ?? ''),
+    );
   }
 
-  private decorateReceivable(r: any, customerName?: string | null, shipNo?: string | null) {
+  private decorateReceivable(r: any, customerName?: string | null, shipNo?: string | null, orderNo?: string) {
     const remain = Math.max(0, owing(r));
     const ageDays = r.dueDate ? Math.floor((Date.now() - new Date(r.dueDate).getTime()) / 86400000) : 0;
     const bucket = ageDays <= 0 ? 'current' : ageDays <= 30 ? 'd30' : ageDays <= 60 ? 'd60' : ageDays <= 90 ? 'd90' : 'd90p';
@@ -52,6 +79,7 @@ export class AccountingService {
       ...r,
       customerName: customerName ?? '',
       shipNo: shipNo ?? '',
+      orderNo: orderNo ?? '',
       remain,
       overDue: ageDays > 0 && remain > 0,
       ageDays: Math.max(0, ageDays),
@@ -86,16 +114,20 @@ export class AccountingService {
     if (!rows.length) return [];
     const ids = rows.map((x) => x.s.id);
     const lines = await db
-      .select({ l: collectionSlipLines, recvNo: receivables.recvNo })
+      .select({
+        l: collectionSlipLines, recvNo: receivables.recvNo,
+        sourceType: receivables.sourceType, sourceId: receivables.sourceId,
+      })
       .from(collectionSlipLines)
       .leftJoin(receivables, eq(collectionSlipLines.receivableId, receivables.id))
       .where(inArray(collectionSlipLines.slipId, ids))
       .orderBy(collectionSlipLines.id);
+    const orderNoBy = await this.resolveOrderNos(lines);
     const byId = new Map<number, any[]>();
-    for (const { l, recvNo } of lines) {
-      const arr = byId.get(l.slipId) ?? [];
-      arr.push({ ...l, recvNo });
-      byId.set(l.slipId, arr);
+    for (const row of lines) {
+      const arr = byId.get(row.l.slipId) ?? [];
+      arr.push({ ...row.l, recvNo: row.recvNo, orderNo: orderNoBy.get(row.sourceId ?? -1) ?? '' });
+      byId.set(row.l.slipId, arr);
     }
     return rows.map(({ s, customerName }) => ({ ...s, customerName, lines: byId.get(s.id) ?? [] }));
   }
@@ -140,7 +172,7 @@ export class AccountingService {
           const [r] = await tx.select().from(receivables).where(eq(receivables.id, l.receivableId));
           await tx
             .update(receivables)
-            .set({ settledAmount: r.settledAmount + l.amount })
+            .set({ settledAmount: r.settledAmount + l.amount, updatedAt: new Date() })
             .where(eq(receivables.id, l.receivableId));
         }
       }
@@ -154,13 +186,13 @@ export class AccountingService {
     if (!s) throw new NotFoundException('收款单不存在');
     if (s.status !== 'confirmed') throw new BadRequestException(`仅已生效收款单可冲销（当前：${s.status}）`);
     await db.transaction(async (tx) => {
-      await tx.update(collectionSlips).set({ status: 'voided', voidedAt: new Date() }).where(eq(collectionSlips.id, id));
+      await tx.update(collectionSlips).set({ status: 'voided', voidedAt: new Date(), updatedAt: new Date() }).where(eq(collectionSlips.id, id));
       const lines = await tx.select().from(collectionSlipLines).where(eq(collectionSlipLines.slipId, id));
       for (const l of lines) {
         const [r] = await tx.select().from(receivables).where(eq(receivables.id, l.receivableId));
         await tx
           .update(receivables)
-          .set({ settledAmount: Math.max(0, r.settledAmount - l.amount) })
+          .set({ settledAmount: Math.max(0, r.settledAmount - l.amount), updatedAt: new Date() })
           .where(eq(receivables.id, l.receivableId));
       }
     });
@@ -228,7 +260,7 @@ export class AccountingService {
         );
         for (const l of dto.lines!) {
           const [p] = await tx.select().from(payables).where(eq(payables.id, l.payableId));
-          await tx.update(payables).set({ settledAmount: p.settledAmount + l.amount }).where(eq(payables.id, l.payableId));
+          await tx.update(payables).set({ settledAmount: p.settledAmount + l.amount, updatedAt: new Date() }).where(eq(payables.id, l.payableId));
         }
       }
     });
@@ -240,11 +272,11 @@ export class AccountingService {
     if (!s) throw new NotFoundException('付款单不存在');
     if (s.status !== 'confirmed') throw new BadRequestException(`仅已生效付款单可冲销（当前：${s.status}）`);
     await db.transaction(async (tx) => {
-      await tx.update(paymentSlips).set({ status: 'voided', voidedAt: new Date() }).where(eq(paymentSlips.id, id));
+      await tx.update(paymentSlips).set({ status: 'voided', voidedAt: new Date(), updatedAt: new Date() }).where(eq(paymentSlips.id, id));
       const lines = await tx.select().from(paymentSlipLines).where(eq(paymentSlipLines.slipId, id));
       for (const l of lines) {
         const [p] = await tx.select().from(payables).where(eq(payables.id, l.payableId));
-        await tx.update(payables).set({ settledAmount: Math.max(0, p.settledAmount - l.amount) }).where(eq(payables.id, l.payableId));
+        await tx.update(payables).set({ settledAmount: Math.max(0, p.settledAmount - l.amount), updatedAt: new Date() }).where(eq(payables.id, l.payableId));
       }
     });
     return this.paymentSlipsList();
@@ -343,7 +375,7 @@ export class AccountingService {
       .from(monthlyCosts)
       .where(and(eq(monthlyCosts.month, dto.month), eq(monthlyCosts.category, dto.category as any)));
     if (exist) {
-      await db.update(monthlyCosts).set({ amount: dto.amount, note: dto.note ?? exist.note }).where(eq(monthlyCosts.id, exist.id));
+      await db.update(monthlyCosts).set({ amount: dto.amount, note: dto.note ?? exist.note, updatedAt: new Date() }).where(eq(monthlyCosts.id, exist.id));
     } else {
       await db.insert(monthlyCosts).values({ month: dto.month, category: dto.category as any, amount: dto.amount, note: dto.note ?? null });
     }

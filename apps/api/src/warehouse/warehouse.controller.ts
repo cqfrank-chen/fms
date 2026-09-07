@@ -60,6 +60,23 @@ class CreateStocktakeDto {
   actualQty: number;
 }
 
+class CreateManualReceiptDto {
+  @IsInt({ message: '产品 ID 须为整数' })
+  productId: number;
+
+  @IsInt({ message: '入库数量须为整数' })
+  @Min(1, { message: '入库数量至少为 1' })
+  quantity: number;
+
+  @IsOptional()
+  @IsString()
+  batchNo?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly svc: WarehouseService) {}
@@ -70,6 +87,7 @@ export class InventoryController {
 export class ReceiptsController {
   constructor(private readonly svc: WarehouseService) {}
   @Get() list() { return this.svc.receipts(); }
+  @Post('manual') createManual(@Body() dto: CreateManualReceiptDto) { return this.svc.createManualReceipt(dto); }
   @Post(':id/confirm') confirm(@Param('id', ParseIntPipe) id: number) { return this.svc.confirmReceipt(id); }
   @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidReceipt(id); }
 }

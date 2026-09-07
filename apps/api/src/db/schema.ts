@@ -46,6 +46,7 @@ export const products = pgTable('products', {
   defaultRouting: text('default_routing'), // 默认工序路线文本（结构化工序主数据后续票补）
   safetyStock: integer('safety_stock').default(0).notNull(), // 安全库存（低于标红）
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 /** 客户档案（Customer）：订单与应收归集主体 */
@@ -56,6 +57,7 @@ export const customers = pgTable('customers', {
   settlement: settlementEnum('settlement'), // 结算方式
   creditDays: integer('credit_days').default(0).notNull(), // 账期天数（账龄到期日=出库日+账期）
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 /** 供应商档案（Supplier）：与客户同构，来料与应付归集主体 */
@@ -65,6 +67,7 @@ export const suppliers = pgTable('suppliers', {
   contact: text('contact'),
   settlement: settlementEnum('settlement'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 /** 操作人（Operator）：固定名单，免登录留痕用 */
@@ -74,6 +77,7 @@ export const operators = pgTable('operators', {
   boundPc: text('bound_pc'), // 绑定 PC（如：办公室1号机；空=机动）
   note: text('note'), // 备注（如：订单录入/计划单审核）
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 export type TestProduct = typeof testProducts.$inferSelect;
@@ -120,6 +124,7 @@ export const orders = pgTable('orders', {
   note: text('note'), // 备注
   status: orderStatusEnum('status').default('draft').notNull(), // 五态
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间（状态流转/编辑刷新）
 });
 
 /** 订单行（Order Line）：一单多产品 */
@@ -174,6 +179,7 @@ export const planSheets = pgTable('plan_sheets', {
     .references(() => orders.id), // 来源订单（一单一计划单）
   status: planStatusEnum('status').default('draft').notNull(), // 五态
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间（审核/驳回/报工刷新）
 });
 
 /** 计划单行（Plan Sheet Line）：产品/计划数量/包装/刻字/完成数量 */
@@ -258,12 +264,12 @@ export const goodsReceipts = pgTable('goods_receipts', {
   id: serial('id').primaryKey(),
   receiptNo: text('receipt_no').notNull().unique(), // 入库单号（自动生成 GR-YYYYMMDD-NN）
   planSheetId: integer('plan_sheet_id')
-    .notNull()
-    .references(() => planSheets.id), // 来源计划单（一计划单一张草稿，报工累计入同一张）
+    .references(() => planSheets.id), // 来源计划单（报工累计入同一张）；空=手动无单入库（备货/打样/返工回仓）
   batchNo: text('batch_no').notNull(), // 成品批次 FG-YYYYMMDD-NN（一计划单一批次，首报日定号）
   status: receiptStatusEnum('status').default('draft').notNull(),
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }), // 仓管确认时间（I08）
 });
 
@@ -274,8 +280,7 @@ export const goodsReceiptLines = pgTable('goods_receipt_lines', {
     .notNull()
     .references(() => goodsReceipts.id, { onDelete: 'cascade' }),
   planSheetLineId: integer('plan_sheet_line_id')
-    .notNull()
-    .references(() => planSheetLines.id),
+    .references(() => planSheetLines.id), // 空=手动无单入库行
   productId: integer('product_id')
     .notNull()
     .references(() => products.id),
@@ -314,6 +319,7 @@ export const outbounds = pgTable('outbounds', {
   status: outboundStatusEnum('status').default('draft').notNull(),
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   shippedAt: timestamp('shipped_at', { withTimezone: true }),
 });
 
@@ -349,6 +355,7 @@ export const incomingGoods = pgTable('incoming_goods', {
   batchNo: text('batch_no'), // 供应商批次（追溯）
   iqcStatus: iqcStatusEnum('iqc_status').default('pending').notNull(), // IQC 预留
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 /** 盘点单：账面→实盘→差异；确认后校准库存（盘盈/盘亏调整，全程留痕） */
@@ -365,6 +372,7 @@ export const stocktakes = pgTable('stocktakes', {
   status: receiptStatusEnum('status').default('draft').notNull(), // 复用：草稿→已确认（校准）→已冲销
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
 });
 
@@ -387,6 +395,7 @@ export const receivables = pgTable('receivables', {
   status: receiptStatusEnum('status').default('draft').notNull(), // 复用三态：开立→(核销完 I09)→冲销
   dueDate: timestamp('due_date', { withTimezone: true }), // 到期（客户账期计算，I09 对账）
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 /** 应付（来料登记自动生成） */
@@ -402,6 +411,7 @@ export const payables = pgTable('payables', {
   settledAmount: numeric('settled_amount', { precision: 10, scale: 2, mode: 'number' }).default(0).notNull(), // I09
   status: receiptStatusEnum('status').default('draft').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
 
 export type Inventory = typeof inventory.$inferSelect;
@@ -440,6 +450,7 @@ export const collectionSlips = pgTable('collection_slips', {
   status: slipStatusEnum('status').default('confirmed').notNull(), // 一步生效
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   voidedAt: timestamp('voided_at', { withTimezone: true }),
 });
 
@@ -467,6 +478,7 @@ export const paymentSlips = pgTable('payment_slips', {
   status: slipStatusEnum('status').default('confirmed').notNull(),
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   voidedAt: timestamp('voided_at', { withTimezone: true }),
 });
 
@@ -500,6 +512,7 @@ export const monthlyCosts = pgTable('monthly_costs', {
   amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 }, (t) => [uniqueIndex('monthly_cost_month_cat_uq').on(t.month, t.category)]);
 
 export type CollectionSlip = typeof collectionSlips.$inferSelect;

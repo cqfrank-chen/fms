@@ -15,7 +15,7 @@ export class CustomersService {
   }
 
   async update(id: number, data: Partial<NewCustomer>) {
-    const [row] = await db.update(customers).set(data).where(eq(customers.id, id)).returning();
+    const [row] = await db.update(customers).set({ ...data, updatedAt: new Date() }).where(eq(customers.id, id)).returning();
     return row;
   }
 

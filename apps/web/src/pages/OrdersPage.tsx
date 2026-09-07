@@ -584,7 +584,13 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const columns: ColumnsType<Order> = useMemo(() => [
     { title: '订单号', dataIndex: 'orderNo', width: 170, render: (v: string) => <Text strong>{v}</Text> },
     { title: '客户', dataIndex: 'customerName', width: 160 },
-    { title: 'PO号', dataIndex: 'poNo', width: 120, render: (v?: string | null) => v || '—' },
+    { title: 'PO号', dataIndex: 'poNo', width: 110, render: (v?: string | null) => v || '—' },
+    {
+      title: '总额(元)', width: 120, align: 'right',
+      render: (_: unknown, r: Order) => (
+        <Text strong>{r.totalAmount != null ? r.totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</Text>
+      ),
+    },
     {
       title: '产品行', render: (_: unknown, r: Order) => (
         <Space direction="vertical" size={2}>
@@ -601,6 +607,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD HH:mm')}</Text> : '—') },
     {
       title: '操作', width: 300,
       render: (_, r) => (
