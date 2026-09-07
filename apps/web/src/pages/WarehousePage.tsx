@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Button, Card, Col, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Row,
   Select, Space, Statistic, Table, Tabs, Tag, Typography, message,
@@ -32,10 +32,27 @@ function WarehousePage() {
   )
 }
 
-/** 库存：SKU×批次，安全库存标红 */
+/** 库存：按产品聚合为组行，展开看各批次明细；低库存=产品总库存<安全库存 */
+interface StockGroupRow {
+  id: string
+  productId: number
+  productName: string
+  quantity: number
+  safetyStock: number
+  low: boolean
+  batchCount: number
+  updatedAt?: string
+  children: InventoryRow[]
+}
+type StockTableRow = StockGroupRow | InventoryRow
+const isGroup = (r: StockTableRow): r is StockGroupRow => Array.isArray((r as StockGroupRow).children)
+
+const stockTime = (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—')
+
 function StockTab() {
   const [rows, setRows] = useState<InventoryRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([])
   const load = useCallback(async () => {
     setLoading(true)
     try { setRows(await api<InventoryRow[]>('/inventory')) }
@@ -44,28 +61,88 @@ function StockTab() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  const total = rows.reduce((s, r) => s + r.quantity, 0)
-  const lowCount = rows.filter((r) => r.low).length
+  // 同产品合并：组行=总库存/安全库存/状态，children=各批次（最新在前）
+  const groups = useMemo<StockGroupRow[]>(() => {
+    const byId = new Map<number, InventoryRow[]>()
+    for (const r of rows) {
+      const arr = byId.get(r.productId) ?? []
+      arr.push(r)
+      byId.set(r.productId, arr)
+    }
+    return [...byId.entries()]
+      .map(([productId, items]) => {
+        const sorted = [...items].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+        const total = items.reduce((s, r) => s + r.quantity, 0)
+        const safetyStock = items[0].safetyStock ?? 0
+        return {
+          id: `p${productId}`,
+          productId,
+          productName: items[0].productName ?? `#${productId}`,
+          quantity: total,
+          safetyStock,
+          low: total < safetyStock,
+          batchCount: items.length,
+          updatedAt: sorted[0]?.updatedAt || undefined,
+          children: sorted,
+        }
+      })
+      .sort((a, b) => a.productName.localeCompare(b.productName, 'zh'))
+  }, [rows])
 
-  const columns: ColumnsType<InventoryRow> = [
-    { title: '产品', dataIndex: 'productName', width: 220 },
-    { title: '批次', dataIndex: 'batchNo', width: 170 },
+  const total = groups.reduce((s, g) => s + g.quantity, 0)
+  const lowCount = groups.filter((g) => g.low).length
+
+  const columns: ColumnsType<StockTableRow> = [
     {
-      title: '库存数', dataIndex: 'quantity', width: 120,
-      render: (v: number, r) => <Text style={{ color: r.low ? '#cf1322' : undefined, fontWeight: r.low ? 600 : undefined }}>{v}</Text>,
+      title: '产品', dataIndex: 'productName',
+      render: (_, r) => isGroup(r)
+        ? <Text strong>{r.productName}</Text>
+        : <Text type="secondary" style={{ fontSize: 12 }}>批次明细</Text>,
     },
-    { title: '安全库存', dataIndex: 'safetyStock', width: 110 },
-    { title: '状态', width: 110, render: (_, r) => (r.low ? <Tag color="error">低于安全库存</Tag> : <Tag color="success">正常</Tag>) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
+    {
+      title: '批次', dataIndex: 'batchNo', width: 190,
+      render: (_, r) => isGroup(r)
+        ? <Text type="secondary" style={{ fontSize: 12 }}>共 {r.batchCount} 个批次</Text>
+        : <Text style={{ fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>{r.batchNo}</Text>,
+    },
+    {
+      title: '库存数', dataIndex: 'quantity', width: 110, align: 'right',
+      render: (v: number, r) => {
+        const warn = isGroup(r) ? r.low : v < 0 // 子行：负数为异常标红
+        return <Text style={{ color: warn ? '#cf1322' : undefined, fontWeight: isGroup(r) && r.low ? 600 : undefined }}>{v}</Text>
+      },
+    },
+    { title: '安全库存', width: 100, align: 'right', render: (_, r) => (isGroup(r) ? <Text>{r.safetyStock}</Text> : '—') },
+    {
+      title: '状态', width: 130,
+      render: (_, r) => isGroup(r)
+        ? (r.low ? <Tag color="error">低于安全库存</Tag> : <Tag color="success">正常</Tag>)
+        : null,
+    },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 150, render: (v?: string) => stockTime(v) },
   ]
   return (
     <div>
-      <Row gutter={16} style={{ marginBottom: 12 }}>
-        <Col span={6}><Card size="small"><Statistic title="库存总数量（只）" value={total} /></Card></Col>
-        <Col span={6}><Card size="small"><Statistic title="低于安全库存（SKU数）" value={lowCount} valueStyle={{ color: lowCount ? '#cf1322' : undefined }} /></Card></Col>
+      <Row gutter={16} style={{ marginBottom: 12 }} align="middle">
+        <Col span={5}><Card size="small"><Statistic title="库存总数量（只）" value={total} /></Card></Col>
+        <Col span={6}><Card size="small"><Statistic title="低于安全库存（产品数）" value={lowCount} valueStyle={{ color: lowCount ? '#cf1322' : undefined }} /></Card></Col>
+        <Col span={13} style={{ textAlign: 'right' }}>
+          <Space>
+            <Text type="secondary" style={{ fontSize: 12 }}>共 {groups.length} 个产品 · {rows.length} 个批次</Text>
+            <Button size="small" disabled={!groups.length} onClick={() => setExpandedKeys(groups.map((g) => g.id))}>展开全部</Button>
+            <Button size="small" disabled={!groups.length} onClick={() => setExpandedKeys([])}>收起全部</Button>
+          </Space>
+        </Col>
       </Row>
-      <Table<InventoryRow> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows}
-        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+      <Table<StockTableRow>
+        rowKey={(r) => String(r.id)}
+        size="small" loading={loading}
+        columns={columns} dataSource={groups}
+        pagination={false}
+        expandable={{
+          expandedRowKeys: expandedKeys,
+          onExpandedRowsChange: (keys) => setExpandedKeys(keys.map(String)),
+        }}
         locale={{ emptyText: <Empty description="暂无库存 —— 报工后在「入库确认」核实物数入账" /> }} />
     </div>
   )
