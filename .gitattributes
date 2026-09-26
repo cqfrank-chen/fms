@@ -1,0 +1,12 @@
+# Windows 一键脚本必须 CRLF：
+# cmd.exe 解析「LF 换行 + 多字节中文」的批处理时会发生行错位（已在本机实测复现），
+# 导致 if(...) 块与 echo 行被截断执行；CRLF 可避免。
+*.bat text eol=crlf
+
+# 二进制文件不做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.zip binary
+*.dump binary
