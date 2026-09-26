@@ -4,6 +4,7 @@ import {
   Row, Select, Space, Statistic, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import dayjs from 'dayjs'
 import { api } from '../lib/api'
 import { COST_CATEGORY_LABEL, COST_CATEGORY_ORDER, SLIP_MODE_LABEL } from '../lib/labels'
 import type {
@@ -487,7 +488,7 @@ function StatementTab() {
 
 /** 利润视图：月度总览 + 客户下钻 */
 function ProfitTab() {
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'))
   const [p, setP] = useState<ProfitView | null>(null)
   const load = useCallback(async () => {
     try { setP(await api<ProfitView>(`/profit?month=${month}`)) }
@@ -536,7 +537,7 @@ function ProfitTab() {
 
 /** 月度成本：固定六类手填 + 材料自动汇总展示 */
 function CostTab() {
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'))
   const [draft, setDraft] = useState<Record<string, number>>({})
   const [material, setMaterial] = useState(0)
   const [saving, setSaving] = useState(false)

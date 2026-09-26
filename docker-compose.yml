@@ -42,6 +42,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-fms}
       DB_NAME: ${DB_NAME:-fms}
       PORT: 3000
+      # 业务时区：日期/单号按本地业务日计算（东八区）。容器默认 UTC 会导致
+      # 0-8 点的单号落到前一天、排期交期整体偏移一天。
+      TZ: ${TZ:-Asia/Shanghai}
       # AI 网关（I12）：根 .env 配置，重启 app 生效；AI_API_KEY 为空 → mock 降级
       AI_API_KEY: ${AI_API_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}

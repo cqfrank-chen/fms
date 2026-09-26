@@ -268,7 +268,8 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
     const body = {
       customerId: values.customerId,
       poNo: values.poNo,
-      dueDate: values.dueDate.toISOString(),
+      // 纯日期字段：不能用 toISOString()（东八区会被 UTC 化提前一天），按本地日历日格式化
+      dueDate: dayjs(values.dueDate).format('YYYY-MM-DD'),
       note: values.note,
       lines: lines.map((l: OrderLine) => ({
         productId: l.productId,

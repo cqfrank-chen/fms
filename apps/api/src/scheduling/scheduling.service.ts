@@ -24,8 +24,17 @@ const addDays = (dateStr: string, n: number): string => {
   const dd = String(dt.getUTCDate()).padStart(2, '0');
   return `${yy}-${mm}-${dd}`;
 };
-const tsToDate = (ts: Date | string | null): string | null =>
-  ts ? (typeof ts === 'string' ? ts.slice(0, 10) : ts.toISOString().slice(0, 10)) : null;
+/**
+ * timestamptz → 业务日期 YYYY-MM-DD（本地时区）。
+ * 注意：不能再用 toISOString().slice(0,10)——它恒按 UTC 取日，东八区会整体早一天，
+ * 导致排程「客户交期」与红框超期判定比用户选择的日期提前一天。
+ */
+const tsToDate = (ts: Date | string | null): string | null => {
+  if (!ts) return null;
+  const d = ts instanceof Date ? ts : new Date(ts);
+  if (Number.isNaN(d.getTime())) return String(ts).slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /**
  * 排期看板（I11，spec §5 / research/04-process-data.md）
