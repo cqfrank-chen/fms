@@ -79,8 +79,8 @@ const OPERATOR_FIELDS: FieldConfig[] = [
   { name: 'note', label: '备注', placeholder: '如：订单录入/计划单审核' },
 ]
 
-/** 界面顶端展示四实体数量汇总 */
-function EntityStats() {
+/** 界面顶端展示四实体数量汇总（reloadToken 变化时重新拉取，保证增删改后同步） */
+function EntityStats({ reloadToken = 0 }: { reloadToken?: number }) {
   const [stats, setStats] = useState<Record<string, number>>({})
   useEffect(() => {
     ;(async () => {
@@ -94,7 +94,7 @@ function EntityStats() {
         setStats({ 产品: p.length, 客户: c.length, 供应商: s.length, 操作人: o.length })
       } catch { /* 空态 */ }
     })()
-  }, [])
+  }, [reloadToken])
   return (
     <Space wrap>
       {Object.entries(stats).map(([k, v]) => (
@@ -106,14 +106,16 @@ function EntityStats() {
 
 /** 设置页：主数据四实体（spec §3）+ AI 服务配置，列表 + 弹窗直接生效 */
 export default function SetupPage() {
-  const [dictVersion, setDictVersion] = useState(0)
+  // 主数据/字典任一增删改后自增，驱动实体统计与产品工序路线等联动刷新
+  const [dataVersion, setDataVersion] = useState(0)
+  const bumpData = () => setDataVersion((v) => v + 1)
   return (
     <div style={{ maxWidth: 1240 }}>
       <Typography.Title level={4} style={{ marginTop: 0 }}>主数据（设置）</Typography.Title>
       <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
         订单/计划单/排期/仓储/账目的唯一引用来源。直接生效无草稿态。
       </Typography.Paragraph>
-      <EntityStats />
+      <EntityStats reloadToken={dataVersion} />
       <div style={{ display: 'grid', gap: 16, marginTop: 12 }}>
         <CrudResource<ProductRow>
           title="产品目录"
@@ -121,6 +123,7 @@ export default function SetupPage() {
           columns={PRODUCT_COLUMNS}
           fields={PRODUCT_FIELDS}
           initialValues={{ safetyStock: 0 }}
+          onChanged={bumpData}
         />
         <CrudResource<CustomerRow>
           title="客户档案"
@@ -128,21 +131,24 @@ export default function SetupPage() {
           columns={CUSTOMER_COLUMNS}
           fields={CUSTOMER_FIELDS}
           initialValues={{ creditDays: 30 }}
+          onChanged={bumpData}
         />
         <CrudResource<SupplierRow>
           title="供应商档案"
           resource="suppliers"
           columns={SUPPLIER_COLUMNS}
           fields={SUPPLIER_FIELDS}
+          onChanged={bumpData}
         />
         <CrudResource<OperatorRow>
           title="操作人（固定名单 / PC 绑定）"
           resource="operators"
           columns={OPERATOR_COLUMNS}
           fields={OPERATOR_FIELDS}
+          onChanged={bumpData}
         />
-        <ProcessDictCard onChanged={() => setDictVersion((v) => v + 1)} />
-        <ProcessRouteCard reloadToken={dictVersion} />
+        <ProcessDictCard onChanged={bumpData} />
+        <ProcessRouteCard reloadToken={dataVersion} />
         <AiConfigCard />
       </div>
     </div>

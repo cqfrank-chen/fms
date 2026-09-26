@@ -25,6 +25,8 @@ interface CrudResourceProps<T extends { id: number }> {
   fields: FieldConfig[]
   /** 新建时的初始值（可选） */
   initialValues?: Record<string, unknown>
+  /** 增删改成功后回调（用于通知同页其它卡片刷新，如实体统计/产品工序路线） */
+  onChanged?: () => void
 }
 
 /** 通用主数据 CRUD：列表 + 弹窗表单增删改，直接生效无草稿态（对齐票 09 原型设置页） */
@@ -34,6 +36,7 @@ export default function CrudResource<T extends { id: number }>({
   columns,
   fields,
   initialValues,
+  onChanged,
 }: CrudResourceProps<T>) {
   const [rows, setRows] = useState<T[]>([])
   const [loading, setLoading] = useState(false)
@@ -92,6 +95,7 @@ export default function CrudResource<T extends { id: number }>({
       }
       setModalOpen(false)
       fetchRows()
+      onChanged?.()
     } catch (e) {
       message.error('保存失败：' + (e as Error).message)
     } finally {
@@ -104,6 +108,7 @@ export default function CrudResource<T extends { id: number }>({
       await api(`/${resource}/${record.id}`, { method: 'DELETE' })
       message.success('已删除')
       fetchRows()
+      onChanged?.()
     } catch (e) {
       message.error('删除失败：' + (e as Error).message)
     }
