@@ -6,6 +6,10 @@ import {
   planSheetLines, planSheets, processes, productProcesses, products, receivables, workCenters,
 } from '../db/schema';
 import type { PlanStatus } from '../db/schema';
+import { fromCents, sumLineCents } from '../common/money';
+
+/** 事务句柄类型（drizzle transaction callback 参数） */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
@@ -34,10 +38,10 @@ export interface RouteStep { processId: number; name: string; wcKey: string; seq
  */
 @Injectable()
 export class PlanSheetsService {
-  /** 生成计划单号 PS-YYYYMMDD-NN（当天最大序号+1，防删除后复用撞号） */
-  private async nextPlanNo(now: Date): Promise<string> {
+  /** 生成计划单号 PS-YYYYMMDD-NN（当天最大序号+1，防删除后复用撞号）；在事务内取号，避免并发撞号 */
+  private async nextPlanNo(now: Date, tx: Tx): Promise<string> {
     const prefix = `PS-${ymd(now)}-`;
-    const [row] = await db
+    const [row] = await tx
       .select({ mx: sql<number | null>`max(substring(plan_no from '[0-9]+$')::int)` })
       .from(planSheets)
       .where(like(planSheets.planNo, `${prefix}%`));
@@ -46,26 +50,34 @@ export class PlanSheetsService {
 
   /** 订单确认：草稿 → 已确认，同时自动生成计划单草稿（一单一计划单） */
   async confirmOrder(orderId: number) {
-    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
-    if (!order) throw new NotFoundException('订单不存在');
-    if (order.status !== 'draft')
-      throw new BadRequestException(`仅草稿订单可确认（当前：${order.status}）`);
-    const [cust] = await db.select().from(customers).where(eq(customers.id, order.customerId));
-
-    const existing = await db
-      .select()
-      .from(planSheets)
-      .where(and(eq(planSheets.orderId, orderId), ne(planSheets.status, 'voided')));
-    if (existing.length)
-      throw new BadRequestException(`订单已存在计划单（${existing[0].planNo}），勿重复确认`);
-
     const plan = await db.transaction(async (tx) => {
-      // 1. 订单置为已确认
-      await tx.update(orders).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(orders.id, orderId));
-      // 2. 建计划单草稿
+      // 行锁订单：把「状态校验 + 建单 + 开应收」收进同一事务，双击/并发只可能成功一次
+      const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
+      if (!order) throw new NotFoundException('订单不存在');
+      if (order.status !== 'draft')
+        throw new BadRequestException(`仅草稿订单可确认（当前：${order.status}）`);
+
+      const existing = await tx
+        .select()
+        .from(planSheets)
+        .where(and(eq(planSheets.orderId, orderId), ne(planSheets.status, 'voided')));
+      if (existing.length)
+        throw new BadRequestException(`订单已存在计划单（${existing[0].planNo}），勿重复确认`);
+
+      const [cust] = await tx.select().from(customers).where(eq(customers.id, order.customerId));
+
+      // 1. 订单置为已确认（带状态条件的原子更新，双保险）
+      const [confirmed] = await tx
+        .update(orders)
+        .set({ status: 'confirmed', updatedAt: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.status, 'draft')))
+        .returning();
+      if (!confirmed) throw new BadRequestException('订单状态已变化，请刷新后重试');
+
+      // 2. 建计划单草稿（单号在事务内取，避免并发撞号）
       const [created] = await tx
         .insert(planSheets)
-        .values({ planNo: await this.nextPlanNo(new Date()), orderId })
+        .values({ planNo: await this.nextPlanNo(new Date(), tx), orderId })
         .returning();
       // 3. 行快照：产品/数量/刻字/包装 从订单行复制
       const lines = await tx.select().from(orderLines).where(eq(orderLines.orderId, orderId));
@@ -83,6 +95,9 @@ export class PlanSheetsService {
       }
       // 4. 应收开立（决策修订：确认订单即生成订单级应收；出库不再生成；驳回订单时冲销）
       if (lines.length) {
+        // 一期单币种：混币种无法折算，直接拦截（原实现取首行币种 + 直接求和会算错账）
+        if (new Set(lines.map((l) => l.currency)).size > 1)
+          throw new BadRequestException('整单币种不一致，无法开立应收（一期仅支持单币种）');
         const now = new Date();
         const [{ mx }] = await tx
           .select({ mx: sql<number | null>`max(substring(recv_no from '[0-9]+$')::int)` })
@@ -93,7 +108,8 @@ export class PlanSheetsService {
           customerId: order.customerId,
           sourceType: 'order',
           sourceId: orderId,
-          amount: lines.reduce((s, l) => s + l.quantity * Number(l.unitPrice), 0),
+          // 金额按「分」计算，避免 JS 浮点尾差
+          amount: fromCents(sumLineCents(lines.map((l) => ({ quantity: l.quantity, unitPrice: Number(l.unitPrice) })))),
           currency: lines[0]?.currency ?? 'RMB',
           dueDate: (cust?.creditDays ?? 0) > 0 ? new Date(Date.now() + (cust?.creditDays ?? 0) * 86400000) : null,
           status: 'draft',
@@ -106,34 +122,38 @@ export class PlanSheetsService {
 
   /** 计划员审核：草稿 → 已确认（行进入排期池由 I11 消费） */
   async audit(planId: number) {
-    const [plan] = await db.select().from(planSheets).where(eq(planSheets.id, planId));
-    if (!plan) throw new NotFoundException('计划单不存在');
-    if (plan.status !== 'draft')
-      throw new BadRequestException(`仅草稿计划单可审核（当前：${plan.status}）`);
     const [updated] = await db
       .update(planSheets)
       .set({ status: 'confirmed', updatedAt: new Date() })
-      .where(eq(planSheets.id, planId))
+      .where(and(eq(planSheets.id, planId), eq(planSheets.status, 'draft')))
       .returning();
+    if (!updated) {
+      const [plan] = await db.select().from(planSheets).where(eq(planSheets.id, planId));
+      if (!plan) throw new NotFoundException('计划单不存在');
+      throw new BadRequestException(`仅草稿计划单可审核（当前：${plan.status}）`);
+    }
     return this.findOne(updated.id);
   }
 
   /** 审核不通过：草稿计划单作废 + 来源订单退回草稿（可编辑后重新确认，生成新计划单） */
   async reject(planId: number) {
-    const [plan] = await db.select().from(planSheets).where(eq(planSheets.id, planId));
-    if (!plan) throw new NotFoundException('计划单不存在');
-    if (plan.status !== 'draft')
-      throw new BadRequestException(`仅草稿计划单可驳回（当前：${plan.status}）`);
-    const [order] = await db.select().from(orders).where(eq(orders.id, plan.orderId));
-    if (!order) throw new NotFoundException('来源订单不存在');
-    if (order.status !== 'confirmed')
-      throw new BadRequestException(`仅来源订单为「已确认」时可驳回（当前订单：${order.status}）`);
     await db.transaction(async (tx) => {
+      // 行锁计划单 + 订单：避免并发驳回/确认互相覆盖
+      const [plan] = await tx.select().from(planSheets).where(eq(planSheets.id, planId)).for('update');
+      if (!plan) throw new NotFoundException('计划单不存在');
+      if (plan.status !== 'draft')
+        throw new BadRequestException(`仅草稿计划单可驳回（当前：${plan.status}）`);
+      const [order] = await tx.select().from(orders).where(eq(orders.id, plan.orderId)).for('update');
+      if (!order) throw new NotFoundException('来源订单不存在');
+      if (order.status !== 'confirmed')
+        throw new BadRequestException(`仅来源订单为「已确认」时可驳回（当前订单：${order.status}）`);
+
       // 0. 撤销确认时开立的应收（若已核销则拒绝驳回，先冲收款）
       const [recv] = await tx
         .select()
         .from(receivables)
-        .where(and(eq(receivables.sourceId, plan.orderId), eq(receivables.sourceType, 'order'), ne(receivables.status, 'voided')));
+        .where(and(eq(receivables.sourceId, plan.orderId), eq(receivables.sourceType, 'order'), ne(receivables.status, 'voided')))
+        .for('update');
       if (recv && recv.settledAmount > 0)
         throw new BadRequestException(`应收 ${recv.recvNo} 已核销，请先冲销对应收款单再驳回`);
       if (recv)
@@ -150,142 +170,166 @@ export class PlanSheetsService {
 
   // ---------- I06 报工（工序推进·整批逐道）+ 状态聚合 + 入库草稿 ----------
 
-  /** 行报工：完成「当前工序」→ 中间道推进到下一道 / 末道累计成品并完成 → 触发入库单草稿 */
-  async report(planId: number, dto: { lineId: number; doneQty: number }) {
-    const plan = await this.loadPlan(planId);
-    if (plan.status !== 'confirmed' && plan.status !== 'production')
-      throw new BadRequestException(`仅已确认/生产中计划单可报工（当前：${plan.status}）`);
-
-    const [line] = await db
-      .select()
-      .from(planSheetLines)
-      .where(and(eq(planSheetLines.id, dto.lineId), eq(planSheetLines.planSheetId, planId)));
-    if (!line) throw new NotFoundException('计划单行不存在或不属于该计划单');
-
-    const route = await this.routeFor(line.productId);
-    if (route.length === 0) return this.reportDirect(plan, line, dto); // 无工序路由：成品直报
-
-    // —— 工序推进（整批逐道）——
-    const L = route.length;
-    const cur = Math.min(line.routeSeq ?? 1, L);
-    const step = route[cur - 1];
-    const isLast = cur >= L;
-    const required = isLast ? line.quantity - line.completedQuantity : line.quantity;
-    if (dto.doneQty !== required)
-      throw new BadRequestException(
-        isLast
-          ? `末道工序「${step.name}」须一次报满剩余 ${required} 只（已完成成品 ${line.completedQuantity}/${line.quantity}）`
-          : `工序「${step.name}」（${cur}/${L}）须整批一次报满 ${required} 只才推进到下一道`,
-      );
-
-    if (isLast) {
-      // 末道：成品累计到整批 → 完成聚合 + 入库草稿（复用成品直报的收尾），routeSeq 置 L+1 标记全走完
-      return this.reportDirect(plan, line, { ...dto, doneQty: required }, L + 1);
-    }
-
-    // 中间道：推进指针 → 下一道（routeSeq+1、泳道换下一道、coverDays 复位自动）
-    const next = route[cur]; // cur < L 时必存在
-    let nextStartDate: string | null = null;
-    if (line.startDate) {
-      // 已排期则顺延到本工序排期结束次日（coverDays 优先，未覆盖按自动工期）
-      const dur = line.coverDays ?? (await this.autoDaysFor(line.productId, line.wcKey, line.quantity));
-      nextStartDate = addDays(String(line.startDate), Math.max(1, dur));
-    }
+  /**
+   * 行报工：完成「当前工序」→ 中间道推进到下一道 / 末道累计成品并完成 → 触发入库单草稿。
+   * 并发安全：事务内先 FOR UPDATE 锁计划单行，再做校验/推进/聚合/入库草稿 upsert，
+   * 同一计划单的重复或并发报工被串行化（避免成品数与入库草稿被重复累计、状态聚合被旧快照覆盖）。
+   */
+  async report(planId: number, dto: { lineId: number; doneQty: number; routeSeq?: number; completedQuantity?: number }) {
     await db.transaction(async (tx) => {
-      await tx.update(planSheetLines).set({
-        routeSeq: cur + 1,
-        wcKey: next.wcKey,
-        coverDays: null,
-        ...(nextStartDate ? { startDate: nextStartDate } : {}),
-      }).where(eq(planSheetLines.id, line.id));
+      // 锁计划单：本计划单下所有报工在此串行（锁序固定，无死锁）
+      const [plan] = await tx.select().from(planSheets).where(eq(planSheets.id, planId)).for('update');
+      if (!plan) throw new NotFoundException('计划单不存在');
+      if (plan.status !== 'confirmed' && plan.status !== 'production')
+        throw new BadRequestException(`仅已确认/生产中计划单可报工（当前：${plan.status}）`);
+
+      const [line] = await tx
+        .select()
+        .from(planSheetLines)
+        .where(and(eq(planSheetLines.id, dto.lineId), eq(planSheetLines.planSheetId, planId)))
+        .for('update');
+      if (!line) throw new NotFoundException('计划单行不存在或不属于该计划单');
+
+      const route = await this.routeFor(line.productId);
+      // 乐观并发校验：页面提交时带上的当前状态与服务端不一致 → 拒绝
+      // （防同一次报工重复提交时跨工序多推进，或直报重复累计）
+      if (dto.completedQuantity != null && dto.completedQuantity !== line.completedQuantity)
+        throw new BadRequestException('报工状态已变化（已完成数不一致），请刷新后重试');
+      if (route.length > 0 && dto.routeSeq != null && dto.routeSeq !== (line.routeSeq ?? 1))
+        throw new BadRequestException('当前工序已变化，请刷新后重试');
+
+      if (route.length === 0) {
+        // 无工序路由：成品直报（可分批）
+        await this.reportDirectTx(tx, plan, line, dto);
+        return;
+      }
+
+      // —— 工序推进（整批逐道）——
+      const L = route.length;
+      const cur = Math.min(line.routeSeq ?? 1, L);
+      const step = route[cur - 1];
+      const isLast = cur >= L;
+      const required = isLast ? line.quantity - line.completedQuantity : line.quantity;
+      if (dto.doneQty !== required)
+        throw new BadRequestException(
+          isLast
+            ? `末道工序「${step.name}」须一次报满剩余 ${required} 只（已完成成品 ${line.completedQuantity}/${line.quantity}）`
+            : `工序「${step.name}」（${cur}/${L}）须整批一次报满 ${required} 只才推进到下一道`,
+        );
+
+      if (isLast) {
+        // 末道：成品累计到整批 → 完成聚合 + 入库草稿（复用成品直报的收尾），routeSeq 置 L+1 标记全走完
+        await this.reportDirectTx(tx, plan, line, { ...dto, doneQty: required }, L + 1);
+        return;
+      }
+
+      // 中间道：推进指针 → 下一道（routeSeq+1、泳道换下一道、coverDays 复位自动）
+      const next = route[cur]; // cur < L 时必存在
+      let nextStartDate: string | null = null;
+      if (line.startDate) {
+        // 已排期则顺延到本工序排期结束次日（coverDays 优先，未覆盖按自动工期）
+        const dur = line.coverDays ?? (await this.autoDaysFor(line.productId, line.wcKey, line.quantity));
+        nextStartDate = addDays(String(line.startDate), Math.max(1, dur));
+      }
+      // 条件更新 routeSeq（乐观护栏：若已被别的请求推进，则报错而不是重复推进）
+      const [advanced] = await tx
+        .update(planSheetLines)
+        .set({
+          routeSeq: cur + 1,
+          wcKey: next.wcKey,
+          coverDays: null,
+          ...(nextStartDate ? { startDate: nextStartDate } : {}),
+        })
+        .where(and(eq(planSheetLines.id, line.id), eq(planSheetLines.routeSeq, cur)))
+        .returning();
+      if (!advanced) throw new BadRequestException('报工状态已变化，请刷新后重试');
       // 报工即算计划单「更新」（刷新时间；首报开工 confirmed→production 留在排期池推进）
       await tx.update(planSheets).set({ status: plan.status === 'confirmed' ? 'production' : plan.status, updatedAt: new Date() }).where(eq(planSheets.id, planId));
     });
     return this.findOne(planId);
   }
 
-  /** 成品直报（无工序路由产品 / 末道工序收尾）：行成品累计 → 状态聚合 → 触发入库草稿 */
-  private async reportDirect(
+  /**
+   * 成品直报（无工序路由产品 / 末道工序收尾）：行成品累计 → 状态聚合 → 触发入库草稿。
+   * 必须在 report() 的事务内调用：调用方已对本计划单与目标行加行锁（调用方传入的就是被锁定的行快照）。
+   */
+  private async reportDirectTx(
+    tx: Tx,
     plan: { id: number; orderId: number; status: PlanStatus },
     line: { id: number; planSheetId: number; productId: number; quantity: number; completedQuantity: number },
     dto: { lineId: number; doneQty: number },
     routeSeqFinal?: number, // 有路由末道报满后置 L+1（标记全走完）
   ) {
     const planId = plan.id;
-    const [fresh] = await db
-      .select()
-      .from(planSheetLines)
-      .where(eq(planSheetLines.id, line.id));
-    if (!fresh) throw new NotFoundException('计划单行不存在');
-    if (fresh.completedQuantity + dto.doneQty > fresh.quantity)
+    if (line.completedQuantity + dto.doneQty > line.quantity)
       throw new BadRequestException(
-        `报工超量：已完成 ${fresh.completedQuantity}/${fresh.quantity}，本次最多可报 ${fresh.quantity - fresh.completedQuantity}`,
+        `报工超量：已完成 ${line.completedQuantity}/${line.quantity}，本次最多可报 ${line.quantity - line.completedQuantity}`,
       );
 
-    await db.transaction(async (tx) => {
-      // 1. 行成品累计
-      const newDone = fresh.completedQuantity + dto.doneQty;
-      await tx
-        .update(planSheetLines)
-        .set({ completedQuantity: newDone, ...(routeSeqFinal ? { routeSeq: routeSeqFinal } : {}) })
-        .where(eq(planSheetLines.id, fresh.id));
+    // 1. 行成品累计（条件更新：completedQuantity 未被他人改动才落库，双保险）
+    const newDone = line.completedQuantity + dto.doneQty;
+    const [updatedLine] = await tx
+      .update(planSheetLines)
+      .set({ completedQuantity: newDone, ...(routeSeqFinal ? { routeSeq: routeSeqFinal } : {}) })
+      .where(and(eq(planSheetLines.id, line.id), eq(planSheetLines.completedQuantity, line.completedQuantity)))
+      .returning();
+    if (!updatedLine) throw new BadRequestException('报工状态已变化，请刷新后重试');
 
-      // 2. 状态聚合：首报>0 → 生产中；全部行完成 → 计划单已完成（报工始终刷新更新时间）
-      const all = await tx.select().from(planSheetLines).where(eq(planSheetLines.planSheetId, planId));
-      const allDone = all.length > 0 && all.every((l) => l.completedQuantity >= l.quantity);
-      const anyDone = all.some((l) => l.completedQuantity > 0);
-      const nextPlanStatus: PlanStatus = allDone ? 'completed' : anyDone ? 'production' : 'confirmed';
-      await tx.update(planSheets).set({ status: nextPlanStatus, updatedAt: new Date() }).where(eq(planSheets.id, planId));
+    // 2. 状态聚合：首报>0 → 生产中；全部行完成 → 计划单已完成（持锁下重算，状态不会被旧快照覆盖）
+    const all = await tx.select().from(planSheetLines).where(eq(planSheetLines.planSheetId, planId));
+    const allDone = all.length > 0 && all.every((l) => l.completedQuantity >= l.quantity);
+    const anyDone = all.some((l) => l.completedQuantity > 0);
+    const nextPlanStatus: PlanStatus = allDone ? 'completed' : anyDone ? 'production' : 'confirmed';
+    await tx.update(planSheets).set({ status: nextPlanStatus, updatedAt: new Date() }).where(eq(planSheets.id, planId));
 
-      // 3. 订单联动：计划单已完成 → 订单已完成（进归档）
-      if (allDone) {
-        await tx.update(orders).set({ status: 'completed', updatedAt: new Date() }).where(eq(orders.id, plan.orderId));
-      }
+    // 3. 订单联动：计划单已完成 → 订单已完成（进归档）
+    if (allDone) {
+      await tx.update(orders).set({ status: 'completed', updatedAt: new Date() }).where(eq(orders.id, plan.orderId));
+    }
 
-      // 4. 入库草稿 upsert：找未确认草稿，无则新建（批次=一计划单一批次）
-      const now = new Date();
-      let [receipt] = await tx
-        .select()
+    // 4. 入库草稿 upsert：找未确认草稿，无则新建（批次=一计划单一批次）
+    const now = new Date();
+    let [receipt] = await tx
+      .select()
+      .from(goodsReceipts)
+      .where(and(eq(goodsReceipts.planSheetId, planId), eq(goodsReceipts.status, 'draft')));
+    if (!receipt) {
+      // 单号/批次用 max+1（与仓库侧一致），避免 count(*) 在删除后复用旧号
+      const [{ mxr }] = await tx
+        .select({ mxr: sql<number | null>`max(substring(receipt_no from '[0-9]+$')::int)` })
         .from(goodsReceipts)
-        .where(and(eq(goodsReceipts.planSheetId, planId), eq(goodsReceipts.status, 'draft')));
-      if (!receipt) {
-        const [{ rc }] = await tx
-          .select({ rc: sql<number>`count(*)::int` })
-          .from(goodsReceipts)
-          .where(like(goodsReceipts.receiptNo, `GR-${ymd(now)}-%`));
-        const [{ bc }] = await tx
-          .select({ bc: sql<number>`count(*)::int` })
-          .from(goodsReceipts)
-          .where(like(goodsReceipts.batchNo, `FG-${ymd(now)}-%`));
-        const [created] = await tx
-          .insert(goodsReceipts)
-          .values({
-            receiptNo: `GR-${ymd(now)}-${pad2(rc + 1)}`,
-            planSheetId: planId,
-            batchNo: `FG-${ymd(now)}-${pad2(bc + 1)}`,
-          })
-          .returning();
-        receipt = created;
-      }
-      const [rline] = await tx
-        .select()
-        .from(goodsReceiptLines)
-        .where(and(eq(goodsReceiptLines.receiptId, receipt.id), eq(goodsReceiptLines.planSheetLineId, fresh.id)));
-      if (rline) {
-        await tx
-          .update(goodsReceiptLines)
-          .set({ quantity: rline.quantity + dto.doneQty })
-          .where(eq(goodsReceiptLines.id, rline.id));
-      } else {
-        await tx.insert(goodsReceiptLines).values({
-          receiptId: receipt.id,
-          planSheetLineId: fresh.id,
-          productId: fresh.productId,
-          quantity: dto.doneQty,
-        });
-      }
-    });
-    return this.findOne(planId);
+        .where(like(goodsReceipts.receiptNo, `GR-${ymd(now)}-%`));
+      const [{ mxb }] = await tx
+        .select({ mxb: sql<number | null>`max(substring(batch_no from '[0-9]+$')::int)` })
+        .from(goodsReceipts)
+        .where(like(goodsReceipts.batchNo, `FG-${ymd(now)}-%`));
+      const [created] = await tx
+        .insert(goodsReceipts)
+        .values({
+          receiptNo: `GR-${ymd(now)}-${pad2((mxr ?? 0) + 1)}`,
+          planSheetId: planId,
+          batchNo: `FG-${ymd(now)}-${pad2((mxb ?? 0) + 1)}`,
+        })
+        .returning();
+      receipt = created;
+    }
+    const [rline] = await tx
+      .select()
+      .from(goodsReceiptLines)
+      .where(and(eq(goodsReceiptLines.receiptId, receipt.id), eq(goodsReceiptLines.planSheetLineId, line.id)));
+    if (rline) {
+      await tx
+        .update(goodsReceiptLines)
+        .set({ quantity: rline.quantity + dto.doneQty })
+        .where(eq(goodsReceiptLines.id, rline.id));
+    } else {
+      await tx.insert(goodsReceiptLines).values({
+        receiptId: receipt.id,
+        planSheetLineId: line.id,
+        productId: line.productId,
+        quantity: dto.doneQty,
+      });
+    }
   }
 
   // ---------- 列表 / 详情 ----------
@@ -339,13 +383,6 @@ export class PlanSheetsService {
   }
 
   // ---------- 内部 helpers ----------
-
-  /** 取计划单（不存在 404） */
-  private async loadPlan(id: number) {
-    const [plan] = await db.select().from(planSheets).where(eq(planSheets.id, id));
-    if (!plan) throw new NotFoundException('计划单不存在');
-    return plan;
-  }
 
   /** 产品工序路由（按 seq 升序）；空 = 未配路由（成品直报） */
   private async routeFor(productId: number): Promise<RouteStep[]> {

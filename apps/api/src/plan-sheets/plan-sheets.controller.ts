@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
-import { IsInt, Min } from 'class-validator';
+import { IsInt, IsOptional, Min } from 'class-validator';
 import type { PlanStatus } from '../db/schema';
 import { PlanSheetsService } from './plan-sheets.service';
 
-/** 行报工 DTO：本次完成数量（增量，办公室 PC 代录） */
+/** 行报工 DTO：本次完成数量（增量，办公室 PC 代录）
+ *  routeSeq / completedQuantity 为页面展示的当前状态（可选）；
+ *  传入后服务端会做乐观校验，重复提交不会跨工序推进、直报不会重复累计。 */
 class ReportDto {
   @IsInt({ message: '计划单行 ID 须为整数' })
   lineId: number;
@@ -11,6 +13,14 @@ class ReportDto {
   @IsInt({ message: '本次完成数量须为整数' })
   @Min(1, { message: '本次完成数量至少为 1' })
   doneQty: number;
+
+  @IsOptional()
+  @IsInt()
+  routeSeq?: number;
+
+  @IsOptional()
+  @IsInt()
+  completedQuantity?: number;
 }
 
 @Controller('plan-sheets')

@@ -6,6 +6,7 @@ import {
   outboundLines, outbounds, payables, planSheets, products, receivables, stocktakes, suppliers,
 } from '../db/schema';
 import type { Outbound, PackagingSpec } from '../db/schema';
+import { fromCents, MONEY_EPS, round2, sumLineCents, toCents } from '../common/money';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
@@ -77,15 +78,22 @@ export class WarehouseService {
     return rows.map(({ r, planNo }) => ({ ...r, planNo, lines: byId.get(r.id) ?? [] }));
   }
 
-  /** 入库确认：草稿 → 已确认；按行批次入库（库存+） */
+  /** 入库确认：草稿 → 已确认；按行批次入库（库存+）。状态流转走事务内条件更新，防并发重复确认 */
   async confirmReceipt(id: number) {
-    const [r] = await db.select().from(goodsReceipts).where(eq(goodsReceipts.id, id));
-    if (!r) throw new NotFoundException('入库单不存在');
-    if (r.status !== 'draft') throw new BadRequestException(`仅草稿入库单可确认（当前：${r.status}）`);
-    const lines = await db.select().from(goodsReceiptLines).where(eq(goodsReceiptLines.receiptId, id));
-    if (!lines.length) throw new BadRequestException('入库单没有可确认的行（先报工产生草稿行）');
     await db.transaction(async (tx) => {
-      await tx.update(goodsReceipts).set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() }).where(eq(goodsReceipts.id, id));
+      const updated = await tx
+        .update(goodsReceipts)
+        .set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(goodsReceipts.id, id), eq(goodsReceipts.status, 'draft')))
+        .returning();
+      if (!updated.length) {
+        const [cur] = await tx.select().from(goodsReceipts).where(eq(goodsReceipts.id, id));
+        if (!cur) throw new NotFoundException('入库单不存在');
+        throw new BadRequestException(`仅草稿入库单可确认（当前：${cur.status}）`);
+      }
+      const r = updated[0];
+      const lines = await tx.select().from(goodsReceiptLines).where(eq(goodsReceiptLines.receiptId, id));
+      if (!lines.length) throw new BadRequestException('入库单没有可确认的行（先报工产生草稿行）');
       for (const l of lines) await this.bumpStock(tx, l.productId, r.batchNo, l.quantity);
     });
     return this.receipts().then((all) => all.find((x) => x.id === id));
@@ -115,14 +123,21 @@ export class WarehouseService {
     return this.receipts().then((all) => all[0]);
   }
 
-  /** 入库冲销：已确认 → 已冲销（库存回减抵销原入账） */
+  /** 入库冲销：已确认 → 已冲销（库存回减抵销原入账）。状态流转与库存回减同事务原子完成 */
   async voidReceipt(id: number) {
-    const [r] = await db.select().from(goodsReceipts).where(eq(goodsReceipts.id, id));
-    if (!r) throw new NotFoundException('入库单不存在');
-    if (r.status !== 'confirmed') throw new BadRequestException(`仅已确认入库单可冲销（当前：${r.status}）`);
-    const lines = await db.select().from(goodsReceiptLines).where(eq(goodsReceiptLines.receiptId, id));
     await db.transaction(async (tx) => {
-      await tx.update(goodsReceipts).set({ status: 'voided', updatedAt: new Date() }).where(eq(goodsReceipts.id, id));
+      const updated = await tx
+        .update(goodsReceipts)
+        .set({ status: 'voided', updatedAt: new Date() })
+        .where(and(eq(goodsReceipts.id, id), eq(goodsReceipts.status, 'confirmed')))
+        .returning();
+      if (!updated.length) {
+        const [cur] = await tx.select().from(goodsReceipts).where(eq(goodsReceipts.id, id));
+        if (!cur) throw new NotFoundException('入库单不存在');
+        throw new BadRequestException(`仅已确认入库单可冲销（当前：${cur.status}）`);
+      }
+      const r = updated[0];
+      const lines = await tx.select().from(goodsReceiptLines).where(eq(goodsReceiptLines.receiptId, id));
       for (const l of lines) await this.bumpStock(tx, l.productId, r.batchNo, -l.quantity);
     });
     return this.receipts().then((all) => all.find((x) => x.id === id));
@@ -164,7 +179,10 @@ export class WarehouseService {
       throw new BadRequestException(`仅生产中/已完成订单可出库（当前：${order.status}）`);
     if (!dto.lines.length) throw new BadRequestException('出库行不能为空');
 
-    const ols = await db.select().from(orderLines).where(inArray(orderLines.id, dto.lines.map((l) => l.orderLineId)));
+    const ols = await db
+      .select()
+      .from(orderLines)
+      .where(and(inArray(orderLines.id, dto.lines.map((l) => l.orderLineId)), eq(orderLines.orderId, dto.orderId)));
     if (ols.length !== dto.lines.length) throw new BadRequestException('存在不属于该订单的出库行');
     const olById = new Map(ols.map((l) => [l.id, l]));
 
@@ -203,18 +221,34 @@ export class WarehouseService {
     const o = await this.loadOutbound(id);
     if (o.status !== 'draft') throw new BadRequestException(`仅草稿出库单可提交（当前：${o.status}）`);
     await this.assertNotOverShip(o);
-    if (o.oqc === 'exempt') return this.shipOutbound(id);
-    await db.update(outbounds).set({ status: 'pending', updatedAt: new Date() }).where(eq(outbounds.id, id));
+    if (o.oqc === 'exempt') return this.shipOutbound(id, 'draft', '仅草稿出库单可提交');
+    await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(outbounds)
+        .set({ status: 'pending', updatedAt: new Date() })
+        .where(and(eq(outbounds.id, id), eq(outbounds.status, 'draft')))
+        .returning({ id: outbounds.id });
+      if (!updated.length) {
+        const [cur] = await tx.select().from(outbounds).where(eq(outbounds.id, id));
+        if (!cur) throw new NotFoundException('出库单不存在');
+        throw new BadRequestException(`仅草稿出库单可提交（当前：${cur.status}）`);
+      }
+    });
     return this.outboundsList().then((all) => all.find((x) => x.id === id));
   }
 
   /** 分批强校验：本单 + 已提交/已出库 累计不得超过订单行数量 */
   private async assertNotOverShip(o: Outbound) {
     const myLines = await db.select().from(outboundLines).where(eq(outboundLines.outboundId, o.id));
-    const ols = await db
-      .select()
-      .from(orderLines)
-      .where(inArray(orderLines.id, myLines.map((l) => l.orderLineId)));
+    // 防御历史脏数据：出库行必须归属本单订单，否则拒绝提交
+    const lineOlIds = [...new Set(myLines.map((l) => l.orderLineId))];
+    const ols = lineOlIds.length
+      ? await db
+          .select()
+          .from(orderLines)
+          .where(and(inArray(orderLines.id, lineOlIds), eq(orderLines.orderId, o.orderId)))
+      : [];
+    if (ols.length !== lineOlIds.length) throw new BadRequestException('存在不属于该订单的出库行');
     const oq = new Map(ols.map((l) => [l.id, l.quantity]));
     const shipped = await db
       .select({ olId: outboundLines.orderLineId, qty: outboundLines.quantity })
@@ -235,15 +269,22 @@ export class WarehouseService {
   async oqcPass(id: number) {
     const o = await this.loadOutbound(id);
     if (o.status !== 'pending') throw new BadRequestException(`仅待检出库单可放行（当前：${o.status}）`);
-    return this.shipOutbound(id);
+    return this.shipOutbound(id, 'pending', '仅待检出库单可放行');
   }
 
-  /** 删除草稿（误建/放弃） */
+  /** 删除草稿（误建/放弃）：条件删除草稿（outbound_lines 随外键级联删除），防并发误删已流转单 */
   async removeDraft(id: number) {
-    const o = await this.loadOutbound(id);
-    if (o.status !== 'draft') throw new BadRequestException(`仅草稿出库单可删除（当前：${o.status}）`);
-    await db.delete(outboundLines).where(eq(outboundLines.outboundId, id));
-    await db.delete(outbounds).where(eq(outbounds.id, id));
+    await db.transaction(async (tx) => {
+      const deleted = await tx
+        .delete(outbounds)
+        .where(and(eq(outbounds.id, id), eq(outbounds.status, 'draft')))
+        .returning({ id: outbounds.id });
+      if (!deleted.length) {
+        const [cur] = await tx.select().from(outbounds).where(eq(outbounds.id, id));
+        if (!cur) throw new NotFoundException('出库单不存在');
+        throw new BadRequestException(`仅草稿出库单可删除（当前：${cur.status}）`);
+      }
+    });
     return { ok: true };
   }
 
@@ -254,34 +295,55 @@ export class WarehouseService {
     const lines = await db.select().from(outboundLines).where(eq(outboundLines.outboundId, id));
     const ols = await db.select().from(orderLines).where(inArray(orderLines.id, lines.map((l) => l.orderLineId)));
     const olById = new Map(ols.map((l) => [l.id, l]));
-    const backAmount = lines.reduce((s, l) => s + l.quantity * Number(olById.get(l.orderLineId)?.unitPrice ?? 0), 0);
+    const backAmount = fromCents(
+      sumLineCents(lines.map((l) => ({ quantity: l.quantity, unitPrice: Number(olById.get(l.orderLineId)?.unitPrice ?? 0) }))),
+    );
     await db.transaction(async (tx) => {
-      await tx.update(outbounds).set({ status: 'voided', updatedAt: new Date() }).where(eq(outbounds.id, id));
+      // 条件更新：并发/重复冲销只有一次能把 shipped → voided，避免库存与应收被重复抵销
+      const voided = await tx
+        .update(outbounds)
+        .set({ status: 'voided', updatedAt: new Date() })
+        .where(and(eq(outbounds.id, id), eq(outbounds.status, 'shipped')))
+        .returning({ id: outbounds.id });
+      if (!voided.length) {
+        const [cur] = await tx.select().from(outbounds).where(eq(outbounds.id, id));
+        if (!cur) throw new NotFoundException('出库单不存在');
+        throw new BadRequestException(`仅已出库单可冲销（当前：${cur.status}）`);
+      }
       for (const l of lines) await this.addBackToEarliest(tx, l.productId, l.quantity);
-      // 关联订单级应收（订单确认时开立，sourceType='order'）：货退回 → 欠款按退回金额冲减
+      // 关联订单级应收（订单确认时开立，sourceType='order'）：货退回 → 欠款按退回金额冲减；行锁防并发冲减丢更新
       const [recv] = await tx
         .select()
         .from(receivables)
-        .where(and(eq(receivables.sourceId, o.orderId), eq(receivables.sourceType, 'order'), ne(receivables.status, 'voided')));
-      if (recv && backAmount > 0.009) {
+        .where(and(eq(receivables.sourceId, o.orderId), eq(receivables.sourceType, 'order'), ne(receivables.status, 'voided')))
+        .for('update');
+      if (recv && toCents(backAmount) > 0) {
         const rest = recv.amount - backAmount;
-        if (recv.settledAmount > Math.max(0, rest) + 0.009)
+        if (recv.settledAmount > Math.max(0, rest) + MONEY_EPS)
           throw new BadRequestException(`应收 ${recv.recvNo} 已核销 ${recv.settledAmount}，超过退回后应剩 ${Math.max(0, rest)}，请先冲销对应收款单`);
-        if (rest <= 0.009)
+        if (toCents(rest) <= 0)
           await tx.update(receivables).set({ status: 'voided', amount: 0, updatedAt: new Date() }).where(eq(receivables.id, recv.id));
         else
-          await tx.update(receivables).set({ amount: Math.round(rest * 100) / 100, updatedAt: new Date() }).where(eq(receivables.id, recv.id));
+          await tx.update(receivables).set({ amount: round2(rest), updatedAt: new Date() }).where(eq(receivables.id, recv.id));
       }
     });
     return this.outboundsList().then((all) => all.find((x) => x.id === id));
   }
 
-  /** 放行核心：FIFO 扣库存（应收已在订单确认时开立，出货不再生成） */
-  private async shipOutbound(id: number) {
-    const o = await this.loadOutbound(id);
+  /** 放行核心：按期望态条件更新为已出库（原子，防重复放行）→ FIFO 扣库存；免检直出 / OQC 放行复用 */
+  private async shipOutbound(id: number, from: 'draft' | 'pending', errText: string) {
     const lines = await db.select().from(outboundLines).where(eq(outboundLines.outboundId, id));
     await db.transaction(async (tx) => {
-      await tx.update(outbounds).set({ status: 'shipped', shippedAt: new Date(), updatedAt: new Date() }).where(eq(outbounds.id, id));
+      const updated = await tx
+        .update(outbounds)
+        .set({ status: 'shipped', shippedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(outbounds.id, id), eq(outbounds.status, from)))
+        .returning({ id: outbounds.id });
+      if (!updated.length) {
+        const [cur] = await tx.select().from(outbounds).where(eq(outbounds.id, id));
+        if (!cur) throw new NotFoundException('出库单不存在');
+        throw new BadRequestException(`${errText}（当前：${cur.status}）`);
+      }
       for (const l of lines) await this.deductStock(tx, l.productId, l.quantity);
     });
     const one = (await this.outboundsList()).find((x) => x.id === id);
@@ -368,13 +430,20 @@ export class WarehouseService {
     return this.stocktakesList();
   }
 
-  /** 确认盘点：校准库存到实盘数（盘盈/盘亏调整，留痕） */
+  /** 确认盘点：draft→confirmed（条件更新，防并发重复确认）后校准库存到实盘数（盘盈/盘亏调整，留痕） */
   async confirmStocktake(id: number) {
-    const [s] = await db.select().from(stocktakes).where(eq(stocktakes.id, id));
-    if (!s) throw new NotFoundException('盘点单不存在');
-    if (s.status !== 'draft') throw new BadRequestException(`仅草稿盘点单可确认（当前：${s.status}）`);
     await db.transaction(async (tx) => {
-      await tx.update(stocktakes).set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() }).where(eq(stocktakes.id, id));
+      const updated = await tx
+        .update(stocktakes)
+        .set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(stocktakes.id, id), eq(stocktakes.status, 'draft')))
+        .returning();
+      if (!updated.length) {
+        const [cur] = await tx.select().from(stocktakes).where(eq(stocktakes.id, id));
+        if (!cur) throw new NotFoundException('盘点单不存在');
+        throw new BadRequestException(`仅草稿盘点单可确认（当前：${cur.status}）`);
+      }
+      const s = updated[0];
       const [inv] = await tx
         .select()
         .from(inventory)
@@ -386,22 +455,32 @@ export class WarehouseService {
   }
 
   // ==================== 库存内部操作 ====================
-  /** 明确批次 ±delta（入库/冲销回补） */
+  /** 明确批次 ±delta（入库/冲销回补）：命中即原子自增；缺失则插入（并发撞唯一键转自增，避免读改写丢更新） */
   private async bumpStock(tx: Tx, productId: number, batchNo: string, delta: number) {
-    const [inv] = await tx
-      .select()
-      .from(inventory)
-      .where(and(eq(inventory.productId, productId), eq(inventory.batchNo, batchNo)));
-    if (inv) {
-      await tx.update(inventory).set({ quantity: inv.quantity + delta, updatedAt: new Date() }).where(eq(inventory.id, inv.id));
-    } else {
-      await tx.insert(inventory).values({ productId, batchNo, quantity: delta });
-    }
+    const bumped = await tx
+      .update(inventory)
+      .set({ quantity: sql`${inventory.quantity} + ${delta}`, updatedAt: new Date() })
+      .where(and(eq(inventory.productId, productId), eq(inventory.batchNo, batchNo)))
+      .returning({ id: inventory.id });
+    if (bumped.length) return;
+    await tx
+      .insert(inventory)
+      .values({ productId, batchNo, quantity: delta })
+      .onConflictDoUpdate({
+        target: [inventory.productId, inventory.batchNo],
+        set: { quantity: sql`${inventory.quantity} + ${delta}`, updatedAt: new Date() },
+      });
   }
 
-  /** 冲销回补：加回到最早库存行（与 FIFO 扣减近似可逆）；无行则建占位行 */
+  /** 冲销回补：锁定最早库存行后加回（与 FIFO 扣减近似可逆）；无行则建占位行 */
   private async addBackToEarliest(tx: Tx, productId: number, qty: number) {
-    const [first] = await tx.select().from(inventory).where(eq(inventory.productId, productId)).orderBy(asc(inventory.id)).limit(1);
+    const [first] = await tx
+      .select()
+      .from(inventory)
+      .where(eq(inventory.productId, productId))
+      .orderBy(asc(inventory.id))
+      .limit(1)
+      .for('update');
     if (first) {
       await tx.update(inventory).set({ quantity: first.quantity + qty, updatedAt: new Date() }).where(eq(inventory.id, first.id));
     } else {
@@ -409,9 +488,14 @@ export class WarehouseService {
     }
   }
 
-  /** 出库扣减：FIFO 从最早批次扣；正库存不足 → 允许负库存 */
+  /** 出库扣减：按 id 升序 FOR UPDATE 锁定该产品批次行（统一锁序防死锁），FIFO 扣减；正库存不足 → 允许负库存 */
   private async deductStock(tx: Tx, productId: number, qty: number) {
-    const rows = await tx.select().from(inventory).where(eq(inventory.productId, productId)).orderBy(asc(inventory.id));
+    const rows = await tx
+      .select()
+      .from(inventory)
+      .where(eq(inventory.productId, productId))
+      .orderBy(asc(inventory.id))
+      .for('update');
     let remain = qty;
     for (const r of rows) {
       if (remain <= 0) break;

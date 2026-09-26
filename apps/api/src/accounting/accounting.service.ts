@@ -5,6 +5,7 @@ import {
   collectionSlipLines, collectionSlips, customers, incomingGoods, monthlyCosts, orders, outbounds,
   payables, paymentSlipLines, paymentSlips, receivables, suppliers,
 } from '../db/schema';
+import { toCents, fromCents, round2, MONEY_EPS, centsEq, remainOf } from '../common/money';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
@@ -24,7 +25,7 @@ async function nextSeqNo(tx: Tx, prefix: string): Promise<string> {
   return `${prefix}${pad2(count + 1)}`;
 }
 
-const owing = (r: { amount: number; settledAmount: number }) => r.amount - r.settledAmount;
+const owing = (r: { amount: number; settledAmount: number }) => fromCents(toCents(r.amount) - toCents(r.settledAmount));
 
 /**
  * 账目域（I09，spec §7）：
@@ -72,7 +73,7 @@ export class AccountingService {
   }
 
   private decorateReceivable(r: any, customerName?: string | null, shipNo?: string | null, orderNo?: string) {
-    const remain = Math.max(0, owing(r));
+    const remain = remainOf(r.amount, r.settledAmount);
     const ageDays = r.dueDate ? Math.floor((Date.now() - new Date(r.dueDate).getTime()) / 86400000) : 0;
     const bucket = ageDays <= 0 ? 'current' : ageDays <= 30 ? 'd30' : ageDays <= 60 ? 'd60' : ageDays <= 90 ? 'd90' : 'd90p';
     return {
@@ -84,7 +85,7 @@ export class AccountingService {
       overDue: ageDays > 0 && remain > 0,
       ageDays: Math.max(0, ageDays),
       bucket,
-      settled: r.settledAmount >= r.amount,
+      settled: toCents(r.settledAmount) >= toCents(r.amount),
     };
   }
 
@@ -99,8 +100,8 @@ export class AccountingService {
       ...p,
       supplierName: rest.supplierName ?? '',
       incomingNo: rest.incomingNo ?? '',
-      remain: Math.max(0, owing(p)),
-      settled: p.settledAmount >= p.amount,
+      remain: remainOf(p.amount, p.settledAmount),
+      settled: toCents(p.settledAmount) >= toCents(p.amount),
     }));
   }
 
@@ -134,45 +135,64 @@ export class AccountingService {
 
   /** 新建收款单：settle 核销（可一张核销多笔/部分） / prepay 预收（挂客户贷方余额）；一步生效 */
   async createCollectionSlip(dto: { customerId: number; mode: 'settle' | 'prepay'; amount: number; note?: string; lines?: Array<{ receivableId: number; amount: number }> }) {
-    const [cust] = await db.select().from(customers).where(eq(customers.id, dto.customerId));
-    if (!cust) throw new NotFoundException('客户不存在');
     if (dto.amount <= 0) throw new BadRequestException('金额须为正数');
     if (dto.mode === 'prepay') {
       if (dto.lines?.length) throw new BadRequestException('预收模式不核销具体应收（出库后余额自动冲抵）');
-    } else {
-      if (!dto.lines?.length) throw new BadRequestException('核销模式至少选一笔应收');
-      const sum = dto.lines.reduce((s, l) => s + l.amount, 0);
-      if (Math.abs(sum - dto.amount) > 0.009) throw new BadRequestException(`核销合计（${sum}）须等于收款金额（${dto.amount}）`);
-      const recvIds = dto.lines.map((l) => l.receivableId);
-      const recvs = await db.select().from(receivables).where(inArray(receivables.id, recvIds));
-      if (recvs.length !== recvIds.length) throw new BadRequestException('存在无效应收');
-      for (const l of dto.lines) {
-        const r = recvs.find((x) => x.id === l.receivableId)!;
-        if (r.customerId !== dto.customerId) throw new BadRequestException('应收属于其他客户');
-        if (r.status === 'voided') throw new BadRequestException(`应收 ${r.recvNo} 已冲销不可核销`);
-        if (l.amount <= 0 || l.amount > owing(r) + 0.009) throw new BadRequestException(`核销金额超应收剩余（${r.recvNo} 剩余 ${owing(r)}）`);
-      }
+    } else if (!dto.lines?.length) {
+      throw new BadRequestException('核销模式至少选一笔应收');
     }
+    // 校验与写入同一事务：先按 id 升序对涉及的应收加行锁（SELECT ... FOR UPDATE），
+    // 防止并发下的丢更新 / 超核销；金额比较全部按“分”进行。
     await db.transaction(async (tx) => {
+      const [cust] = await tx.select().from(customers).where(eq(customers.id, dto.customerId));
+      if (!cust) throw new NotFoundException('客户不存在');
+      if (dto.mode === 'settle') {
+        const lines = dto.lines!;
+        const sumCents = lines.reduce((s, l) => s + toCents(l.amount), 0);
+        if (!centsEq(fromCents(sumCents), dto.amount)) {
+          throw new BadRequestException(`核销合计（${fromCents(sumCents)}）须等于收款金额（${dto.amount}）`);
+        }
+        const recvIds = [...new Set(lines.map((l) => l.receivableId))].sort((a, b) => a - b);
+        const recvs = await tx
+          .select()
+          .from(receivables)
+          .where(inArray(receivables.id, recvIds))
+          .orderBy(asc(receivables.id))
+          .for('update');
+        if (recvs.length !== recvIds.length) throw new BadRequestException('存在无效应收');
+        const byId = new Map(recvs.map((r) => [r.id, r]));
+        const takenCents = new Map<number, number>();
+        for (const l of lines) {
+          const r = byId.get(l.receivableId)!;
+          if (r.customerId !== dto.customerId) throw new BadRequestException('应收属于其他客户');
+          if (r.status === 'voided') throw new BadRequestException(`应收 ${r.recvNo} 已冲销不可核销`);
+          const remain = remainOf(r.amount, r.settledAmount);
+          const nextCents = (takenCents.get(l.receivableId) ?? 0) + toCents(l.amount);
+          takenCents.set(l.receivableId, nextCents);
+          if (toCents(l.amount) <= 0 || nextCents > toCents(owing(r))) {
+            throw new BadRequestException(`核销金额超应收剩余（${r.recvNo} 剩余 ${remain}）`);
+          }
+        }
+      }
       const [s] = await tx
         .insert(collectionSlips)
         .values({
           collectNo: await nextSeqNo(tx, `CO-${ymd(new Date())}-`),
           customerId: dto.customerId,
           mode: dto.mode,
-          amount: dto.amount,
+          amount: round2(dto.amount),
           note: dto.note ?? null,
         })
         .returning();
       if (dto.mode === 'settle') {
         await tx.insert(collectionSlipLines).values(
-          dto.lines!.map((l) => ({ slipId: s.id, receivableId: l.receivableId, amount: l.amount })),
+          dto.lines!.map((l) => ({ slipId: s.id, receivableId: l.receivableId, amount: round2(l.amount) })),
         );
+        // 行锁内原子自增，替代“读旧值 + 金额写回”
         for (const l of dto.lines!) {
-          const [r] = await tx.select().from(receivables).where(eq(receivables.id, l.receivableId));
           await tx
             .update(receivables)
-            .set({ settledAmount: r.settledAmount + l.amount, updatedAt: new Date() })
+            .set({ settledAmount: sql`${receivables.settledAmount} + ${round2(l.amount)}`, updatedAt: new Date() })
             .where(eq(receivables.id, l.receivableId));
         }
       }
@@ -186,14 +206,32 @@ export class AccountingService {
     if (!s) throw new NotFoundException('收款单不存在');
     if (s.status !== 'confirmed') throw new BadRequestException(`仅已生效收款单可冲销（当前：${s.status}）`);
     await db.transaction(async (tx) => {
-      await tx.update(collectionSlips).set({ status: 'voided', voidedAt: new Date(), updatedAt: new Date() }).where(eq(collectionSlips.id, id));
+      // 条件更新：并发重复冲销只有一次成功（以 .returning() 判定）
+      const updated = await tx
+        .update(collectionSlips)
+        .set({ status: 'voided', voidedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(collectionSlips.id, id), eq(collectionSlips.status, 'confirmed')))
+        .returning({ id: collectionSlips.id });
+      if (!updated.length) {
+        const [cur] = await tx.select({ status: collectionSlips.status }).from(collectionSlips).where(eq(collectionSlips.id, id));
+        throw new BadRequestException(`仅已生效收款单可冲销（当前：${cur?.status ?? s.status}）`);
+      }
       const lines = await tx.select().from(collectionSlipLines).where(eq(collectionSlipLines.slipId, id));
-      for (const l of lines) {
-        const [r] = await tx.select().from(receivables).where(eq(receivables.id, l.receivableId));
+      const recvIds = [...new Set(lines.map((l) => l.receivableId))].sort((a, b) => a - b);
+      if (recvIds.length) {
+        // 锁内回滚；按 id 升序加锁，避免与核销事务交叉死锁
         await tx
-          .update(receivables)
-          .set({ settledAmount: Math.max(0, r.settledAmount - l.amount), updatedAt: new Date() })
-          .where(eq(receivables.id, l.receivableId));
+          .select({ id: receivables.id })
+          .from(receivables)
+          .where(inArray(receivables.id, recvIds))
+          .orderBy(asc(receivables.id))
+          .for('update');
+        for (const l of lines) {
+          await tx
+            .update(receivables)
+            .set({ settledAmount: sql`GREATEST(0, ${receivables.settledAmount} - ${round2(l.amount)})`, updatedAt: new Date() })
+            .where(eq(receivables.id, l.receivableId));
+        }
       }
     });
     return this.collectionSlipsList();
@@ -224,43 +262,65 @@ export class AccountingService {
   }
 
   async createPaymentSlip(dto: { supplierId: number; mode: 'settle' | 'prepay'; amount: number; note?: string; lines?: Array<{ payableId: number; amount: number }> }) {
-    const [sup] = await db.select().from(suppliers).where(eq(suppliers.id, dto.supplierId));
-    if (!sup) throw new NotFoundException('供应商不存在');
     if (dto.amount <= 0) throw new BadRequestException('金额须为正数');
     if (dto.mode === 'prepay') {
       if (dto.lines?.length) throw new BadRequestException('预付模式不核销具体应付');
-    } else {
-      if (!dto.lines?.length) throw new BadRequestException('核销模式至少选一笔应付');
-      const sum = dto.lines.reduce((s, l) => s + l.amount, 0);
-      if (Math.abs(sum - dto.amount) > 0.009) throw new BadRequestException(`核销合计（${sum}）须等于付款金额（${dto.amount}）`);
-      const ids = dto.lines.map((l) => l.payableId);
-      const pays = await db.select().from(payables).where(inArray(payables.id, ids));
-      if (pays.length !== ids.length) throw new BadRequestException('存在无效应付');
-      for (const l of dto.lines) {
-        const p = pays.find((x) => x.id === l.payableId)!;
-        if (p.supplierId !== dto.supplierId) throw new BadRequestException('应付属于其他供应商');
-        if (p.status === 'voided') throw new BadRequestException(`应付 ${p.payNo} 已冲销不可核销`);
-        if (l.amount <= 0 || l.amount > owing(p) + 0.009) throw new BadRequestException(`核销金额超应付剩余（${p.payNo}）`);
-      }
+    } else if (!dto.lines?.length) {
+      throw new BadRequestException('核销模式至少选一笔应付');
     }
+    // 校验与写入同一事务：先按 id 升序对涉及的应付加行锁（SELECT ... FOR UPDATE），
+    // 防止并发下的丢更新 / 超核销；金额比较全部按“分”进行。
     await db.transaction(async (tx) => {
+      const [sup] = await tx.select().from(suppliers).where(eq(suppliers.id, dto.supplierId));
+      if (!sup) throw new NotFoundException('供应商不存在');
+      if (dto.mode === 'settle') {
+        const lines = dto.lines!;
+        const sumCents = lines.reduce((s, l) => s + toCents(l.amount), 0);
+        if (!centsEq(fromCents(sumCents), dto.amount)) {
+          throw new BadRequestException(`核销合计（${fromCents(sumCents)}）须等于付款金额（${dto.amount}）`);
+        }
+        const ids = [...new Set(lines.map((l) => l.payableId))].sort((a, b) => a - b);
+        const pays = await tx
+          .select()
+          .from(payables)
+          .where(inArray(payables.id, ids))
+          .orderBy(asc(payables.id))
+          .for('update');
+        if (pays.length !== ids.length) throw new BadRequestException('存在无效应付');
+        const byId = new Map(pays.map((p) => [p.id, p]));
+        const takenCents = new Map<number, number>();
+        for (const l of lines) {
+          const p = byId.get(l.payableId)!;
+          if (p.supplierId !== dto.supplierId) throw new BadRequestException('应付属于其他供应商');
+          if (p.status === 'voided') throw new BadRequestException(`应付 ${p.payNo} 已冲销不可核销`);
+          const remain = remainOf(p.amount, p.settledAmount);
+          const nextCents = (takenCents.get(l.payableId) ?? 0) + toCents(l.amount);
+          takenCents.set(l.payableId, nextCents);
+          if (toCents(l.amount) <= 0 || nextCents > toCents(owing(p))) {
+            throw new BadRequestException(`核销金额超应付剩余（${p.payNo} 剩余 ${remain}）`);
+          }
+        }
+      }
       const [s] = await tx
         .insert(paymentSlips)
         .values({
           payNo: await nextSeqNo(tx, `PM-${ymd(new Date())}-`),
           supplierId: dto.supplierId,
           mode: dto.mode,
-          amount: dto.amount,
+          amount: round2(dto.amount),
           note: dto.note ?? null,
         })
         .returning();
       if (dto.mode === 'settle') {
         await tx.insert(paymentSlipLines).values(
-          dto.lines!.map((l) => ({ slipId: s.id, payableId: l.payableId, amount: l.amount })),
+          dto.lines!.map((l) => ({ slipId: s.id, payableId: l.payableId, amount: round2(l.amount) })),
         );
+        // 行锁内原子自增，替代“读旧值 + 金额写回”
         for (const l of dto.lines!) {
-          const [p] = await tx.select().from(payables).where(eq(payables.id, l.payableId));
-          await tx.update(payables).set({ settledAmount: p.settledAmount + l.amount, updatedAt: new Date() }).where(eq(payables.id, l.payableId));
+          await tx
+            .update(payables)
+            .set({ settledAmount: sql`${payables.settledAmount} + ${round2(l.amount)}`, updatedAt: new Date() })
+            .where(eq(payables.id, l.payableId));
         }
       }
     });
@@ -272,11 +332,32 @@ export class AccountingService {
     if (!s) throw new NotFoundException('付款单不存在');
     if (s.status !== 'confirmed') throw new BadRequestException(`仅已生效付款单可冲销（当前：${s.status}）`);
     await db.transaction(async (tx) => {
-      await tx.update(paymentSlips).set({ status: 'voided', voidedAt: new Date(), updatedAt: new Date() }).where(eq(paymentSlips.id, id));
+      // 条件更新：并发重复冲销只有一次成功（以 .returning() 判定）
+      const updated = await tx
+        .update(paymentSlips)
+        .set({ status: 'voided', voidedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(paymentSlips.id, id), eq(paymentSlips.status, 'confirmed')))
+        .returning({ id: paymentSlips.id });
+      if (!updated.length) {
+        const [cur] = await tx.select({ status: paymentSlips.status }).from(paymentSlips).where(eq(paymentSlips.id, id));
+        throw new BadRequestException(`仅已生效付款单可冲销（当前：${cur?.status ?? s.status}）`);
+      }
       const lines = await tx.select().from(paymentSlipLines).where(eq(paymentSlipLines.slipId, id));
-      for (const l of lines) {
-        const [p] = await tx.select().from(payables).where(eq(payables.id, l.payableId));
-        await tx.update(payables).set({ settledAmount: Math.max(0, p.settledAmount - l.amount), updatedAt: new Date() }).where(eq(payables.id, l.payableId));
+      const payIds = [...new Set(lines.map((l) => l.payableId))].sort((a, b) => a - b);
+      if (payIds.length) {
+        // 锁内回滚；按 id 升序加锁，避免与核销事务交叉死锁
+        await tx
+          .select({ id: payables.id })
+          .from(payables)
+          .where(inArray(payables.id, payIds))
+          .orderBy(asc(payables.id))
+          .for('update');
+        for (const l of lines) {
+          await tx
+            .update(payables)
+            .set({ settledAmount: sql`GREATEST(0, ${payables.settledAmount} - ${round2(l.amount)})`, updatedAt: new Date() })
+            .where(eq(payables.id, l.payableId));
+        }
       }
     });
     return this.paymentSlipsList();
@@ -295,20 +376,33 @@ export class AccountingService {
 
     return [...custIds].map((cid) => {
       const list = recvs.filter((r: any) => r.customerId === cid);
-      const invoiced = list.reduce((s: number, r: any) => s + r.amount, 0);
-      const settled = list.reduce((s: number, r: any) => s + r.settledAmount, 0);
-      const prepay = prepays.filter((p) => p.customerId === cid).reduce((s, p) => s + p.amount, 0);
-      const balance = invoiced - settled - prepay;
-      const buckets = { current: 0, d30: 0, d60: 0, d90: 0, d90p: 0 };
+      // 汇总全部按“分”累加，最后一并转元，杜绝 binary64 分位尾差
+      const invoicedCents = list.reduce((s: number, r: any) => s + toCents(r.amount), 0);
+      const settledCents = list.reduce((s: number, r: any) => s + toCents(r.settledAmount), 0);
+      const prepayCents = prepays.filter((p) => p.customerId === cid).reduce((s, p) => s + toCents(p.amount), 0);
+      const bucketsCents = { current: 0, d30: 0, d60: 0, d90: 0, d90p: 0 };
       for (const r of list) {
-        if (r.remain > 0) buckets[r.bucket as keyof typeof buckets] += r.remain;
+        if (toCents(r.remain) > 0) bucketsCents[r.bucket as keyof typeof bucketsCents] += toCents(r.remain);
       }
+      const invoiced = fromCents(invoicedCents);
+      const settled = fromCents(settledCents);
+      const prepay = fromCents(prepayCents);
+      // 半分容差仅用于把“恰好结清”的余额归零，避免 -0 / 分位残差展示
+      const balanceRaw = fromCents(invoicedCents - settledCents - prepayCents);
+      const balance = Math.abs(balanceRaw) < MONEY_EPS ? 0 : balanceRaw;
+      const buckets = {
+        current: fromCents(bucketsCents.current),
+        d30: fromCents(bucketsCents.d30),
+        d60: fromCents(bucketsCents.d60),
+        d90: fromCents(bucketsCents.d90),
+        d90p: fromCents(bucketsCents.d90p),
+      };
       return {
         customerId: cid,
         customerName: custName.get(cid) ?? '',
         invoiced, settled, prepay, balance,
         buckets,
-        overDueTotal: buckets.d30 + buckets.d60 + buckets.d90 + buckets.d90p,
+        overDueTotal: fromCents(bucketsCents.d30 + bucketsCents.d60 + bucketsCents.d90 + bucketsCents.d90p),
       };
     }).sort((a, b) => a.customerId - b.customerId);
   }
@@ -316,28 +410,33 @@ export class AccountingService {
   // ==================== 利润视图（现金收付制） ====================
   async profit(month: string) {
     const [y, m] = month.split('-').map(Number);
-    const monthStart = `${month}-01T00:00:00Z`;
-    const monthEnd = `${new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10)}T00:00:00Z`;
+    // 本地月边界（应用容器 TZ=Asia/Shanghai）：避免每月 1 号 0-8 点收款被算进上月
+    const monthStart = new Date(y, m - 1, 1).toISOString();
+    const monthEnd = new Date(y, m, 1).toISOString();
     // 营收：收款核销（settle 单，现金收付制）；材料：来料登记单月合计 —— 原生 SQL 聚合，规避绑定差异
+    // 聚合用 ::numeric（定点）而非 ::float8，避免 binary64 求和尾差；读出后再 Number() 转换。
     const revRes = await db.execute(sql`
-      SELECT COALESCE(SUM(s.amount),0)::float8 AS revenue
+      SELECT COALESCE(SUM(s.amount),0)::numeric AS revenue
       FROM collection_slips s
       JOIN customers c ON c.id = s.customer_id
       WHERE s.mode = 'settle' AND s.status = 'confirmed'
         AND s.created_at >= ${monthStart}::timestamptz AND s.created_at < ${monthEnd}::timestamptz`);
-    const revenue = Number((revRes.rows[0] as any)?.revenue ?? 0);
+    const revenue = round2(Number((revRes.rows[0] as any)?.revenue ?? 0));
     const byCustRes = await db.execute(sql`
-      SELECT c.name AS customer, COALESCE(SUM(s.amount),0)::float8 AS amount
+      SELECT c.name AS customer, COALESCE(SUM(s.amount),0)::numeric AS amount
       FROM collection_slips s JOIN customers c ON c.id = s.customer_id
       WHERE s.mode = 'settle' AND s.status = 'confirmed'
         AND s.created_at >= ${monthStart}::timestamptz AND s.created_at < ${monthEnd}::timestamptz
       GROUP BY c.name ORDER BY amount DESC`);
-    const revenueByCustomer = byCustRes.rows as unknown as Array<{ customer: string; amount: number }>;
+    const revenueByCustomer = byCustRes.rows.map((row: any) => ({
+      customer: row.customer as string,
+      amount: round2(Number(row.amount ?? 0)),
+    }));
     const matRes = await db.execute(sql`
-      SELECT COALESCE(SUM(amount),0)::float8 AS material
+      SELECT COALESCE(SUM(amount),0)::numeric AS material
       FROM incoming_goods
       WHERE created_at >= ${monthStart}::timestamptz AND created_at < ${monthEnd}::timestamptz`);
-    const material = Number((matRes.rows[0] as any)?.material ?? 0);
+    const material = round2(Number((matRes.rows[0] as any)?.material ?? 0));
     // 六类成本
     const costs = await db.select().from(monthlyCosts).where(eq(monthlyCosts.month, month));
     const cat = new Map<string, number>(costs.map((c) => [c.category as string, c.amount]));
@@ -348,7 +447,7 @@ export class AccountingService {
     const rent = getCat('rent');
     const depreciation = getCat('depreciation');
     const other = getCat('other');
-    const manufactureCost = labor + electricity + gas + rent + depreciation + other;
+    const manufactureCost = round2(labor + electricity + gas + rent + depreciation + other);
     return {
       month,
       revenue,
@@ -356,8 +455,8 @@ export class AccountingService {
       material,
       costs: { labor, electricity, gas, rent, depreciation, other },
       manufactureCost,
-      totalCost: material + manufactureCost,
-      profit: revenue - material - manufactureCost,
+      totalCost: round2(material + manufactureCost),
+      profit: round2(revenue - material - manufactureCost),
     };
   }
 
@@ -427,7 +526,10 @@ export class AccountingService {
   private day(v: unknown): string {
     if (!v) return '';
     const d = v instanceof Date ? v : new Date(String(v));
-    return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10);
+    // 按本地时区输出 YYYY-MM-DD：东八区 0-8 点业务不再串到前一天，UTC 零点历史数据也显示为正确业务日
+    return Number.isNaN(d.getTime())
+      ? String(v).slice(0, 10)
+      : `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
   private async incomingExportRows() {
     const rows = await db
