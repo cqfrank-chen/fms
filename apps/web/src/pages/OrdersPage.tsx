@@ -424,7 +424,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
       extra={editing ? (
         <Button size="small" onClick={onCancelEdit}>返回列表（取消编辑）</Button>
       ) : (
-        <Typography.Text type="secondary">保存即草稿；确认生成计划单为 I05 动作</Typography.Text>
+        <Typography.Text type="secondary">保存后为草稿；确认后自动生成计划单</Typography.Text>
       )}>
       {!editing && <AiOrderImport onReviewDone={fillFromAI} />}
 
@@ -650,7 +650,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       {filterBar}
       {archived && rows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '16px 0', color: '#999' }}>
-          暂无已完成订单 —— 订单完成自动进归档（I05/I06 实施）
+          暂无已完成订单 —— 订单全部完成后自动进入归档
         </div>
       )}
       <Table<Order> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}

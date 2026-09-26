@@ -62,7 +62,7 @@ function PlansPage() {
     setAuditingId(r.id)
     try {
       const updated = await api<PlanSheet>(`/plan-sheets/${r.id}/audit`, { method: 'POST' })
-      message.success(`计划单 ${updated.planNo} 已审核，进入生产池（排期 I11）`)
+      message.success(`计划单 ${updated.planNo} 已审核，进入生产池（可到排程看板排期）`)
       fetchRows()
     } catch (e) {
       message.error('审核失败：' + (e as Error).message)
@@ -115,10 +115,10 @@ function PlansPage() {
       const line = updated.lines.find((l) => l.id === reportLineId)
       if (line && (line.routeTotal ?? 0) > 0) {
         message.success(line.finished
-          ? `报工成功：「${line.currentStepName}」末道完成 → 成品 ${line.completedQuantity ?? 0} 只，计划单已完成，入库草稿已生成（仓管确认 I08）`
+          ? `报工成功：「${line.currentStepName}」末道完成 → 成品 ${line.completedQuantity ?? 0} 只，计划单已完成，入库草稿已生成（待仓管在仓储页确认）`
           : `报工成功：「${line.currentStepName}」（${line.routeSeq}/${line.routeTotal}）完成，已推进到下一道工序`)
       } else {
-        message.success('报工成功：完成数量已累计，入库草稿已生成（仓管确认 I08）')
+        message.success('报工成功：完成数量已累计，入库草稿已生成（待仓管在仓储页确认）')
       }
       setReportPlan(null)
       fetchRows()
@@ -205,7 +205,7 @@ function PlansPage() {
       {filterBar}
       <Table<PlanSheet> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
-        locale={{ emptyText: <Empty description="暂无计划单 —— 订单列表点「确认」自动生成草稿（I05）" /> }} />
+        locale={{ emptyText: <Empty description="暂无计划单 —— 在订单列表点「确认」后自动生成" /> }} />
       {detail && <PlanDetail plan={detail} onClose={() => setDetail(null)} onTrace={() => openTrace(detail.orderId)} />
       }
       {traceOrder && <OrderTraceModal order={traceOrder} onClose={() => setTraceOrder(null)} />}
@@ -263,8 +263,8 @@ function PlansPage() {
               </div>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {hasRoute
-                  ? '提示：中间工序报工不产成品、不触发入库；全部工序走完（末道）才累计成品并生成入库草稿（批次 FG-YYYYMMDD-NN，仓管确认在 I08）。'
-                  : '提示：报工累计成品并推进计划单/订单状态；同时生成入库单草稿（批次 FG-YYYYMMDD-NN，仓管确认在 I08）。'}
+                  ? '提示：中间工序报工不产成品、不触发入库；全部工序走完（末道）才累计成品并生成入库草稿（批次号自动生成，待仓管确认入库）。'
+                  : '提示：报工累计成品并推进计划单/订单状态；同时生成入库单草稿（批次号自动生成，待仓管确认入库）。'}
               </Typography.Text>
             </Space>
           )

@@ -78,7 +78,7 @@ export default function AlertBell() {
               </div>
             ))}
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              预警为确定性规则引擎判定（I12 一期不含 AI 解释）；库存请到仓储看板、应收见账目往来款、超期行见排程红框处理。
+              预警由确定性规则引擎判定；库存请到仓储看板、应收见账目往来款、超期行见排程红框处理。
             </Typography.Text>
           </Space>
         )}

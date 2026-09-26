@@ -441,7 +441,7 @@ function IncomingTab() {
     setCreating(true)
     try {
       await api('/incoming-goods', { method: 'POST', body: { ...v, materialName: v.materialName } })
-      message.success('已登记，应付已生成（账目 I09 核销）')
+      message.success('来料已登记，应付账款已自动生成')
       setOpen(false)
       form.resetFields()
       load()

@@ -128,7 +128,7 @@ function TemplateButtons({ apply, current, disabled }: {
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>规格说明</div>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="如：含 LOGO 印刷（样式图 I12 支持上传）" />
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="如：含 LOGO 印刷（支持上传样式图）" />
           </div>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             当前行包装：{emptyPack ? '未勾选' : Object.entries(current).map(([k, v]) => `${PACK_LABEL[k] ?? k}${v ? '：' + v : ''}`).join(' · ')}

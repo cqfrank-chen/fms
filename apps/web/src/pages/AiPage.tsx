@@ -140,7 +140,7 @@ function ReportTab() {
 export default function AiPage() {
   return (
     <div>
-      <Typography.Title level={4} style={{ marginTop: 0 }}>AI 助手 <Text type="secondary" style={{ fontSize: 13 }}>（I12 一期：function calling 查数 · 利润月报摘要 · 顶部铃铛为规则预警）</Text></Typography.Title>
+      <Typography.Title level={4} style={{ marginTop: 0 }}>AI 助手 <Text type="secondary" style={{ fontSize: 13 }}>（function calling 查数 · 利润月报摘要 · 顶部铃铛为规则预警）</Text></Typography.Title>
       <Tabs items={[
         { key: 'ask', label: '💬 查数问答', children: <ChatTab /> },
         { key: 'report', label: '📈 利润月报摘要', children: <ReportTab /> },
