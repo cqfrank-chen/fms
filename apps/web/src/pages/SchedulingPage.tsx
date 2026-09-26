@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { App as AntApp, Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Typography } from 'antd';
+import { App as AntApp, Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
+import { api } from '../lib/api';
 import type { Order } from '../lib/types';
 import OrderDetailModal from '../components/OrderDetailModal';
 import type { SchedTask, VerifyResult, WorkCenter, ProcessInfo } from '../lib/scheduling';
@@ -402,9 +403,14 @@ function ScheduleModal({
   };
   const unschedule = async () => {
     if (!task) return;
-    await fetch(`/api/scheduling/plan-lines/${task.lineId}/schedule`, { method: 'DELETE' });
-    message.success(`已取消排期 ${task.planNo}·行${task.lineId}`);
-    onCancel();
+    try {
+      // 破坏性操作：失败必须抛错 → 提示原因且不关闭弹窗、不改本地状态
+      await api(`/scheduling/plan-lines/${task.lineId}/schedule`, { method: 'DELETE' });
+      message.success(`已取消排期 ${task.planNo}·行${task.lineId}`);
+      onCancel();
+    } catch (e) {
+      message.error(`取消失败：${(e as Error).message}`);
+    }
   };
 
   return (
@@ -447,7 +453,16 @@ function ScheduleModal({
             />
           )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            {task.scheduled && <Button danger onClick={unschedule}>取消排期</Button>}
+            {task.scheduled && (
+              <Popconfirm
+                title="取消该行排期？"
+                description="该行将回到待排区（未排期），需重新排期。"
+                okText="取消排期" okButtonProps={{ danger: true }} cancelText="再想想"
+                onConfirm={unschedule}
+              >
+                <Button danger>取消排期</Button>
+              </Popconfirm>
+            )}
             <Button onClick={onCancel}>关闭</Button>
             <Button type="primary" onClick={submit}>确认排期</Button>
           </div>
@@ -509,15 +524,20 @@ export default function SchedulingPage() {
   const [orderDetail, setOrderDetail] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
-    const [t, w, p] = await Promise.all([
-      fetch('/api/scheduling/tasks').then((r) => r.json()),
-      fetch('/api/scheduling/work-centers').then((r) => r.json()),
-      fetch('/api/scheduling/processes').then((r) => r.json()),
-    ]);
-    setTasks(t);
-    setWorkCenters(w);
-    setProcesses(p);
-  }, []);
+    try {
+      const [t, w, p] = await Promise.all([
+        api<SchedTask[]>('/scheduling/tasks'),
+        api<WorkCenter[]>('/scheduling/work-centers'),
+        api<ProcessInfo[]>('/scheduling/processes'),
+      ]);
+      setTasks(t);
+      setWorkCenters(w);
+      setProcesses(p);
+    } catch (e) {
+      // 任一请求失败不再静默空白：提示具体原因，保留上一次数据
+      message.error(`排期数据加载失败：${(e as Error).message}`);
+    }
+  }, [message]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -531,24 +551,17 @@ export default function SchedulingPage() {
 
   const moveBar = async (lineId: number, wcKey: string, startDate: string) => {
     const t = tasks.find((x) => x.lineId === lineId);
-    const res = await fetch(`/api/scheduling/plan-lines/${lineId}/schedule`, {
+    // api() 在 !res.ok 时抛错并归一后端 message：拖拽失败由 GanttLane 捕获提示（不落定、不报成功）
+    await api(`/scheduling/plan-lines/${lineId}/schedule`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wcKey, startDate, coverDays: t?.coverDays ?? null }),
+      body: { wcKey, startDate, coverDays: t?.coverDays ?? null },
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error((body as { message?: string }).message || `HTTP ${res.status}`);
-    }
     await load();
   };
 
   const submitSchedule = async (lineId: number, dto: { wcKey: string; startDate: string; coverDays: number | null }) => {
-    await fetch(`/api/scheduling/plan-lines/${lineId}/schedule`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
+    // 失败必须抛出：ScheduleModal 据此 message.error 且不关闭弹窗、不提示成功
+    await api(`/scheduling/plan-lines/${lineId}/schedule`, { method: 'POST', body: dto });
     await load();
   };
 

@@ -99,9 +99,19 @@ function PlansPage() {
       message.warning('请选择产品行并填写本次完成数量')
       return
     }
+    // 带上页面展示的当前状态：服务端据此做乐观校验，重复提交不会重复累计/跨工序推进
+    const snapshot = reportPlan.lines.find((l) => l.id === reportLineId)
     setReporting(true)
     try {
-      const updated = await api<PlanSheet>(`/plan-sheets/${reportPlan.id}/report`, { method: 'POST', body: { lineId: reportLineId, doneQty: reportQty } })
+      const updated = await api<PlanSheet>(`/plan-sheets/${reportPlan.id}/report`, {
+        method: 'POST',
+        body: {
+          lineId: reportLineId,
+          doneQty: reportQty,
+          routeSeq: snapshot?.routeSeq,
+          completedQuantity: snapshot?.completedQuantity,
+        },
+      })
       const line = updated.lines.find((l) => l.id === reportLineId)
       if (line && (line.routeTotal ?? 0) > 0) {
         message.success(line.finished
