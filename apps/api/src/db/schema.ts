@@ -1,14 +1,5 @@
 import { boolean, date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
-/** 技术验证演示实体（I01）：最小 CRUD 的载体，订单线完成后下线 */
-export const testProducts = pgTable('test_products', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  sku: text('sku').notNull(),
-  note: text('note'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
 // ============================================================
 // 主数据（I03，spec §3）——术语对齐 CONTEXT.md
 // 单厂单租户：不建多厂表，模型以本表为基（多厂扩展路径见 spec §13）
@@ -79,9 +70,6 @@ export const operators = pgTable('operators', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
-
-export type TestProduct = typeof testProducts.$inferSelect;
-export type NewTestProduct = typeof testProducts.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;

@@ -1,42 +1,39 @@
 import { useEffect, useState } from 'react'
-import { Badge, Button, Card, Col, Descriptions, Form, Input, Layout, Menu, Modal, Row, Space, Table, Tag, Typography, message } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import { Badge, Layout, Menu, Space, Typography } from 'antd'
+import {
+  AccountBookOutlined, AppstoreOutlined, DashboardOutlined, DatabaseOutlined, ProfileOutlined,
+  RobotOutlined, ScheduleOutlined, SettingOutlined, ShoppingCartOutlined,
+} from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import AlertBell from './components/AlertBell'
-import SetupPage from './pages/SetupPage'
+import AccountingPage from './pages/AccountingPage'
 import AiPage from './pages/AiPage'
+import DashboardPage from './pages/DashboardPage'
 import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
 import SchedulingPage from './pages/SchedulingPage'
+import SetupPage from './pages/SetupPage'
 import WarehousePage from './pages/WarehousePage'
-import AccountingPage from './pages/AccountingPage'
+import type { PageKey } from './lib/nav'
 
 interface HealthInfo { status: string; db: string; time: string }
-interface TestProduct {
-  id: number
-  name: string
-  sku: string
-  note?: string
-  createdAt: string
-}
 
 const API = '/api'
 const { Header, Content, Sider } = Layout
 
-type PageKey = 'overview' | 'orders' | 'plans' | 'schedule' | 'warehouse' | 'accounting' | 'ai' | 'setup'
-
 const MENU_ITEMS: MenuProps['items'] = [
-  { key: 'overview', label: '首页' },
-  { key: 'orders', label: '订单' },
-  { key: 'plans', label: '计划单' },
-  { key: 'schedule', label: '排程' },
-  { key: 'warehouse', label: '仓储' },
-  { key: 'accounting', label: '账目' },
-  { key: 'ai', label: 'AI 助手' },
+  { key: 'overview', icon: <DashboardOutlined />, label: '首页概览' },
+  { key: 'orders', icon: <ShoppingCartOutlined />, label: '订单管理' },
+  { key: 'plans', icon: <ProfileOutlined />, label: '计划单' },
+  { key: 'schedule', icon: <ScheduleOutlined />, label: '排程看板' },
+  { key: 'warehouse', icon: <DatabaseOutlined />, label: '仓储管理' },
+  { key: 'accounting', icon: <AccountBookOutlined />, label: '账目统计' },
+  { key: 'ai', icon: <RobotOutlined />, label: 'AI 助手' },
   { type: 'divider' },
-  { key: 'setup', label: '设置 · 主数据' },
+  { key: 'setup', icon: <SettingOutlined />, label: '设置 · 主数据' },
 ]
 
+/** 应用外壳：顶栏（品牌 + 预警 + 状态）+ 侧栏导航 + 页面内容 */
 export default function App() {
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [page, setPage] = useState<PageKey>('overview')
@@ -56,185 +53,52 @@ export default function App() {
     return () => clearInterval(t)
   }, [])
 
+  const online = health?.status === 'ok' && health?.db === 'up'
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ display: 'flex', alignItems: 'center', gap: 16, paddingInline: 24 }}>
-        <Typography.Title level={4} style={{ color: '#fff', margin: 0, flex: 1 }}>
-          工厂管理系统 FMS
-        </Typography.Title>
-        <Space>
+      <Header style={{ display: 'flex', alignItems: 'center', gap: 14, paddingInline: 22, background: '#0f2540' }}>
+        <AppstoreOutlined style={{ fontSize: 24, color: '#69b1ff' }} />
+        <div style={{ flex: 1, lineHeight: 1.25 }}>
+          <Typography.Title level={5} style={{ color: '#fff', margin: 0, letterSpacing: 0.5 }}>
+            工厂生产管理系统
+          </Typography.Title>
+          <Typography.Text style={{ color: 'rgba(255,255,255,.6)', fontSize: 12 }}>
+            订单 · 计划单 · 排程 · 仓储 · 账目 · AI
+          </Typography.Text>
+        </div>
+        <Space size={16}>
           <AlertBell />
-          {health ? (
-            <Badge status={health.status === 'ok' ? 'success' : 'warning'} text={
-              <span style={{ color: '#fff' }}>API {health.status} · 数据库 {health.db}</span>
-            } />
-          ) : (
-            <Badge status="error" text={<span style={{ color: '#fff' }}>API 不可达</span>} />
-          )}
+          <Badge
+            status={online ? 'success' : 'error'}
+            text={
+              <span style={{ color: 'rgba(255,255,255,.85)', fontSize: 12 }}>
+                {online ? '系统正常' : health ? '数据库异常' : '服务未连接'}
+              </span>
+            }
+          />
         </Space>
       </Header>
       <Layout>
-        <Sider width={170} theme="light">
+        <Sider width={190} theme="light" style={{ borderRight: '1px solid #eaeef2' }}>
           <Menu
             mode="inline"
             selectedKeys={[page]}
             items={MENU_ITEMS}
-            style={{ height: '100%', borderRight: 0 }}
+            style={{ height: '100%', borderRight: 0, paddingTop: 8 }}
             onClick={({ key }) => setPage(key as PageKey)}
           />
         </Sider>
-        <Content style={{ padding: 24, background: '#f5f5f5' }}>
-          {page === 'overview' && <OverviewPage />}
+        <Content style={{ padding: 20, background: '#f0f2f5' }}>
+          {page === 'overview' && <DashboardPage onNavigate={setPage} />}
           {page === 'orders' && <OrdersPage />}
-          {page === 'setup' && <SetupPage />}
           {page === 'plans' && <PlansPage />}
           {page === 'schedule' && <SchedulingPage />}
           {page === 'warehouse' && <WarehousePage />}
           {page === 'accounting' && <AccountingPage />}
           {page === 'ai' && <AiPage />}
+          {page === 'setup' && <SetupPage />}
         </Content>
       </Layout>
     </Layout>
-  )
-}
-
-function OverviewPage() {
-  return (
-    <Row gutter={[16, 16]}>
-      <Col span={24}>
-        <AlertStrip />
-      </Col>
-      <Col span={24}>
-        <CrudDemoCard />
-      </Col>
-    </Row>
-  )
-}
-
-function AlertStrip() {
-  return (
-    <Card size="small">
-      <Space direction="vertical" size={4} style={{ width: '100%' }}>
-        <Typography.Text strong>实施进度</Typography.Text>
-        <Space wrap>
-          {[
-            { label: 'I01 技术验证', done: true },
-            { label: 'I02 地基', done: true },
-            { label: 'I03 主数据', done: true },
-            { label: 'I04 订单', done: true },
-            { label: 'I05 计划单', done: true },
-            { label: 'I06 报工', done: true },
-            { label: 'I07 反查', done: true },
-            { label: 'I08 仓储', done: true },
-            { label: 'I09 账目', done: true },
-            { label: 'I10 甘特验证', done: true },
-            { label: 'I11 排程', done: true },
-            { label: 'I12 AI 一期', done: true },
-          ].map((t) => (
-            <Tag key={t.label} color={t.done ? 'success' : 'default'}>{t.label}</Tag>
-          ))}
-        </Space>
-        <Typography.Text type="secondary">
-          阶段 ④ 排期 AI 线全过：I10 甘特库选型（自研 React 泳道甘特，跳出 frappe/dhtmlx 任务树模型）、I11 排程看板（待排区+6泳道+贪心分层+拖拽改开始日+超期红框+报工驱动色标）、I12 AI 一期五项（订单解析/查数 function calling/利润月报摘要/规则预警/学习闭环）。
-        </Typography.Text>
-      </Space>
-    </Card>
-  )
-}
-
-/** I01 技术验证遗留：最小全栈 CRUD 演示（正式业务上线后可下线） */
-function CrudDemoCard() {
-  const [items, setItems] = useState<TestProduct[]>([])
-  const [loading, setLoading] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<TestProduct | null>(null)
-  const [form] = Form.useForm()
-
-  async function fetchList() {
-    setLoading(true)
-    try {
-      const res = await fetch(`${API}/test-products`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setItems(await res.json())
-    } catch (e) {
-      message.error('加载失败：' + (e as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => { fetchList() }, [])
-
-  function openCreate() { setEditing(null); form.resetFields(); setModalOpen(true) }
-  function openEdit(record: TestProduct) { setEditing(record); form.setFieldsValue(record); setModalOpen(true) }
-
-  async function handleSubmit() {
-    const values = await form.validateFields()
-    try {
-      const res = await fetch(`${API}/test-products${editing ? '/' + editing.id : ''}`, {
-        method: editing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      message.success(editing ? '已更新' : '已新增')
-      setModalOpen(false)
-      fetchList()
-    } catch (e) {
-      message.error('保存失败：' + (e as Error).message)
-    }
-  }
-
-  async function handleDelete(record: TestProduct) {
-    try {
-      const res = await fetch(`${API}/test-products/${record.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      message.success('已删除')
-      fetchList()
-    } catch (e) {
-      message.error('删除失败：' + (e as Error).message)
-    }
-  }
-
-  const columns: ColumnsType<TestProduct> = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '名称', dataIndex: 'name' },
-    { title: 'SKU', dataIndex: 'sku' },
-    { title: '备注', dataIndex: 'note' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 200 },
-    {
-      title: '操作', width: 140,
-      render: (_, record) => (
-        <Space>
-          <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
-          <Button size="small" danger onClick={() => handleDelete(record)}>删除</Button>
-        </Space>
-      ),
-    },
-  ]
-
-  return (
-    <Card
-      title="I01 技术验证 · 最小全栈 CRUD"
-      extra={<Space><Button type="primary" onClick={openCreate}>+ 新增</Button><Button onClick={fetchList}>刷新</Button></Space>}
-    >
-      <Descriptions size="small" column={2} style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="状态">全链路 CRUD 验证载体（React19+AntD6 → NestJS11 → PG18+Drizzle）</Descriptions.Item>
-        <Descriptions.Item label="说明">正式业务表已建（设置页），此演示待 I07 阶段②验收后下线</Descriptions.Item>
-      </Descriptions>
-      <Table rowKey="id" loading={loading} columns={columns} dataSource={items} />
-      <Modal title={editing ? '编辑' : '新增'} open={modalOpen} onOk={handleSubmit} onCancel={() => setModalOpen(false)}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="name" label="名称" rules={[{ required: true, message: '必填' }]}>
-            <Input placeholder={'如：ANM 1/32" 乙炔'} />
-          </Form.Item>
-          <Form.Item name="sku" label="SKU" rules={[{ required: true, message: '必填' }]}>
-            <Input placeholder="如：ANM-0032" />
-          </Form.Item>
-          <Form.Item name="note" label="备注">
-            <Input placeholder="选填" />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Card>
   )
 }
