@@ -5,7 +5,7 @@ import {
 import { InboxOutlined } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import dayjs from 'dayjs'
-import { api } from '../lib/api'
+import { api, loadOptions } from '../lib/api'
 import type { Customer, PackagingSpec, Product } from '../lib/types'
 import PackComboEditor from './PackComboEditor'
 
@@ -138,8 +138,8 @@ export default function AiOrderImport({ onReviewDone }: Props) {
   }
 
   useEffect(() => {
-    api<Customer[]>('/customers').then(setCustomers).catch(() => {})
-    api<Product[]>('/products').then(setProducts).catch(() => {})
+    loadOptions<Customer>('/customers', setCustomers, '客户档案')
+    loadOptions<Product>('/products', setProducts, '产品目录')
   }, [])
 
   const productOptions = useMemo(

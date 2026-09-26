@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Checkbox, InputNumber, Select, Space, Table, Tag, Typography, message } from 'antd'
-import { api } from '../lib/api'
+import { api, loadOptions } from '../lib/api'
 import { PRODUCT_TYPE_LABEL } from '../lib/labels'
 
 interface Product { id: number; name: string; type: string; safetyStock: number }
@@ -42,7 +42,7 @@ export default function ProcessRouteCard({ reloadToken = 0 }: { reloadToken?: nu
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api<Product[]>('/products').then(setProducts).catch(() => {})
+    loadOptions<Product>('/products', setProducts, '产品目录')
     api<ProcessDict[]>('/products/processes').then(setDict).catch((e) => message.error('加载工序字典失败：' + (e as Error).message))
   }, [reloadToken])
 

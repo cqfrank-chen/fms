@@ -5,7 +5,7 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { api } from '../lib/api'
+import { api, loadOptions } from '../lib/api'
 import { COST_CATEGORY_LABEL, COST_CATEGORY_ORDER, SLIP_MODE_LABEL } from '../lib/labels'
 import type {
   CollectionSlip, Customer, MonthlyCost, Payable, PaymentSlip, ProfitView, Receivable,
@@ -22,7 +22,7 @@ const uniqOpts = (arr: Array<{ value: number | string; label: string }>) =>
 function AccountingPage() {
   return (
     <Card size="small" styles={{ body: { paddingTop: 4 } }}>
-      <Tabs size="small" defaultActiveKey="receivable" items={[
+      <Tabs size="small" defaultActiveKey="receivable" destroyOnHidden items={[
         { key: 'receivable', label: '应收记录', children: <ReceivableTab /> },
         { key: 'collect', label: '收款单', children: <CollectTab /> },
         { key: 'payable', label: '应付记录', children: <PayableTab /> },
@@ -50,7 +50,7 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
 
   useEffect(() => {
     if (!open) return
-    api<(Customer | Supplier)[]>(isCollect ? '/customers' : '/suppliers').then(setParties).catch(() => {})
+    loadOptions<Customer | Supplier>(isCollect ? '/customers' : '/suppliers', setParties, isCollect ? '客户档案' : '供应商档案')
     setPartyId(undefined); setMode('settle'); setOpenDebts([]); setSel({}); setNote('')
   }, [open, isCollect])
 

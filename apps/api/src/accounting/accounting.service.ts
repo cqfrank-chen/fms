@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, like, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   collectionSlipLines, collectionSlips, customers, incomingGoods, monthlyCosts, orders, outbounds,
@@ -18,11 +18,13 @@ async function nextSeqNo(tx: Tx, prefix: string): Promise<string> {
   ];
   const hit = tables.find((x) => prefix.startsWith(x.p));
   if (!hit) throw new Error(`未知单号前缀：${prefix}`);
-  const [{ count }] = await tx
-    .select({ count: sql<number>`count(*)::int` })
-    .from(hit.t)
-    .where(like(hit.col, `${prefix}%`));
-  return `${prefix}${pad2(count + 1)}`;
+  // 取同前缀（当日）最大序号 + 1：count(*)+1 在冲销/删单后会重号
+  const res = await tx.execute(sql`
+    SELECT COALESCE(MAX(CAST(SPLIT_PART(${hit.col}, '-', 3) AS INTEGER)), 0) AS n
+      FROM ${hit.t}
+     WHERE ${hit.col} LIKE ${prefix + '%'}`);
+  const n = Number((res as any).rows?.[0]?.n ?? 0);
+  return `${prefix}${pad2(n + 1)}`;
 }
 
 const owing = (r: { amount: number; settledAmount: number }) => fromCents(toCents(r.amount) - toCents(r.settledAmount));

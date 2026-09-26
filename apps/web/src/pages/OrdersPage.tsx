@@ -5,7 +5,7 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { api } from '../lib/api'
+import { api, loadOptions } from '../lib/api'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
@@ -97,8 +97,8 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api<Customer[]>('/customers').then(setCustomers).catch(() => {})
-    api<Product[]>('/products').then(setProducts).catch(() => {})
+    loadOptions<Customer>('/customers', setCustomers, '客户档案')
+    loadOptions<Product>('/products', setProducts, '产品目录')
   }, [])
 
   // 编辑模式（I05 驳回重做闭环）：外部选定草稿订单 → 整单载入表单
@@ -565,7 +565,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     } finally { setConfirmingId(null) }
   }
 
-  useEffect(() => { api<Customer[]>('/customers').then(setCustomers).catch(() => {}) }, [])
+  useEffect(() => { loadOptions<Customer>('/customers', setCustomers, '客户档案') }, [])
 
   async function fetchRows() {
     setLoading(true)

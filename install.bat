@@ -67,7 +67,7 @@ REM ---- 5. 等待就绪并显示状态 ----
 echo  [5/5] 等待数据库就绪...
 set /a tries=0
 :waitloop
-timeout /t 3 /nobreak >nul
+ping -n 4 127.0.0.1 >nul
 set /a tries+=1
 docker exec fms-postgres pg_isready -U fms >nul 2>nul
 if errorlevel 1 (
@@ -78,7 +78,24 @@ if errorlevel 1 (
   echo        数据库已就绪
 )
 
+REM ---- 6. 校验应用健康与迁移（只等 DB 就绪并不代表应用可用）----
+echo  [6/6] 校验应用健康与数据库迁移...
+set "PORT=80"
+for /f "tokens=1,* delims==" %%a in ('findstr /b "HTTP_PORT=" .env 2^>nul') do set "PORT=%%b"
+set /a atries=0
+:appwait
+ping -n 4 127.0.0.1 >nul
+set /a atries+=1
+curl -fsS "http://localhost:!PORT!/api/health" >nul 2>nul
+if errorlevel 1 (
+  if !atries! LSS 20 goto appwait
+  echo  [警告] 应用未在预期时间内就绪，请查看日志：
+  echo         docker compose logs app
+) else (
+  echo        应用已就绪（/api/health 正常）
+)
 echo.
+
 echo  ============================================
 echo    安装完成！服务状态：
 echo  ============================================

@@ -1,3 +1,5 @@
+import { message } from 'antd'
+
 /** 统一 API 请求封装（fetch + JSON + 错误归一） */
 const API = '/api'
 
@@ -28,4 +30,14 @@ export async function api<T = unknown>(
   const text = await res.text()
   if (!text) return undefined as T
   return JSON.parse(text) as Promise<T>
+}
+
+/**
+ * 载入下拉/筛选选项等次要数据：失败时明确提示，避免「静默空下拉」让人误以为无数据。
+ * （Review 中危：关键初始化 catch(() => {}) 吞错）
+ */
+export function loadOptions<T>(path: string, apply: (rows: T[]) => void, label: string): void {
+  api<T[]>(path)
+    .then(apply)
+    .catch((e: unknown) => message.error(`${label}加载失败：${(e as Error).message}；下拉可能为空，请刷新重试`))
 }

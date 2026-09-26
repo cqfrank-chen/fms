@@ -29,6 +29,15 @@ const addDays = (dateStr: string, n: number): string => {
  * 注意：不能再用 toISOString().slice(0,10)——它恒按 UTC 取日，东八区会整体早一天，
  * 导致排程「客户交期」与红框超期判定比用户选择的日期提前一天。
  */
+/** 严格解析 YYYY-MM-DD：格式或日历非法（如 2026-02-31）返回 null，避免 Invalid Date 引发的 500 */
+const parseYmd = (s: unknown): Date | null => {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return dt;
+};
+
 const tsToDate = (ts: Date | string | null): string | null => {
   if (!ts) return null;
   const d = ts instanceof Date ? ts : new Date(ts);
@@ -87,12 +96,14 @@ export class SchedulingService {
       .from(productProcesses)
       .innerJoin(processes, eq(processes.id, productProcesses.processId))
       .orderBy(asc(productProcesses.seq));
-    const unitMap = new Map<string, number>(); // key=`${productId}:${wcKey}` -> unitSeconds
+    const unitMap = new Map<string, number>(); // key=`${productId}:${wcKey}` -> unitSeconds（泳道首道工序，兜底）
+    const unitBySeq = new Map<string, number>(); // key=`${productId}:${wcKey}:${seq}` -> unitSeconds（按当前工序）
     const routeByProduct = new Map<number, Array<{ processId: number; name: string; wcKey: string; seq: number }>>();
     for (const r of ppRows) {
       if (r.unitSeconds != null) {
         const k = `${r.productId}:${r.wcKey}`;
         if (!unitMap.has(k)) unitMap.set(k, Number(r.unitSeconds));
+        unitBySeq.set(`${k}:${r.seq}`, Number(r.unitSeconds));
       }
       const arr = routeByProduct.get(r.productId) ?? [];
       arr.push({ processId: r.processId, name: r.processName, wcKey: r.wcKey, seq: r.seq });
@@ -106,7 +117,10 @@ export class SchedulingService {
       const scheduled = !!line.wcKey && !!line.startDate;
       const due = tsToDate(order.dueDate);
       const wc = line.wcKey ? wcMap.get(line.wcKey) : null;
-      const unit = line.wcKey ? unitMap.get(`${line.productId}:${line.wcKey}`) ?? null : null;
+      const seqForUnit = line.routeSeq ?? 1;
+      const unit = line.wcKey
+        ? unitBySeq.get(`${line.productId}:${line.wcKey}:${seqForUnit}`) ?? unitMap.get(`${line.productId}:${line.wcKey}`) ?? null
+        : null;
       const autoDays = wc ? this.computeAutoDays(line.quantity, unit, wc.machines) : 1;
       const durDays = line.coverDays ?? autoDays;
       const endDate = scheduled && line.startDate
@@ -159,10 +173,12 @@ export class SchedulingService {
   async verify(lineId: number, wcKey: string, startDate: string) {
     const [line] = await db.select().from(planSheetLines).where(eq(planSheetLines.id, lineId));
     if (!line) throw new NotFoundException(`计划单行 ${lineId} 不存在`);
+    if (!parseYmd(startDate)) throw new BadRequestException('开始日须为合法日期（YYYY-MM-DD）');
     const wcList = await db.select().from(workCenters);
     const wc = wcList.find((w) => w.key === wcKey);
     if (!wc) throw new BadRequestException(`工作中心 ${wcKey} 不存在`);
-    const unitSeconds = await this.unitSecondsFor(line.productId, wcKey);
+    // 工期按「当前工序」（routeSeq）的单件耗时推算，而非该泳道首道工序
+    const unitSeconds = await this.unitSecondsFor(line.productId, wcKey, line.routeSeq ?? 1);
     const autoDays = this.computeAutoDays(line.quantity, unitSeconds, wc.machines);
     const coverDays = line.coverDays ?? autoDays;
     const endDate = addDays(startDate, Math.max(1, coverDays) - 1);
@@ -196,7 +212,10 @@ export class SchedulingService {
     if (!line) throw new NotFoundException(`计划单行 ${lineId} 不存在`);
     const wcList = await db.select().from(workCenters);
     if (!wcList.find((w) => w.key === dto.wcKey)) throw new BadRequestException(`工作中心 ${dto.wcKey} 不存在`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dto.startDate)) throw new BadRequestException('开始日须为 YYYY-MM-DD');
+    if (!parseYmd(dto.startDate)) throw new BadRequestException('开始日须为合法日期（YYYY-MM-DD，如 2026-09-28）');
+    if (dto.coverDays != null && (!Number.isInteger(dto.coverDays) || dto.coverDays < 1 || dto.coverDays > 365)) {
+      throw new BadRequestException('工期覆盖天数须为 1–365 的整数');
+    }
     await db.update(planSheetLines).set({
       wcKey: dto.wcKey,
       startDate: dto.startDate,
@@ -218,13 +237,14 @@ export class SchedulingService {
   }
 
   // ============ 内部：工期推算 ============
-  private async unitSecondsFor(productId: number, wcKey: string): Promise<number | null> {
+  private async unitSecondsFor(productId: number, wcKey: string, seq?: number): Promise<number | null> {
+    // 优先匹配「当前工序」seq；未匹配则退回该泳道首道工序（兼容未配路线/工序推进前）
     const r = await db.execute(sql`
       SELECT pp.unit_seconds
         FROM product_processes pp
         JOIN processes p ON p.id = pp.process_id
        WHERE pp.product_id = ${productId} AND p.wc_key = ${wcKey}
-       ORDER BY pp.seq
+       ORDER BY (pp.seq = ${seq ?? 0}) DESC, pp.seq
        LIMIT 1
     `);
     const row = (r as any).rows?.[0];

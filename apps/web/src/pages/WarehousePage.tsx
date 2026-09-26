@@ -4,7 +4,7 @@ import {
   Select, Space, Statistic, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { api } from '../lib/api'
+import { api, loadOptions } from '../lib/api'
 import { IQC_LABEL, OQC_LABEL, OUTBOUND_STATUS_LABEL, RECEIPT_STATUS_LABEL } from '../lib/labels'
 import type {
   Customer, GoodsReceipt, IncomingGoods, InventoryRow, Order, OrderLine,
@@ -273,7 +273,7 @@ function OutboundTab() {
   }, [])
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    api<Customer[]>('/customers').then(setCustomers).catch(() => {})
+    loadOptions<Customer>('/customers', setCustomers, '客户档案')
   }, [])
 
   async function openCreate() {
@@ -432,8 +432,8 @@ function IncomingTab() {
   }, [])
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    api<Supplier[]>('/suppliers').then(setSuppliers).catch(() => {})
-    api<Product[]>('/products').then(setProducts).catch(() => {})
+    loadOptions<Supplier>('/suppliers', setSuppliers, '供应商档案')
+    loadOptions<Product>('/products', setProducts, '产品目录')
   }, [])
 
   async function create() {

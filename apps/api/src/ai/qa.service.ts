@@ -55,6 +55,10 @@ export const QA_TOOLS: LlmToolDef[] = [
   }),
 ];
 
+/** QA 工具参数白名单：非法枚举/日期直接忽略，避免进入 SQL 触发 500 */
+const ORDER_STATUSES = ['draft', 'confirmed', 'production', 'completed', 'cancelled'];
+const PLAN_STATUSES = ['draft', 'confirmed', 'production', 'completed', 'voided'];
+
 type Executor = (args: Record<string, string>) => Promise<string>;
 
 @Injectable()
@@ -70,7 +74,8 @@ export class QaService {
   private async exec(name: string, args: Record<string, string>): Promise<string> {
     const fns: Record<string, Executor> = {
       query_profit: async (a) => {
-        const month = a.month ?? this.currentMonth();
+        // 仅接受 YYYY-MM；非法值回退本月（防非法月份进入 SQL 报错）
+        const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(a.month ?? '') ? a.month! : this.currentMonth();
         const p = await this.accounting.profit(month);
         return `[利润月报 ${month}] 营收 ${p.revenue} 元；材料成本 ${p.material}；制造费用 ${p.manufactureCost}（人工${p.costs.labor}/电${p.costs.electricity}/气${p.costs.gas}/房租${p.costs.rent}/折旧${p.costs.depreciation}/其他${p.costs.other}）；总成本 ${p.totalCost}；利润 ${p.profit} 元。按客户：${p.revenueByCustomer.map((c) => `${c.customer} ${c.amount}`).join('、') || '无'}`;
       },
@@ -115,8 +120,8 @@ export class QaService {
           const cs = await db.select().from(customers).where(ilike(customers.name, `%${a.customer}%`));
           if (cs.length) conds.push(eq(orders.customerId, cs[0].id));
         }
-        if (a.status) conds.push(eq(orders.status, a.status as never));
-        if (a.month) {
+        if (ORDER_STATUSES.includes(a.status ?? '')) conds.push(eq(orders.status, a.status as never));
+        if (/^\d{4}-(0[1-9]|1[0-2])$/.test(a.month ?? '')) {
           const gte_ = `${a.month}-01T00:00:00Z`;
           const [y, m] = a.month.split('-').map(Number);
           const lt_ = new Date(Date.UTC(y, m, 1)).toISOString().replace('T', ' ').slice(0, 10);
@@ -159,7 +164,7 @@ export class QaService {
         const rows = await db
           .select({ id: planSheets.id, planNo: planSheets.planNo, status: planSheets.status, orderId: planSheets.orderId })
           .from(planSheets)
-          .where(a.status ? eq(planSheets.status, a.status as never) : undefined)
+          .where(PLAN_STATUSES.includes(a.status ?? '') ? eq(planSheets.status, a.status as never) : undefined)
           .orderBy(desc(planSheets.id))
           .limit(20);
         if (!rows.length) return '（无计划单）';
@@ -211,8 +216,15 @@ export class QaService {
   }> {
     const calls: Array<{ name: string; args: Record<string, string>; result: string }> = [];
     const runCall = async (name: string, args: Record<string, string>) => {
-      const result = await this.exec(name, args);
-      calls.push({ name, args, result });
+      try {
+        const result = await this.exec(name, args);
+        calls.push({ name, args, result });
+      } catch (e) {
+        // 工具参数/查询异常不再冒泡成 500：如实写入回答，便于用户修正提问
+        const msg = `工具 ${name} 参数或查询失败：${(e as Error).message}`;
+        this.logger.warn(msg);
+        calls.push({ name, args, result: msg });
+      }
     };
 
     if (!(await this.llm.hasChatKey())) {
