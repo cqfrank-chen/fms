@@ -424,7 +424,7 @@ export type NewPayable = typeof payables.$inferInsert;
 /** 收付款单状态：一步生效 → 冲销纠错（无草稿态） */
 export const slipStatusEnum = pgEnum('slip_status', ['confirmed', 'voided']);
 /** 收付款模式：核销（冲抵应收/应付） / 预收预付（挂余额，后续出库/来料再核销） */
-export const slipModeEnum = pgEnum('slip_mode', ['settle', 'prepay']);
+export const slipModeEnum = pgEnum('slip_mode', ['settle', 'prepay', 'apply']);
 
 /** 收款单：核销 + 预收双模式；营收=收款核销（现金收付制） */
 export const collectionSlips = pgTable('collection_slips', {

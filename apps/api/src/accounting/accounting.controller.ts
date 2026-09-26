@@ -17,8 +17,8 @@ class CreateSlipDto {
   @IsInt({ message: '客户/供应商 ID 须为整数' })
   partyId: number;
 
-  @IsIn(['settle', 'prepay'], { message: '模式须为 settle(核销) 或 prepay(预收/预付)' })
-  mode: 'settle' | 'prepay';
+  @IsIn(['settle', 'prepay', 'apply'], { message: '模式须为 settle(核销) / prepay(预收预付) / apply(预收预付冲抵)' })
+  mode: 'settle' | 'prepay' | 'apply';
 
   @IsNumber({}, { message: '金额须为数字' })
   @Min(0.01, { message: '金额须为正数' })

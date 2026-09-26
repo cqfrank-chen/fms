@@ -45,12 +45,21 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
   const [sel, setSel] = useState<Record<number, number>>({})
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  /** 预收冲抵模式下的可用预收余额（仅客户方向；服务端仍会强校验） */
+  const [availPrepay, setAvailPrepay] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
     api<(Customer | Supplier)[]>(isCollect ? '/customers' : '/suppliers').then(setParties).catch(() => {})
     setPartyId(undefined); setMode('settle'); setOpenDebts([]); setSel({}); setNote('')
   }, [open, isCollect])
+
+  useEffect(() => {
+    if (!open || mode !== 'apply' || !partyId || !isCollect) { setAvailPrepay(null); return }
+    api<any[]>('/statements')
+      .then((rows) => setAvailPrepay(rows.find((r) => r.customerId === partyId)?.prepay ?? 0))
+      .catch(() => setAvailPrepay(null))
+  }, [open, mode, partyId, isCollect])
 
   async function pickParty(id: number) {
     setPartyId(id)
@@ -70,8 +79,8 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
 
   async function submit() {
     if (!partyId) { message.warning('请选择客户'); return }
-    const amount = mode === 'settle' ? total : (sel[0] ?? 0)
-    if (amount <= 0) { message.warning(mode === 'settle' ? '请至少核销一笔金额 > 0' : '请填写预收/预付金额'); return }
+    const amount = mode === 'prepay' ? (sel[0] ?? 0) : total
+    if (amount <= 0) { message.warning(mode === 'prepay' ? '请填写预收/预付金额' : '请至少核销一笔金额 > 0'); return }
     setSaving(true)
     try {
       const body = {
@@ -79,7 +88,7 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
         mode,
         amount,
         note: note || undefined,
-        lines: mode === 'settle' ? (openDebts as any[]).filter((r) => (sel[r.id] ?? 0) > 0).map((r) => ({ id: r.id, amount: sel[r.id] })) : undefined,
+        lines: mode === 'prepay' ? undefined : (openDebts as any[]).filter((r) => (sel[r.id] ?? 0) > 0).map((r) => ({ id: r.id, amount: sel[r.id] })),
       }
       await api(isCollect ? '/collection-slips' : '/payment-slips', { method: 'POST', body })
       message.success(isCollect ? '收款单已生效（核销=营收确认）' : '付款单已生效')
@@ -106,13 +115,15 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
           <Radio.Group value={mode} onChange={(e) => setMode(e.target.value)}>
             <Radio.Button value="settle">{isCollect ? '核销（冲抵应收）' : '核销（冲抵应付）'}</Radio.Button>
             <Radio.Button value="prepay">{isCollect ? '预收（30%定金等）' : '预付（供应商定金）'}</Radio.Button>
+            <Radio.Button value="apply">{isCollect ? '预收冲抵（用定金核销）' : '预付冲抵（用定金核销）'}</Radio.Button>
           </Radio.Group>
         </div>
-        {mode === 'settle' ? (
+        {mode !== 'prepay' ? (
           partyId && (
             <div>
               <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
-                核销明细（默认全额；可改小=部分核销。合计 {fmt(total)}，未结 {fmt(totalRemain)}）
+                核销明细（默认全额；可改小=部分核销。合计 {fmt(total)}，未结 {fmt(totalRemain)}
+                {mode === 'apply' && availPrepay != null ? `；可用预收 ¥${fmt(availPrepay)}` : ''}）
               </Text>
               {openDebts.length === 0
                 ? <Alert type="info" showIcon message="该往来户暂无未结清款项（可改用预收/预付登记）" />
@@ -140,7 +151,9 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
         <Text type="secondary" style={{ fontSize: 12 }}>
           {mode === 'settle'
             ? isCollect ? '收款核销即确认营收（现金收付制）；一步生效，错误用冲销纠正' : '付款核销即冲抵应付；一步生效，错误用冲销纠正'
-            : '预收/预付挂往来余额，未来业务自动冲抵（余额=应收未核销-预收）'}
+            : mode === 'apply'
+              ? isCollect ? '预收冲抵：用已收定金核销应收（计营收），不产生现金流入；余额不足会被拒绝' : '预付冲抵：用已付定金核销应付，不产生现金流出；余额不足会被拒绝'
+              : '预收/预付挂往来余额（不计营收），后续用「冲抵」核销具体单据'}
         </Text>
       </Space>
     </Modal>

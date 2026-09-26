@@ -1,0 +1,1 @@
+ALTER TYPE "public"."slip_mode" ADD VALUE 'apply';

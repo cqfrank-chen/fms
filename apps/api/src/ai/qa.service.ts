@@ -204,6 +204,10 @@ export class QaService {
     answer: string;
     calls: Array<{ name: string; args: Record<string, string>; result: string }>;
     provider: 'llm' | 'router';
+    /** AI 调用失败并降级（与「未配置 Key 的 mock」区分） */
+    degraded?: boolean;
+    /** 降级说明（失败原因），供界面提示 */
+    notice?: string;
   }> {
     const calls: Array<{ name: string; args: Record<string, string>; result: string }> = [];
     const runCall = async (name: string, args: Record<string, string>) => {
@@ -227,16 +231,49 @@ export class QaService {
       { role: 'user', content: question },
     ];
     const first = await this.llm.chat(messages, { tools: QA_TOOLS });
+    if (first.degraded) {
+      // 真实调用失败：改用确定性关键词路由，并如实告知失败原因（不再伪装成模型回答）
+      const r = this.route(question);
+      await runCall(r.name, r.args);
+      return {
+        question,
+        calls,
+        provider: 'router',
+        degraded: true,
+        notice: `AI 调用失败：${first.reason ?? '未知原因'}`,
+        answer: `（AI 暂不可用，已改用规则路由）已查询「${r.name}」：\n${calls[0].result}`,
+      };
+    }
     const picked = first.toolCalls?.[0];
     if (picked) {
       let args: Record<string, string> = {};
       try { args = JSON.parse(picked.arguments ?? '{}'); } catch { /* 容错 */ }
       await runCall(picked.name, args);
-      messages.push({ role: 'assistant', content: '', }); // tool call 记录（占位）
-      messages.push({ role: 'tool', content: `工具 ${picked.name} 返回：\n${calls[0].result}` });
+      // OpenAI 兼容协议：tool 结果必须跟随带 tool_calls 的 assistant 消息（否则真 Key 环境下二轮会 400）
+      messages.push({
+        role: 'assistant',
+        content: first.text ?? '',
+        tool_calls: (first.toolCalls ?? []).map((tc, i) => ({
+          id: `call_${i}`,
+          type: 'function' as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
+      });
+      messages.push({ role: 'tool', tool_call_id: 'call_0', content: `工具 ${picked.name} 返回：\n${calls[0].result}` });
       messages.push({ role: 'user', content: '基于以上查询结果，用中文回答我的问题。' });
       const second = await this.llm.chat(messages, { temperature: 0.2 });
-      return { question, answer: second.text.trim() || calls[0].result, calls, provider: 'llm' };
+      if (second.degraded || !second.text.trim()) {
+        // 汇总轮失败：直接展示第一轮工具结果（权威数据），不丢结果、不伪造回答
+        return {
+          question,
+          calls,
+          provider: 'llm',
+          degraded: second.degraded,
+          notice: second.degraded ? `AI 汇总失败：${second.reason ?? '未知原因'}` : undefined,
+          answer: calls[0].result,
+        };
+      }
+      return { question, answer: second.text.trim(), calls, provider: 'llm' };
     }
     return { question, answer: first.text.trim() || '无法回答', calls, provider: 'llm' };
   }

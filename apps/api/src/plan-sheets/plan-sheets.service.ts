@@ -111,7 +111,8 @@ export class PlanSheetsService {
           // 金额按「分」计算，避免 JS 浮点尾差
           amount: fromCents(sumLineCents(lines.map((l) => ({ quantity: l.quantity, unitPrice: Number(l.unitPrice) })))),
           currency: lines[0]?.currency ?? 'RMB',
-          dueDate: (cust?.creditDays ?? 0) > 0 ? new Date(Date.now() + (cust?.creditDays ?? 0) * 86400000) : null,
+          // 账期 0 也落到期日（= 确认日）：否则该应收 dueDate 为空、永不进账龄分桶/标红
+          dueDate: new Date(Date.now() + Math.max(0, cust?.creditDays ?? 0) * 86400000),
           status: 'draft',
         });
       }

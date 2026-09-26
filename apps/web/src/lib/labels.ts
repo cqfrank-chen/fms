@@ -72,6 +72,7 @@ export const IQC_LABEL: Record<string, string> = {
 export const SLIP_MODE_LABEL: Record<string, string> = {
   settle: '核销',
   prepay: '预收/预付',
+  apply: '预收/预付冲抵',
 }
 
 /** 月度成本六类 */

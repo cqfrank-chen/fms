@@ -221,7 +221,7 @@ export interface Payable {
   settled: boolean
 }
 
-export type SlipMode = 'settle' | 'prepay'
+export type SlipMode = 'settle' | 'prepay' | 'apply'
 export type SlipStatus = 'confirmed' | 'voided'
 
 export interface SlipLine { id: number; amount: number; recvNo?: string; payNo?: string; orderNo?: string }

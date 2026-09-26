@@ -16,7 +16,14 @@ import type { AiConfig } from './ai-config.service';
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  /** assistant 消息回写工具调用（OpenAI 兼容协议要求 tool 结果必须跟随带 tool_calls 的 assistant 消息） */
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+  /** tool 消息对应的调用 id */
+  tool_call_id?: string;
 }
+
+/** 退避等待 */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface LlmToolDef {
   type: 'function';
@@ -45,8 +52,12 @@ export interface ChatResult {
   text: string;
   /** function calling：LLM 选择要调用的工具（I12 查数用） */
   toolCalls?: Array<{ name: string; arguments: string }>;
-  /** mock 标记：真实模型调用失败/未配置时的降级响应 */
+  /** mock 标记：未配置 Key 的占位响应，或真实调用失败后的降级响应 */
   mock?: boolean;
+  /** 真实调用失败后降级（与「未配置 Key」区分，文案须如实说明原因） */
+  degraded?: boolean;
+  /** degraded 时的失败原因（HTTP 状态/超时/网络错误） */
+  reason?: string;
 }
 
 @Injectable()
@@ -149,37 +160,68 @@ export class LlmGatewayService {
     if (opts.json) body.response_format = { type: 'json_object' };
     if (opts.tools?.length) body.tools = opts.tools;
 
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 60_000);
-    try {
-      const res = await fetch(`${base}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(() => '');
-        throw new Error(`LLM ${res.status}: ${t.slice(0, 300)}`);
+    // 失败重试：网络错误/超时/429/5xx 退避重试（最多 3 次尝试）；4xx 配置类错误不重试
+    const MAX_ATTEMPTS = 3;
+    let lastErr = '';
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 60_000);
+      try {
+        const res = await fetch(`${base}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) {
+          const t = await res.text().catch(() => '');
+          const retryable = res.status === 429 || res.status >= 500;
+          lastErr = `HTTP ${res.status}${t ? '：' + t.slice(0, 200) : ''}`;
+          if (strict) throw new Error(lastErr);
+          if (retryable && attempt < MAX_ATTEMPTS) {
+            await sleep(400 * attempt * attempt);
+            continue;
+          }
+          break; // 非重试错误或已用尽尝试 → 降级（如实说明原因）
+        }
+        const data = (await res.json()) as {
+          choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
+        };
+        const msg = data.choices?.[0]?.message;
+        const text = msg?.content ?? '';
+        const toolCalls = (msg?.tool_calls ?? [])
+          .filter((tc) => tc.function?.name)
+          .map((tc) => ({ name: tc.function!.name!, arguments: tc.function!.arguments ?? '{}' }));
+        this.logger.log(`LLM ok: model=${model} toolCalls=${toolCalls.length} textLen=${text.length} attempt=${attempt}`);
+        return { provider: 'deepseek', text, toolCalls };
+      } catch (e) {
+        lastErr = (e as Error).message || String(e);
+        if (strict) throw e; // 测试模式：错误透传（不降级）
+        if (attempt < MAX_ATTEMPTS) {
+          await sleep(400 * attempt * attempt);
+          continue;
+        }
+      } finally {
+        clearTimeout(timer);
       }
-      const data = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
-      };
-      const msg = data.choices?.[0]?.message;
-      const text = msg?.content ?? '';
-      const toolCalls = (msg?.tool_calls ?? [])
-        .filter((tc) => tc.function?.name)
-        .map((tc) => ({ name: tc.function!.name!, arguments: tc.function!.arguments ?? '{}' }));
-      this.logger.log(`LLM ok: model=${model} toolCalls=${toolCalls.length} textLen=${text.length}`);
-      return { provider: 'deepseek', text, toolCalls };
-    } catch (e) {
-      if (strict) throw e; // 测试模式：错误透传（不降级 mock）
-      // 网络/限流失败：不静默——记录并降级 mock，保证业务链路不被单点拖死
-      this.logger.warn(`LLM call failed, fallback mock: ${(e as Error).message}`);
-      return this.mockResult(messages as LlmMessage[], opts);
-    } finally {
-      clearTimeout(timer);
     }
+    if (strict) throw new Error(lastErr || 'LLM 调用失败');
+    // 与「未配置 Key」明确区分：这是真实调用失败后的降级，文案如实反映原因
+    this.logger.warn(`LLM call failed after ${MAX_ATTEMPTS} attempts, degraded: ${lastErr}`);
+    return this.degradedResult(lastErr, messages as LlmMessage[], opts);
+  }
+
+  /** 真实调用失败后的降级结果（不得伪装成「未配置 Key」） */
+  private degradedResult(reason: string, messages: LlmMessage[], opts: ChatOptions): ChatResult {
+    const last = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+    const note = `[AI 调用失败：${reason || '未知原因'}；本次已降级，结果为占位非模型输出]`;
+    return {
+      provider: 'mock',
+      mock: true,
+      degraded: true,
+      reason: reason || '未知原因',
+      text: opts.json ? JSON.stringify({ mock: true, degraded: true, reason, echo: note }) : `${note} ${last.slice(0, 120)}`,
+    };
   }
 
   private mockResult(messages: LlmMessage[], opts: ChatOptions): ChatResult {
