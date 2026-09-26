@@ -2,6 +2,7 @@ import { Button, Card, Divider, Form, Input, Popconfirm, Space, Tag, Typography,
 import { useEffect, useState } from 'react'
 import CrudResource from '../components/CrudResource'
 import type { FieldConfig } from '../components/CrudResource'
+import ProcessDictCard from '../components/ProcessDictCard'
 import ProcessRouteCard from '../components/ProcessRouteCard'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL } from '../lib/labels'
 import { api } from '../lib/api'
@@ -105,6 +106,7 @@ function EntityStats() {
 
 /** 设置页：主数据四实体（spec §3）+ AI 服务配置，列表 + 弹窗直接生效 */
 export default function SetupPage() {
+  const [dictVersion, setDictVersion] = useState(0)
   return (
     <div style={{ maxWidth: 1240 }}>
       <Typography.Title level={4} style={{ marginTop: 0 }}>主数据（设置）</Typography.Title>
@@ -139,7 +141,8 @@ export default function SetupPage() {
           columns={OPERATOR_COLUMNS}
           fields={OPERATOR_FIELDS}
         />
-        <ProcessRouteCard />
+        <ProcessDictCard onChanged={() => setDictVersion((v) => v + 1)} />
+        <ProcessRouteCard reloadToken={dictVersion} />
         <AiConfigCard />
       </div>
     </div>

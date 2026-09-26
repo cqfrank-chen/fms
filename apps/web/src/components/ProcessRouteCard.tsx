@@ -32,7 +32,7 @@ function dictToEditable(dict: ProcessDict[], existing: RouteRow[]): EditRow[] {
 }
 
 /** I13：产品工序路线配置——决定排期工期；服务端整表替换（事务）。 */
-export default function ProcessRouteCard() {
+export default function ProcessRouteCard({ reloadToken = 0 }: { reloadToken?: number }) {
   const [products, setProducts] = useState<Product[]>([])
   const [dict, setDict] = useState<ProcessDict[]>([])
   const [productId, setProductId] = useState<number | null>(null)
@@ -43,8 +43,14 @@ export default function ProcessRouteCard() {
 
   useEffect(() => {
     api<Product[]>('/products').then(setProducts).catch(() => {})
-    api<ProcessDict[]>('/products/processes').then(setDict).catch(() => {})
-  }, [])
+    api<ProcessDict[]>('/products/processes').then(setDict).catch((e) => message.error('加载工序字典失败：' + (e as Error).message))
+  }, [reloadToken])
+
+  // 字典增删改后：已选产品的路线要按新字典重算（避免残留已删工序）
+  useEffect(() => {
+    if (productId) void loadProduct(productId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadToken])
 
   const dictById = useMemo(() => new Map(dict.map((d) => [d.id, d])), [dict])
 

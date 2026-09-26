@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { MasterDataModule } from './master-data/master-data.module';
 import { OperatorsModule } from './operators/operators.module';
 import { OrdersModule } from './orders/orders.module';
 import { PlanSheetsModule } from './plan-sheets/plan-sheets.module';
@@ -28,6 +29,7 @@ import { WarehouseModule } from './warehouse/warehouse.module';
     WarehouseModule,
     AccountingModule,
     SchedulingModule,
+    MasterDataModule,
   ],
   controllers: [AppController],
   providers: [AppService],
