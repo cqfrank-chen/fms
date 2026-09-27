@@ -8,7 +8,8 @@
 param(
   [string]$AppDir,
   [int]$HealthTimeoutSec = 240,
-  [switch]$Force           # 无请求文件也强制走一次更新（用于手动升级）
+  [switch]$Force,          # 无请求文件也强制走一次更新（用于手动升级）
+  [switch]$ForcePackage    # 强制走「压缩包模式」（不依赖 git，用于新机/测试）
 )
 $ErrorActionPreference = 'Continue'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -70,7 +71,8 @@ try {
 
   # ---- 2. 更新代码 ----
   $newSha = $null
-  if (Test-Path (Join-Path $AppDir '.git')) {
+  $useGit = (-not $ForcePackage) -and (Test-Path (Join-Path $AppDir '.git'))
+  if ($useGit) {
     Log '[2/5] git 模式：从 origin 拉取最新代码'
     $branch = Get-EnvValue 'FMS_UPDATE_BRANCH' 'main'
     git fetch origin 2>&1 | Out-Null
@@ -78,13 +80,21 @@ try {
     $newSha = (git rev-parse HEAD).Trim()
     Log ('      代码已更新到 ' + $newSha.Substring(0,7))
   } elseif ($req -and $req.file -and (Test-Path $req.file)) {
-    Log '[2/5] 压缩包模式：解压并覆盖应用目录（保留 .env / backups / updates / docker）'
+    Log '[2/5] 压缩包模式（无需 git）：解压并覆盖应用目录（保留 .env / backups / updates / docker）'
     $tmp = Join-Path $env:TEMP ('fms-upd-' + $stamp)
     if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
     New-Item -ItemType Directory -Path $tmp -Force | Out-Null
-    tar -xzf $req.file -C $tmp
-    if ($LASTEXITCODE -ne 0) { throw '解压失败（tar 不可用？）' }
-    $src = (Get-ChildItem $tmp -Directory | Select-Object -First 1).FullName
+    if ($req.file -like '*.zip') {
+      Expand-Archive -LiteralPath $req.file -DestinationPath $tmp -Force      # Windows 原生，无需 tar
+    } else {
+      tar -xzf $req.file -C $tmp
+      if ($LASTEXITCODE -ne 0) { throw '解压失败（tar 不可用？）' }
+    }
+    # 自动识别源码根：在解压结果里找 docker-compose.yml（兼容「CI 包 system/」与「zipball 根」两种布局）
+    $compose = Get-ChildItem $tmp -Recurse -Depth 3 -Filter 'docker-compose.yml' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $compose) { throw '更新包里找不到 docker-compose.yml，无法识别源码根目录' }
+    $src = Split-Path -Parent $compose.FullName
+    Log ('      源码根：' + $src)
     robocopy $src $AppDir /E /XD .git backups updates docker node_modules /XF .env /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { throw ('robocopy 失败，退出码 ' + $LASTEXITCODE) }
     $newSha = $req.targetSha

@@ -98,21 +98,43 @@ export class UpdateService {
     };
   }
 
-  /** 下载最新版本的源码包（tarball）到共享 updates 目录，供宿主代理使用 */
+  /**
+   * 下载更新包到共享 updates 目录（供宿主代理使用）。
+   * 优先级：① Release 里 CI 打好的 `fms-*.zip` 包 ② 分支 zipball。
+   * 一律用 .zip：Windows 自带 Expand-Archive 即可解压，**新机无需 git / tar**。
+   */
   async download() {
     if (!this.repo) throw new BadRequestException('未配置更新源（FMS_UPDATE_REPO）');
-    const commits = await this.gh<GhCommit[]>(`/repos/${this.repo}/commits?sha=${this.branch}&per_page=1`);
-    const sha = commits[0]?.sha;
-    if (!sha) throw new BadRequestException('未取到远端提交');
     await mkdir(UPDATES_DIR, { recursive: true });
-    const res = await fetch(`${GH}/repos/${this.repo}/tarball/${sha}`, { headers: this.headers(), redirect: 'follow' });
+
+    let url = '';
+    let name = '';
+    let kind: 'package' | 'zipball' = 'zipball';
+    let tag: string | null = null;
+    try {
+      const rel = await this.gh<{ tag_name?: string; assets?: Array<{ name: string; browser_download_url: string }> }>(
+        `/repos/${this.repo}/releases/latest`,
+      );
+      const asset = (rel.assets ?? []).find((a) => /\.zip$/i.test(a.name) && /fms/i.test(a.name));
+      if (asset) { url = asset.browser_download_url; name = asset.name; kind = 'package'; tag = rel.tag_name ?? null; }
+    } catch { /* 无 Release 时退回 zipball */ }
+
+    const commits = await this.gh<GhCommit[]>(`/repos/${this.repo}/commits?sha=${this.branch}&per_page=1`);
+    const sha = commits[0]?.sha ?? '';
+    if (!url) {
+      if (!sha) throw new BadRequestException('未取到远端提交');
+      url = `${GH}/repos/${this.repo}/zipball/${sha}`;
+      name = `fms-${sha.slice(0, 7)}.zip`;
+    }
+
+    const res = await fetch(url, { headers: this.headers(), redirect: 'follow' });
     if (!res.ok) throw new BadRequestException(`下载失败：HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
-    const file = join(UPDATES_DIR, `fms-${sha.slice(0, 7)}.tar.gz`);
+    const file = join(UPDATES_DIR, name);
     await writeFile(file, buf);
     const sha256 = createHash('sha256').update(buf).digest('hex').toUpperCase();
-    this.logger.log(`update downloaded: ${file} ${buf.length} bytes ${sha256.slice(0, 12)}`);
-    return { file, bytes: buf.length, sha256, targetSha: sha, targetShort: sha.slice(0, 7) };
+    this.logger.log(`update downloaded: ${kind} ${file} ${buf.length} bytes`);
+    return { file, name, bytes: buf.length, sha256, kind, tag, targetSha: sha || tag || '', targetShort: (sha || tag || '').slice(0, 7) };
   }
 
   /** 提交更新请求：由宿主代理执行；无代理时提示手动升级 */

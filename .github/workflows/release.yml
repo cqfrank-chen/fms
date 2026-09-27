@@ -1,0 +1,47 @@
+name: Release package
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 组装 system 目录（排除开发资产）
+        run: |
+          set -e
+          mkdir -p out/system
+          git archive HEAD | tar -x -C out/system
+          rm -rf out/system/.scratch out/system/research out/system/backups out/system/updates
+          SHA=$(git rev-parse HEAD)
+          {
+            echo "工厂管理系统 FMS · 发布包版本信息"
+            echo "=================================================================="
+            echo "构建提交   : $SHA"
+            echo "提交标签   : ${GITHUB_REF_NAME}"
+            echo "打包时间   : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "打包方式   : GitHub Actions（git archive + 排除 .scratch/research/backups/updates）"
+            echo "数据库迁移 : apps/api/drizzle（启动时自动执行）"
+            echo "包含内容   : system/（应用源码，docker compose 部署上下文）"
+            echo "说明       : 本包由 CI 产出，不含 .env（密钥不入库）；"
+            echo "             自动更新会用本包内的 system/ 覆盖应用目录；"
+            echo "             安装/升级/域名/更新代理用法见仓库 README 与 system/install.bat 等脚本。"
+          } > out/REVISION.txt
+          cd out && zip -qr "../fms-system-${GITHUB_REF_NAME}.zip" .
+          ls -lh "../fms-system-${GITHUB_REF_NAME}.zip"
+
+      - name: 发布到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fms-system-*.zip
+          generate_release_notes: true
+          body: |
+            自动构建的发布包（system/ 完整部署上下文）。
+            系统内「设置 · 系统更新」点【一键更新】即可使用本包完成升级（宿主机无需 git）。
