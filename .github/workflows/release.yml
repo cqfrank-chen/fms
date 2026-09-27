@@ -14,16 +14,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 构建发布包（本地与 CI 共用同一脚本）
+      - name: 组装 system 目录（排除开发资产）
         run: |
           set -e
-          VERSION="${GITHUB_REF_NAME:-v0.0.0-dev}"
-          pwsh -NoProfile -File packaging/build-package.ps1 -Version "$VERSION" -OutDir . -SkipDir
+          mkdir -p out/system
+          git archive HEAD | tar -x -C out/system
+          rm -rf out/system/.scratch out/system/research out/system/backups out/system/updates out/system/packaging
+          SHA=$(git rev-parse HEAD)
+          {
+            echo "工厂管理系统 FMS · 发布包版本信息"
+            echo "=================================================================="
+            echo "构建提交   : $SHA"
+            echo "提交标签   : ${GITHUB_REF_NAME}"
+            echo "打包时间   : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "打包方式   : GitHub Actions（内联组装 + packaging/ 包装文件）"
+            echo "数据库迁移 : apps/api/drizzle（服务启动时自动执行）"
+            echo "包含内容   : system/ 应用源码 · setup.bat · 安装说明.txt · docker/ 离线安装器放置位"
+            echo "说明       : 不含 .env（密钥不入库）；自动更新使用包内 system/ 覆盖应用目录。"
+          } > out/REVISION.txt
+
+      - name: 汇总完整安装包（system + 包装文件）
+        run: |
+          set -e
+          mkdir -p pkg
+          cp -r out/system pkg/system
+          cp out/REVISION.txt pkg/REVISION.txt
+          cp packaging/setup.bat pkg/setup.bat
+          cp "packaging/安装说明.txt" "pkg/安装说明.txt"
+          mkdir -p pkg/docker
+          cp packaging/docker-README.txt pkg/docker/README.txt
+          ( cd pkg && zip -qr "../fms-setup-${GITHUB_REF_NAME}.zip" * )
+          ( cd out && zip -qr "../fms-system-${GITHUB_REF_NAME}.zip" * )
           ls -lh fms-*.zip
 
       - name: 发布到 Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             fms-system-*.zip
@@ -33,5 +58,5 @@ jobs:
             - `fms-system-*.zip`：仅 system/（体积小，供「设置 · 系统更新」自动更新）
             - `fms-setup-*.zip`：完整安装包（含 setup.bat / 安装说明.txt / docker/，供新机安装）
 
-            > CI 产出为瘦包（不含 Docker Desktop 安装器）；离线安装请把安装器放入 `docker/` 后再运行 `setup.bat`，
+            > CI 为瘦包（不含 Docker Desktop 安装器）；离线安装请把安装器放入 `docker/` 后运行 `setup.bat`，
             > 或本地用 `packaging/build-package.ps1 -Fat` 生成胖包。
