@@ -49,13 +49,20 @@ function Set-EnvValue($key, $value) {
 
 # ---- 是否有更新请求 ----
 $req = $null
-if (Test-Path $reqFile) { try { $req = Get-Content -LiteralPath $reqFile -Raw | ConvertFrom-Json } catch { Log ('[警告] apply.request 解析失败：' + $_.Exception.Message) } }
+if (Test-Path $reqFile) { try { $req = (Get-Content -LiteralPath $reqFile -Raw).TrimStart([char]0xFEFF) | ConvertFrom-Json } catch { Log ('[警告] apply.request 解析失败：' + $_.Exception.Message) } }
+# 更新包路径：请求里存的是【容器内路径】（/app/updates/xxx.zip），宿主机需映射到本地 updates 目录
+$pkgPath = $null
+if ($req) {
+  if ($req.fileName) { $pkgPath = Join-Path $updatesDir $req.fileName }
+  elseif ($req.file) { $pkgPath = Join-Path $updatesDir (Split-Path -Leaf (($req.file -replace '\\', '/'))) }
+  if ($pkgPath -and -not (Test-Path $pkgPath)) { Log ('[警告] 更新包不存在：' + $pkgPath); $pkgPath = $null }
+}
 if (-not $req -and -not $Force) { WriteStatus 'idle' '无待处理更新请求' (Get-EnvValue 'FMS_BUILD_SHA' 'unknown'); exit 0 }
 
 Push-Location $AppDir
 try {
   Log '================ 开始更新 ================'
-  if ($req) { Log ('目标提交：' + $req.targetShort + '  包：' + $req.file) }
+  if ($req) { Log ('目标提交：' + $req.targetShort + '  包：' + $pkgPath) }
 
   # ---- 1. 备份数据库 ----
   $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -79,15 +86,15 @@ try {
     git reset --hard ('origin/' + $branch) 2>&1 | Out-Null
     $newSha = (git rev-parse HEAD).Trim()
     Log ('      代码已更新到 ' + $newSha.Substring(0,7))
-  } elseif ($req -and $req.file -and (Test-Path $req.file)) {
+  } elseif ($pkgPath) {
     Log '[2/5] 压缩包模式（无需 git）：解压并覆盖应用目录（保留 .env / backups / updates / docker）'
     $tmp = Join-Path $env:TEMP ('fms-upd-' + $stamp)
     if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
     New-Item -ItemType Directory -Path $tmp -Force | Out-Null
-    if ($req.file -like '*.zip') {
-      Expand-Archive -LiteralPath $req.file -DestinationPath $tmp -Force      # Windows 原生，无需 tar
+    if ($pkgPath -like '*.zip') {
+      Expand-Archive -LiteralPath $pkgPath -DestinationPath $tmp -Force      # Windows 原生，无需 tar
     } else {
-      tar -xzf $req.file -C $tmp
+      tar -xzf $pkgPath -C $tmp
       if ($LASTEXITCODE -ne 0) { throw '解压失败（tar 不可用？）' }
     }
     # 自动识别源码根：在解压结果里找 docker-compose.yml（兼容「CI 包 system/」与「zipball 根」两种布局）

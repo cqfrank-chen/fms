@@ -147,7 +147,9 @@ export class UpdateService {
       requestedAt: new Date().toISOString(),
       targetSha: dl.targetSha,
       targetShort: dl.targetShort,
+      // file 为容器内路径（展示用）；fileName 供宿主机在 updates 目录内解析
       file: dl.file,
+      fileName: dl.name,
       sha256: dl.sha256,
       operatorId: currentOperatorId(),
     };
