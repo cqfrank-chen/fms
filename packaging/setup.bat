@@ -45,6 +45,25 @@ if !DRYRUN!==1 echo  [DRY-RUN] 演练模式：只打印将执行的步骤，不�
 echo.
 
 REM ---- 1. Docker 引擎是否已可用 ----
+REM ---- 0. 应用国内 Docker 镜像源（daemon.json）----
+if exist "%ROOT%docker\daemon.json" (
+  if not exist "%USERPROFILE%\.docker" mkdir "%USERPROFILE%\.docker" >nul 2>nul
+  copy /y "%ROOT%docker\daemon.json" "%USERPROFILE%\.docker\daemon.json" >nul
+  echo  [0/8] 已配置 Docker 国内镜像源（daemon.json）
+  docker info >nul 2>nul
+  if not errorlevel 1 (
+    echo        检测到 Docker 正在运行：重启以让镜像源生效（约 30 秒）...
+    docker desktop restart >nul 2>nul
+    if errorlevel 1 (
+      taskkill /f /im "Docker Desktop.exe" >nul 2>nul
+      ping -n 4 127.0.0.1 >nul
+      if exist "%DOCKER_EXE%" start "" "%DOCKER_EXE%"
+    )
+  )
+) else (
+  echo  [0/8] 未找到 docker\daemon.json，跳过镜像源配置（可能拉不动镜像）
+)
+
 echo  [1/8] 检查 Docker 引擎...
 set "PATH=%PATH%;%DOCKER_BIN%"
 docker info >nul 2>nul
@@ -102,6 +121,11 @@ if !DRYRUN!==1 (
 ) else (
   powershell -NoProfile -Command "$r = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux,VirtualMachinePlatform -All -NoRestart -ErrorAction SilentlyContinue; if ($r -and $r.RestartNeeded) { exit 7 } else { exit 0 }"
   if errorlevel 7 set "NEED_REBOOT=1"
+REM ---- WSL2 内核更新包（国内常拉不动官方源，包内自带则离线安装）----
+if exist "%ROOT%docker\wsl_update_x64.msi" (
+  echo        安装 WSL2 内核更新包（离线）...
+  msiexec /i "%ROOT%docker\wsl_update_x64.msi" /qn /norestart
+)
 )
 
 REM ---- 2c. 静默安装 Docker Desktop ----

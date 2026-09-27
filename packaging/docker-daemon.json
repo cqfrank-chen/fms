@@ -1,0 +1,15 @@
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1panel.live",
+    "https://hub.rat.dev",
+    "https://dockerproxy.net",
+    "https://docker.mirrors.ustc.edu.cn"
+  ],
+  "dns": [
+    "223.5.5.5",
+    "119.29.29.29"
+  ],
+  "max-concurrent-downloads": 6,
+  "experimental": false
+}

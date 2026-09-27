@@ -89,6 +89,7 @@ try {
   $dockerDir = Join-Path $pkg 'docker'
   New-Item -ItemType Directory -Path $dockerDir -Force | Out-Null
   Copy-Item (Join-Path $packagingDir 'docker-README.txt') (Join-Path $dockerDir 'README.txt') -Force
+  Copy-Item (Join-Path $packagingDir 'docker-daemon.json') (Join-Path $dockerDir 'daemon.json') -Force
 
   # 4) 胖包：放入 Docker Desktop 安装器
   if ($Fat) {
