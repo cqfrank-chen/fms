@@ -105,5 +105,10 @@ echo  ▸ 本机访问：  http://localhost
 echo  ▸ 厂内访问：  http://本机局域网IP（其它电脑用）
 echo  ▸ 查看 IP：   在 cmd 运行 ipconfig 查 IPv4 地址
 echo.
+echo  ▸ 本地域名（推荐，免记 IP）：双击运行 set-domain.bat
+echo     本机绑定后即可用 http://fms.local 访问；
+echo     其它电脑运行 set-domain.bat -Ip 服务器IP 指向本机；
+echo     全厂可用：在路由器/内网 DNS 加 A 记录  fms.local 到服务器 IP。
+echo.
 pause
 endlocal
