@@ -121,10 +121,20 @@ if !DRYRUN!==1 (
 ) else (
   powershell -NoProfile -Command "$r = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux,VirtualMachinePlatform -All -NoRestart -ErrorAction SilentlyContinue; if ($r -and $r.RestartNeeded) { exit 7 } else { exit 0 }"
   if errorlevel 7 set "NEED_REBOOT=1"
-REM ---- WSL2 内核更新包（国内常拉不动官方源，包内自带则离线安装）----
-if exist "%ROOT%docker\wsl_update_x64.msi" (
-  echo        安装 WSL2 内核更新包（离线）...
-  msiexec /i "%ROOT%docker\wsl_update_x64.msi" /qn /norestart
+REM ---- WSL2 内核更新包（国内常拉不动官方源，包内自带则离线安装；WSL 已可用则跳过）----
+wsl --status >nul 2>nul
+if errorlevel 1 (
+  if exist "%ROOT%docker\wsl_update_x64.msi" (
+    echo        安装 WSL2 内核更新包（离线）...
+    msiexec /i "%ROOT%docker\wsl_update_x64.msi" /qn /norestart
+    if "!errorlevel!"=="3010" echo        [提示] 内核已安装，重启后生效（正常）
+    if "!errorlevel!"=="1641" echo        [提示] 内核已安装，重启后生效（正常）
+    if not "!errorlevel!"=="0" if not "!errorlevel!"=="3010" if not "!errorlevel!"=="1641" echo        [警告] 内核安装返回 !errorlevel!，继续安装（Docker Desktop 自带 WSL 发行版，通常仍可用）
+  ) else (
+    echo        [警告] 未找到 docker\wsl_update_x64.msi（老版 Win10 需要它，请手动补装）
+  )
+) else (
+  echo        WSL 已可用，跳过内核更新包
 )
 )
 

@@ -67,3 +67,10 @@
     · 包装文件（setup.bat / 本说明 / docker-README.txt）的版本管理来源是 packaging\；
     · CI（GitHub Actions，推送 v* tag 触发）目前使用内联组装流程出包，尚未调用该脚本；
       两者产物结构一致，仅"由谁组装"不同（已知小债，见 Review 报告）。
+
+【WSL2 内核兼容性（Win10 新机必读）】
+  · Windows 10（1903–21H2）：需要 docker\wsl_update_x64.msi，setup.bat 会自动静默安装
+  · Windows 11 / 较新 Win10：内核已内置（或为 Store 版 WSL），setup.bat 检测 WSL 可用即跳过
+  · 包内该文件 SHA256：4D09C776C8D45F70A202281D18E19BE1118F5315…（16.3MB）
+  · 若目标机缺该文件：从已装好的机器 C:\Users\<用户>\Downloads 拷入 docker\ 即可
+  · 说明：Docker Desktop 自带 docker-desktop 发行版，无需从 Microsoft Store 下载 Ubuntu
