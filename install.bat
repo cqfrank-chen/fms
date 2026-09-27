@@ -45,6 +45,13 @@ echo.
 
 REM ---- 3. 构建镜像（首次约 5-15 分钟，视网络）----
 echo  [3/5] 构建服务镜像（首次较慢，请耐心等待）...
+REM ---- 记录构建提交号（设置页「系统更新」据此比对 GitHub 版本）----
+set "SHA="
+if exist "..\REVISION.txt" for /f "tokens=3" %%a in ('findstr /b "构建提交" "..\REVISION.txt" 2^>nul') do set "SHA=%%a"
+if not defined SHA for /f "delims=" %%a in ('git rev-parse HEAD 2^>nul') do set "SHA=%%a"
+if not defined SHA set "SHA=unknown"
+powershell -NoProfile -Command "$f='.env'; $l=@(); if (Test-Path $f) { $l=@(Get-Content $f | Where-Object { $_ -notmatch '^FMS_BUILD_SHA=' }) }; $l+='FMS_BUILD_SHA=%SHA%'; Set-Content -Path $f -Value $l -Encoding UTF8"
+echo        构建提交：%SHA%
 docker compose build
 if errorlevel 1 (
   echo  [错误] 镜像构建失败，请检查网络后重试。

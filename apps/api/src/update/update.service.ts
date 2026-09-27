@@ -1,0 +1,137 @@
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { currentOperatorId } from '../common/operator-context';
+
+/**
+ * 自动更新（I13）· 方案①「宿主更新代理」：
+ *  - 本服务只负责：比对 GitHub 版本 → 下载新版本包 → 写「更新请求」文件
+ *  - 真正执行（备份 → 替换代码 → docker compose build/up → 健康校验）由宿主机上的
+ *    auto-update.bat / deploy\fms-updater.ps1 完成——容器不持有 Docker 权限
+ */
+const UPDATES_DIR = process.env.FMS_UPDATES_DIR ?? '/app/updates';
+const GH = 'https://api.github.com';
+
+interface GhCommit {
+  sha: string;
+  commit: { message?: string; author?: { date?: string; name?: string } };
+}
+
+@Injectable()
+export class UpdateService {
+  private readonly logger = new Logger(UpdateService.name);
+
+  private get repo(): string { return process.env.FMS_UPDATE_REPO ?? ''; }
+  private get branch(): string { return process.env.FMS_UPDATE_BRANCH ?? 'main'; }
+  private get currentSha(): string { return process.env.FMS_BUILD_SHA ?? 'unknown'; }
+
+  private headers(): Record<string, string> {
+    const h: Record<string, string> = { Accept: 'application/vnd.github+json', 'User-Agent': 'fms-update' };
+    const t = process.env.FMS_UPDATE_TOKEN;
+    if (t) h.Authorization = `Bearer ${t}`;
+    return h;
+  }
+
+  private async gh<T>(path: string): Promise<T> {
+    const res = await fetch(`${GH}${path}`, { headers: this.headers() });
+    if (!res.ok) {
+      const hint = res.status === 404 ? '（仓库不存在，或私有仓库未配置 FMS_UPDATE_TOKEN）' : '';
+      throw new BadRequestException(`GitHub 返回 HTTP ${res.status}${hint}`);
+    }
+    return (await res.json()) as T;
+  }
+
+  /** 宿主更新代理状态（由 auto-update.bat 写入 updates/agent.status） */
+  private async agentStatus() {
+    try {
+      const j = JSON.parse(await readFile(join(UPDATES_DIR, 'agent.status'), 'utf8')) as {
+        lastRunAt?: string; lastResult?: string; version?: string;
+      };
+      const ageMin = (Date.now() - new Date(j.lastRunAt ?? 0).getTime()) / 60000;
+      return { installed: true, online: ageMin < 15, lastRunAt: j.lastRunAt ?? null, lastResult: j.lastResult ?? null, version: j.version ?? null };
+    } catch {
+      return { installed: false, online: false, lastRunAt: null, lastResult: null, version: null };
+    }
+  }
+
+  private async pendingRequest() {
+    try { return JSON.parse(await readFile(join(UPDATES_DIR, 'apply.request'), 'utf8')); } catch { return null; }
+  }
+
+  /** 版本比对：当前构建号 vs GitHub 最新提交 */
+  async status() {
+    const agent = await this.agentStatus();
+    const pendingRequest = await this.pendingRequest();
+    if (!this.repo) {
+      return { configured: false, message: '未配置 FMS_UPDATE_REPO（.env 中填写 GitHub 仓库 owner/name）', currentSha: this.currentSha, agent, pendingRequest };
+    }
+    const commits = await this.gh<GhCommit[]>(`/repos/${this.repo}/commits?sha=${this.branch}&per_page=10`);
+    const latest = commits[0];
+    const current = this.currentSha;
+    return {
+      configured: true,
+      repo: this.repo,
+      branch: this.branch,
+      repoUrl: `https://github.com/${this.repo}`,
+      currentSha: current,
+      currentShort: current === 'unknown' ? '未知（旧版本包未带构建号）' : current.slice(0, 7),
+      latestSha: latest?.sha ?? null,
+      latestShort: (latest?.sha ?? '').slice(0, 7),
+      latestDate: latest?.commit?.author?.date ?? null,
+      latestMessage: (latest?.commit?.message ?? '').split('\n')[0],
+      hasUpdate: !!latest && current !== 'unknown' && latest.sha !== current,
+      changelog: commits.map((c) => ({
+        sha: c.sha.slice(0, 7),
+        message: (c.commit?.message ?? '').split('\n')[0],
+        date: c.commit?.author?.date ?? null,
+        author: c.commit?.author?.name ?? null,
+      })),
+      checkedAt: new Date().toISOString(),
+      agent,
+      pendingRequest,
+    };
+  }
+
+  /** 下载最新版本的源码包（tarball）到共享 updates 目录，供宿主代理使用 */
+  async download() {
+    if (!this.repo) throw new BadRequestException('未配置更新源（FMS_UPDATE_REPO）');
+    const commits = await this.gh<GhCommit[]>(`/repos/${this.repo}/commits?sha=${this.branch}&per_page=1`);
+    const sha = commits[0]?.sha;
+    if (!sha) throw new BadRequestException('未取到远端提交');
+    await mkdir(UPDATES_DIR, { recursive: true });
+    const res = await fetch(`${GH}/repos/${this.repo}/tarball/${sha}`, { headers: this.headers(), redirect: 'follow' });
+    if (!res.ok) throw new BadRequestException(`下载失败：HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const file = join(UPDATES_DIR, `fms-${sha.slice(0, 7)}.tar.gz`);
+    await writeFile(file, buf);
+    const sha256 = createHash('sha256').update(buf).digest('hex').toUpperCase();
+    this.logger.log(`update downloaded: ${file} ${buf.length} bytes ${sha256.slice(0, 12)}`);
+    return { file, bytes: buf.length, sha256, targetSha: sha, targetShort: sha.slice(0, 7) };
+  }
+
+  /** 提交更新请求：由宿主代理执行；无代理时提示手动升级 */
+  async apply() {
+    const st = await this.status();
+    if (!st.configured) throw new BadRequestException('未配置更新源（FMS_UPDATE_REPO）');
+    const dl = await this.download();
+    await mkdir(UPDATES_DIR, { recursive: true });
+    const request = {
+      requestedAt: new Date().toISOString(),
+      targetSha: dl.targetSha,
+      targetShort: dl.targetShort,
+      file: dl.file,
+      sha256: dl.sha256,
+      operatorId: currentOperatorId(),
+    };
+    await writeFile(join(UPDATES_DIR, 'apply.request'), JSON.stringify(request, null, 2), 'utf8');
+    const agent = st.agent as { online?: boolean };
+    return {
+      mode: agent?.online ? 'agent' : 'manual',
+      request,
+      message: agent?.online
+        ? '更新请求已提交：宿主更新代理将自动执行「备份数据库 → 替换代码 → 重建并重启 → 健康校验」，约 1-3 分钟后刷新页面即可'
+        : '更新包已下载到 updates 目录。未检测到宿主更新代理，请在服务器上运行 system\\upgrade.bat；或先安装代理：system\\auto-update.bat install',
+    };
+  }
+}

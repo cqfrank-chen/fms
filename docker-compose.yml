@@ -52,6 +52,14 @@ services:
       AI_VISION_BASE_URL: ${AI_VISION_BASE_URL:-}
       AI_VISION_KEY: ${AI_VISION_KEY:-}
       AI_VISION_MODEL: ${AI_VISION_MODEL:-qwen3-vl-flash}
+      # 自动更新（I13）：构建提交号由安装/升级脚本写入 .env；更新源指向 GitHub 仓库
+      FMS_BUILD_SHA: ${FMS_BUILD_SHA:-unknown}
+      FMS_UPDATE_REPO: ${FMS_UPDATE_REPO:-cqfrank-chen/fms}
+      FMS_UPDATE_BRANCH: ${FMS_UPDATE_BRANCH:-main}
+      FMS_UPDATE_TOKEN: ${FMS_UPDATE_TOKEN:-}
+    volumes:
+      # 更新包 / 更新请求 / 宿主更新代理状态（与宿主 system\updates 共享）
+      - ./updates:/app/updates
     depends_on:
       postgres:
         condition: service_healthy

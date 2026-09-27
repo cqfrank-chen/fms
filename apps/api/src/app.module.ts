@@ -14,6 +14,7 @@ import { PlanSheetsModule } from './plan-sheets/plan-sheets.module';
 import { ProductsModule } from './products/products.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
+import { UpdateModule } from './update/update.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
 import { OperatorInterceptor } from './common/operator.interceptor';
 
@@ -32,6 +33,7 @@ import { OperatorInterceptor } from './common/operator.interceptor';
     AccountingModule,
     SchedulingModule,
     MasterDataModule,
+    UpdateModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_INTERCEPTOR, useClass: OperatorInterceptor }],

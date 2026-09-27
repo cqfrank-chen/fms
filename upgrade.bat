@@ -39,6 +39,13 @@ if errorlevel 1 (
 )
 
 echo  [2/4] 重新构建镜像...
+REM ---- 记录构建提交号（设置页「系统更新」据此比对 GitHub 版本）----
+set "SHA="
+if exist "..\REVISION.txt" for /f "tokens=3" %%a in ('findstr /b "构建提交" "..\REVISION.txt" 2^>nul') do set "SHA=%%a"
+if not defined SHA for /f "delims=" %%a in ('git rev-parse HEAD 2^>nul') do set "SHA=%%a"
+if not defined SHA set "SHA=unknown"
+powershell -NoProfile -Command "$f='.env'; $l=@(); if (Test-Path $f) { $l=@(Get-Content $f | Where-Object { $_ -notmatch '^FMS_BUILD_SHA=' }) }; $l+='FMS_BUILD_SHA=%SHA%'; Set-Content -Path $f -Value $l -Encoding UTF8"
+echo        构建提交：%SHA%
 docker compose build
 if errorlevel 1 (
   echo  [错误] 构建失败。已保留升级前备份，可回滚旧版本代码后重试。

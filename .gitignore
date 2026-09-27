@@ -18,3 +18,6 @@ dist/
 Thumbs.db
 .DS_Store
 backups/
+
+# 自动更新代理的运行文件（状态/请求/日志/下载包）
+updates/
