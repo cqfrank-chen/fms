@@ -45,7 +45,9 @@ export class UpdateService {
   /** 宿主更新代理状态（由 auto-update.bat 写入 updates/agent.status） */
   private async agentStatus() {
     try {
-      const j = JSON.parse(await readFile(join(UPDATES_DIR, 'agent.status'), 'utf8')) as {
+      // 兼容带 BOM 的文件（PowerShell Set-Content -Encoding UTF8 会写 BOM）
+      const raw = (await readFile(join(UPDATES_DIR, 'agent.status'), 'utf8')).replace(/^\uFEFF/, '');
+      const j = JSON.parse(raw) as {
         lastRunAt?: string; lastResult?: string; version?: string;
       };
       const ageMin = (Date.now() - new Date(j.lastRunAt ?? 0).getTime()) / 60000;
@@ -56,7 +58,10 @@ export class UpdateService {
   }
 
   private async pendingRequest() {
-    try { return JSON.parse(await readFile(join(UPDATES_DIR, 'apply.request'), 'utf8')); } catch { return null; }
+    try {
+      const raw = (await readFile(join(UPDATES_DIR, 'apply.request'), 'utf8')).replace(/^\uFEFF/, '');
+      return JSON.parse(raw);
+    } catch { return null; }
   }
 
   /** 版本比对：当前构建号 vs GitHub 最新提交 */
