@@ -94,21 +94,32 @@ if errorlevel 1 (
 ) else (
   echo        应用已就绪（/api/health 正常）
 )
+REM ---- 7. 本地域名绑定（可选，默认绑定）----
 echo.
+echo  [7/7] 绑定本地域名（http://fms.local，免记 IP）...
+if exist "deploy\set-domain.ps1" (
+  set "BIND=Y"
+  set /p "BIND=     是否绑定 http://fms.local 到本机？(Y/n，直接回车=是) "
+  if /i "!BIND!"=="N" (
+    echo        已跳过；日后可双击 set-domain.bat 绑定。
+  ) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "deploy\set-domain.ps1"
+    if errorlevel 1 echo        [警告] 绑定失败（可能非管理员），可双击 set-domain.bat 手动绑定。
+  )
+) else (
+  echo        未找到域名脚本，跳过（可稍后双击 set-domain.bat）。
+)
 
+echo.
 echo  ============================================
 echo    安装完成！服务状态：
 echo  ============================================
 docker compose ps
 echo.
-echo  ▸ 本机访问：  http://localhost
-echo  ▸ 厂内访问：  http://本机局域网IP（其它电脑用）
+echo  ▸ 本机访问：  http://fms.local   （已绑定域名）
+echo  ▸ 厂内访问：  http://fms.local   （其它电脑运行 set-domain.bat -Ip 服务器IP）
+echo  ▸ 备用地址：  http://localhost / http://本机局域网IP
 echo  ▸ 查看 IP：   在 cmd 运行 ipconfig 查 IPv4 地址
-echo.
-echo  ▸ 本地域名（推荐，免记 IP）：双击运行 set-domain.bat
-echo     本机绑定后即可用 http://fms.local 访问；
-echo     其它电脑运行 set-domain.bat -Ip 服务器IP 指向本机；
-echo     全厂可用：在路由器/内网 DNS 加 A 记录  fms.local 到服务器 IP。
 echo.
 pause
 endlocal

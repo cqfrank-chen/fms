@@ -9,7 +9,7 @@ REM ============================================================
 net session >nul 2>nul
 if errorlevel 1 (
   echo  [信息] 修改 hosts 需要管理员权限，正在请求提权...
-  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs"
+  powershell -NoProfile -Command "if ('%*' -ne '') { Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs } else { Start-Process -FilePath '%~f0' -Verb RunAs }"
   exit /b
 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0deploy\set-domain.ps1" %*
