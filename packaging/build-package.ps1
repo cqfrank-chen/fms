@@ -47,7 +47,8 @@ try {
   Write-Host ('版本号   : ' + $Version)
   Write-Host ('输出目录 : ' + $OutDir + '   模式：' + $(if ($Fat) { '胖包(含安装器)' } else { '瘦包' }))
 
-  $work = Join-Path $env:TEMP ('fms-pkg-' + (Get-Date -Format 'yyyyMMddHHmmss'))
+  # 跨平台临时目录：Linux/CI 上 $env:TEMP 为空，用 GetTempPath()
+  $work = Join-Path ([IO.Path]::GetTempPath()) ('fms-pkg-' + (Get-Date -Format 'yyyyMMddHHmmss'))
   $sysDir = Join-Path $work 'system'
   New-Item -ItemType Directory -Path $sysDir -Force | Out-Null
 
