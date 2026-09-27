@@ -27,21 +27,38 @@ jobs:
             echo "构建提交   : $SHA"
             echo "提交标签   : ${GITHUB_REF_NAME}"
             echo "打包时间   : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "打包方式   : GitHub Actions（git archive + 排除 .scratch/research/backups/updates）"
-            echo "数据库迁移 : apps/api/drizzle（启动时自动执行）"
-            echo "包含内容   : system/（应用源码，docker compose 部署上下文）"
+            echo "打包方式   : GitHub Actions（git archive + packaging/ 包装文件）"
+            echo "数据库迁移 : apps/api/drizzle（服务启动时自动执行）"
+            echo "包含内容   : system/ 应用源码 · setup.bat · 安装说明.txt · docker/ 离线安装器放置位"
             echo "说明       : 本包由 CI 产出，不含 .env（密钥不入库）；"
-            echo "             自动更新会用本包内的 system/ 覆盖应用目录；"
-            echo "             安装/升级/域名/更新代理用法见仓库 README 与 system/install.bat 等脚本。"
+            echo "             自动更新使用包内 system/ 覆盖应用目录；docker/ 内可放 Docker Desktop 安装器实现离线安装。"
           } > out/REVISION.txt
-          cd out && zip -qr "../fms-system-${GITHUB_REF_NAME}.zip" .
-          ls -lh "../fms-system-${GITHUB_REF_NAME}.zip"
+
+      - name: 汇总完整安装包（system + 包装文件）
+        run: |
+          set -e
+          mkdir -p pkg
+          cp -r out/system pkg/system
+          cp out/REVISION.txt pkg/REVISION.txt
+          cp packaging/setup.bat pkg/setup.bat
+          cp "packaging/安装说明.txt" "pkg/安装说明.txt"
+          mkdir -p pkg/docker
+          cp packaging/docker-README.txt pkg/docker/README.txt
+          # 用通配符打包：条目名不带 ./ 前缀（否则 Windows 资源管理器会显示为空）
+          ( cd pkg && zip -qr "../fms-setup-${GITHUB_REF_NAME}.zip" * )
+          ( cd out && zip -qr "../fms-system-${GITHUB_REF_NAME}.zip" * )
+          ls -lh fms-*.zip
 
       - name: 发布到 Release
         uses: softprops/action-gh-release@v2
         with:
-          files: fms-system-*.zip
+          files: |
+            fms-system-*.zip
+            fms-setup-*.zip
           generate_release_notes: true
           body: |
-            自动构建的发布包（system/ 完整部署上下文）。
-            系统内「设置 · 系统更新」点【一键更新】即可使用本包完成升级（宿主机无需 git）。
+            - `fms-system-*.zip`：仅 system/（体积小，供「设置 · 系统更新」自动更新使用）
+            - `fms-setup-*.zip`：完整安装包（含 setup.bat / 安装说明.txt / docker 目录，供新机安装）
+
+            > 完整安装包不含 Docker Desktop 安装器（CI 不便携带 630MB）；
+            > 离线安装请把安装器放入 `docker/` 后再运行 `setup.bat`。
