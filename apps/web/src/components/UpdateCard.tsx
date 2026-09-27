@@ -121,7 +121,7 @@ export default function UpdateCard() {
               type="info"
               showIcon
               message="未安装宿主更新代理"
-              description={<span>点「一键更新」只会下载更新包并生成请求文件，仍需在服务器上运行 <Text code>system\upgrade.bat</Text>。若想真正一键完成，请在服务器上双击 <Text code>system\auto-update.bat</Text> 并选「安装为计划任务」（每 5 分钟检查一次更新请求）。</span>}
+              description={<span>点「一键更新」会下载更新包并生成请求文件；随后在服务器上双击 <Text code>system\upgrade.bat</Text> 即可自动应用（备份 → 覆盖 → 重建 → 健康校验）。想免手动则双击 <Text code>system\auto-update.bat</Text> 选「安装为计划任务」，页面会显示「代理在线」。</span>}
             />
           )}
 

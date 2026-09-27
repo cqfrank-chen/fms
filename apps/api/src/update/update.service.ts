@@ -167,7 +167,7 @@ export class UpdateService {
       request,
       message: agent?.online
         ? '更新请求已提交：宿主更新代理将自动执行「备份数据库 → 替换代码 → 重建并重启 → 健康校验」，约 1-3 分钟后刷新页面即可'
-        : '更新包已下载到 updates 目录。未检测到宿主更新代理，请在服务器上运行 system\\upgrade.bat；或先安装代理：system\\auto-update.bat install',
+        : '更新包已下载到 updates 目录。未检测到宿主更新代理，请在服务器上双击 system\\upgrade.bat（它会自动应用已下载的更新包：备份 → 覆盖 → 重建 → 健康校验）；想全自动则安装代理：system\\auto-update.bat install',
     };
   }
 }

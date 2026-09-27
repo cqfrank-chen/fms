@@ -26,6 +26,16 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM ---- 若设置页提交过更新请求，优先由更新代理应用（含备份/覆盖/重建/健康校验）----
+if exist "updates\apply.request" (
+  echo  [信息] 检测到设置页提交的更新请求，交由更新代理应用（下载包已就绪）...
+  echo.
+  powershell -NoProfile -ExecutionPolicy Bypass -File "deploy\fms-updater.ps1"
+  echo.
+  pause
+  exit /b 0
+)
+
 echo  [1/4] 升级前自动备份...
 if not exist "backups" mkdir "backups"
 for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "STAMP=%%i"
