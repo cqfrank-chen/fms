@@ -53,3 +53,17 @@
    先去 https://www.docker.com/products/docker-desktop/ 下载
    "Docker Desktop Installer.exe"（约 500MB），放进本目录的
    docker\ 文件夹，再双击 setup.bat —— 将直接本地安装、不联网下载。
+
+【开发者：打包发布（本地与 CI 现状）】
+  一条命令产出两个包（本地已验证）：
+    powershell -File packaging\build-package.ps1                # 瘦包（不含 Docker 安装器）
+    powershell -File packaging\build-package.ps1 -Fat           # 胖包（自动放入 Docker Desktop 安装器）
+    powershell -File packaging\build-package.ps1 -Version v1.0.7 -OutDir D:\futures
+  产物：
+    fms-system-<ver>.zip   仅 system/（自动更新用，约 350KB）
+    fms-setup-<ver>.zip    完整安装包（system/ + setup.bat + 安装说明.txt + docker/）
+    fms-发布包\            解压后的目录，可直接使用（会保留已有 system\.env，不丢 AI Key）
+  说明：
+    · 包装文件（setup.bat / 本说明 / docker-README.txt）的版本管理来源是 packaging\；
+    · CI（GitHub Actions，推送 v* tag 触发）目前使用内联组装流程出包，尚未调用该脚本；
+      两者产物结构一致，仅"由谁组装"不同（已知小债，见 Review 报告）。
