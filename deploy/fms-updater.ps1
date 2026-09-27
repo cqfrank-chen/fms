@@ -26,9 +26,10 @@ function Log($m) {
 }
 function WriteStatus($result, $detail, $sha) {
   $o = [ordered]@{ lastRunAt = (Get-Date).ToUniversalTime().ToString('o'); lastResult = $result; detail = $detail; version = $sha; host = $env:COMPUTERNAME }
-  # 必须无 BOM：后端用 JSON.parse 读取，带 BOM 会解析失败（PowerShell 5.1 的 -Encoding UTF8 会写 BOM）
+  # 以 UTF-8(带 BOM) 写入：Windows 记事本/PowerShell 默认可正确显示中文；
+  # 后端读取时已剥离 BOM，兼容两边
   $json = $o | ConvertTo-Json
-  [IO.File]::WriteAllText($statusFile, $json, [Text.UTF8Encoding]::new($false))
+  [IO.File]::WriteAllText($statusFile, $json, [Text.UTF8Encoding]::new($true))
 }
 function Get-EnvValue($key, $default) {
   $f = Join-Path $AppDir '.env'
