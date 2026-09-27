@@ -15,6 +15,7 @@ param(
   [string]$PkgDirName = 'fms-发布包',
   [string]$InstallerPath = '',
   [string]$WslMsiPath = '',
+  [string]$ImagesDir = '',   # 离线镜像目录（内含 *.tar，docker save 导出）
   [switch]$Fat,
   [switch]$SkipDir
 )
@@ -110,6 +111,16 @@ try {
       Write-Host ('已包含安装器 : ' + [math]::Round((Get-Item $ins).Length / 1MB) + ' MB')
     } else {
       Write-Warning '未找到 Docker Desktop 安装器，退化为瘦包（新机需联网下载或手动放置）'
+    }
+  }
+
+  # 离线镜像（可选）：放入 docker/images/*.tar，新机 docker load 后 --no-build 启动，全程不联网
+  if ($ImagesDir -and (Test-Path $ImagesDir)) {
+    $imgOut = Join-Path $dockerDir 'images'
+    New-Item -ItemType Directory -Path $imgOut -Force | Out-Null
+    Get-ChildItem $ImagesDir -Filter '*.tar' | ForEach-Object {
+      Copy-Item $_.FullName (Join-Path $imgOut $_.Name) -Force
+      Write-Host ('已包含离线镜像 : ' + $_.Name + '  ' + [math]::Round($_.Length / 1MB) + ' MB')
     }
   }
 
