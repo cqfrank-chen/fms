@@ -120,7 +120,14 @@ export class UpdateService {
     } catch { /* 无 Release 时退回 zipball */ }
 
     const commits = await this.gh<GhCommit[]>(`/repos/${this.repo}/commits?sha=${this.branch}&per_page=1`);
-    const sha = commits[0]?.sha ?? '';
+    let sha = commits[0]?.sha ?? '';
+    // 用 Release 包时，版本号应取 tag 指向的提交（而非分支 HEAD），否则页面显示的版本会偏新
+    if (kind === 'package' && tag) {
+      try {
+        const tagCommit = await this.gh<{ sha: string }>('/repos/' + this.repo + '/commits/' + encodeURIComponent(tag));
+        if (tagCommit?.sha) sha = tagCommit.sha;
+      } catch { /* 取不到 tag 提交时保留分支 HEAD */ }
+    }
     if (!url) {
       if (!sha) throw new BadRequestException('未取到远端提交');
       url = `${GH}/repos/${this.repo}/zipball/${sha}`;
