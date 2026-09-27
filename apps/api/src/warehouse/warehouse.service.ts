@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, goodsReceipts, goodsReceiptLines, incomingGoods, inventory, orderLines, orders,
-  outboundAllocations, outboundLines, outbounds, payables, planSheets, products, receivables, stocktakes, suppliers,
+  operators, outboundAllocations, outboundLines, outbounds, payables, planSheets, products, receivables, stocktakes, suppliers,
 } from '../db/schema';
 import type { Outbound, PackagingSpec } from '../db/schema';
 import { fromCents, MONEY_EPS, round2, sumLineCents, toCents } from '../common/money';
@@ -61,9 +61,10 @@ export class WarehouseService {
   // ==================== 入库单 ====================
   async receipts() {
     const rows = await db
-      .select({ r: goodsReceipts, planNo: planSheets.planNo })
+      .select({ r: goodsReceipts, planNo: planSheets.planNo, operatorName: operators.name })
       .from(goodsReceipts)
       .leftJoin(planSheets, eq(goodsReceipts.planSheetId, planSheets.id))
+      .leftJoin(operators, eq(goodsReceipts.operatorId, operators.id))
       .orderBy(desc(goodsReceipts.id));
     if (!rows.length) return [];
     const ids = rows.map((x) => x.r.id);
@@ -79,7 +80,7 @@ export class WarehouseService {
       arr.push({ ...l, productName });
       byId.set(l.receiptId, arr);
     }
-    return rows.map(({ r, planNo }) => ({ ...r, planNo, lines: byId.get(r.id) ?? [] }));
+    return rows.map(({ r, planNo, operatorName }) => ({ ...r, planNo, operatorName: operatorName ?? null, lines: byId.get(r.id) ?? [] }));
   }
 
   /** 入库确认：草稿 → 已确认；按行批次入库（库存+）。状态流转走事务内条件更新，防并发重复确认 */
@@ -152,10 +153,12 @@ export class WarehouseService {
     const rows = await db
       .select({
         o: outbounds, orderNo: orders.orderNo, customerId: orders.customerId, customerName: customers.name,
+        operatorName: operators.name,
       })
       .from(outbounds)
       .innerJoin(orders, eq(outbounds.orderId, orders.id))
       .leftJoin(customers, eq(orders.customerId, customers.id))
+      .leftJoin(operators, eq(outbounds.operatorId, operators.id))
       .orderBy(desc(outbounds.id));
     if (!rows.length) return [];
     const ids = rows.map((x) => x.o.id);
@@ -380,11 +383,12 @@ export class WarehouseService {
   // ==================== 来料登记 ====================
   async incomingList() {
     const rows = await db
-      .select({ g: incomingGoods, supplierName: suppliers.name })
+      .select({ g: incomingGoods, supplierName: suppliers.name, operatorName: operators.name })
       .from(incomingGoods)
       .leftJoin(suppliers, eq(incomingGoods.supplierId, suppliers.id))
+      .leftJoin(operators, eq(incomingGoods.operatorId, operators.id))
       .orderBy(desc(incomingGoods.id));
-    return rows.map(({ g, supplierName }) => ({ ...g, supplierName }));
+    return rows.map(({ g, supplierName, operatorName }) => ({ ...g, supplierName, operatorName: operatorName ?? null }));
   }
 
   async createIncoming(dto: { supplierId: number; materialName: string; quantity: number; amount: number; batchNo?: string }) {
@@ -452,11 +456,12 @@ export class WarehouseService {
   // ==================== 盘点 ====================
   async stocktakesList() {
     const rows = await db
-      .select({ s: stocktakes, productName: products.name })
+      .select({ s: stocktakes, productName: products.name, operatorName: operators.name })
       .from(stocktakes)
       .leftJoin(products, eq(stocktakes.productId, products.id))
+      .leftJoin(operators, eq(stocktakes.operatorId, operators.id))
       .orderBy(desc(stocktakes.id));
-    return rows.map(({ s, productName }) => ({ ...s, productName }));
+    return rows.map(({ s, productName, operatorName }) => ({ ...s, productName, operatorName: operatorName ?? null }));
   }
 
   /** 建档盘点：对 SKU×批次录实盘数（账面自动取现库存） */

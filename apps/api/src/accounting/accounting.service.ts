@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   collectionSlipLines, collectionSlips, customers, incomingGoods, monthlyCosts, orders, outbounds,
-  payables, paymentSlipLines, paymentSlips, receivables, suppliers,
+  operators, payables, paymentSlipLines, paymentSlips, receivables, suppliers,
 } from '../db/schema';
 import { toCents, fromCents, round2, MONEY_EPS, centsEq, remainOf } from '../common/money';
 import { currentOperatorId } from '../common/operator-context';
@@ -139,9 +139,10 @@ export class AccountingService {
   // ==================== 收款单 ====================
   async collectionSlipsList() {
     const rows = await db
-      .select({ s: collectionSlips, customerName: customers.name })
+      .select({ s: collectionSlips, customerName: customers.name, operatorName: operators.name })
       .from(collectionSlips)
       .leftJoin(customers, eq(collectionSlips.customerId, customers.id))
+      .leftJoin(operators, eq(collectionSlips.operatorId, operators.id))
       .orderBy(desc(collectionSlips.id));
     if (!rows.length) return [];
     const ids = rows.map((x) => x.s.id);
@@ -161,7 +162,7 @@ export class AccountingService {
       arr.push({ ...row.l, recvNo: row.recvNo, orderNo: orderNoBy.get(row.sourceId ?? -1) ?? '' });
       byId.set(row.l.slipId, arr);
     }
-    return rows.map(({ s, customerName }) => ({ ...s, customerName, lines: byId.get(s.id) ?? [] }));
+    return rows.map(({ s, customerName, operatorName }) => ({ ...s, customerName, operatorName: operatorName ?? null, lines: byId.get(s.id) ?? [] }));
   }
 
   /** 新建收款单：settle 核销（可一张核销多笔/部分） / prepay 预收（挂客户贷方余额）；一步生效 */
@@ -278,9 +279,10 @@ export class AccountingService {
   // ==================== 付款单（与收款单同构） ====================
   async paymentSlipsList() {
     const rows = await db
-      .select({ s: paymentSlips, supplierName: suppliers.name })
+      .select({ s: paymentSlips, supplierName: suppliers.name, operatorName: operators.name })
       .from(paymentSlips)
       .leftJoin(suppliers, eq(paymentSlips.supplierId, suppliers.id))
+      .leftJoin(operators, eq(paymentSlips.operatorId, operators.id))
       .orderBy(desc(paymentSlips.id));
     if (!rows.length) return [];
     const ids = rows.map((x) => x.s.id);
@@ -296,7 +298,7 @@ export class AccountingService {
       arr.push({ ...l, payNo });
       byId.set(l.slipId, arr);
     }
-    return rows.map(({ s, supplierName }) => ({ ...s, supplierName, lines: byId.get(s.id) ?? [] }));
+    return rows.map(({ s, supplierName, operatorName }) => ({ ...s, supplierName, operatorName: operatorName ?? null, lines: byId.get(s.id) ?? [] }));
   }
 
   async createPaymentSlip(dto: { supplierId: number; mode: 'settle' | 'prepay' | 'apply'; amount: number; note?: string; lines?: Array<{ payableId: number; amount: number }> }) {

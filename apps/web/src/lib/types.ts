@@ -67,6 +67,20 @@ export interface PlanSheetLine {
   requiredQty?: number // 本次报工应报数（中间道=整批；末道/无路由=剩余）
 }
 
+/** 报工流水（留痕） */
+export interface ReportLog {
+  id: number
+  planSheetId: number
+  planSheetLineId: number
+  routeSeq: number
+  processName?: string | null
+  quantity: number
+  isLast: boolean
+  operatorName?: string | null
+  productName?: string | null
+  createdAt: string
+}
+
 export interface PlanSheet {
   id: number
   planNo: string
@@ -98,6 +112,8 @@ export interface ReceiptLine {
 }
 
 export interface GoodsReceipt {
+  /** 留痕：经办操作人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   id: number
   receiptNo: string
   planSheetId?: number | null // null=手动无单入库
@@ -135,6 +151,8 @@ export interface OutboundLine {
 }
 
 export interface Outbound {
+  /** 留痕：经办操作人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   id: number
   shipNo: string
   orderId: number
@@ -152,6 +170,8 @@ export interface Outbound {
 }
 
 export interface IncomingGoods {
+  /** 留痕：经办操作人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   /** 登记即 confirmed；冲销后 voided（不再计入材料成本） */
   status?: 'confirmed' | 'voided'
   id: number
@@ -168,6 +188,8 @@ export interface IncomingGoods {
 }
 
 export interface Stocktake {
+  /** 留痕：经办操作人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   id: number
   stocktakeNo: string
   productId: number
@@ -230,6 +252,8 @@ export type SlipStatus = 'confirmed' | 'voided'
 
 export interface SlipLine { id: number; amount: number; recvNo?: string; payNo?: string; orderNo?: string }
 export interface CollectionSlip {
+  /** 留痕：经办操作人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   id: number
   collectNo: string
   customerId: number
@@ -243,6 +267,8 @@ export interface CollectionSlip {
   lines: SlipLine[]
 }
 export interface PaymentSlip {
+  /** 留痕：经办操作人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   id: number
   payNo: string
   supplierId: number

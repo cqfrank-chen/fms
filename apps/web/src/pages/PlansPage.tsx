@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_LABEL, PACK_LABEL, STATUS_LABEL } from '../lib/labels'
-import type { Customer, Order, OrderLine, PlanSheet } from '../lib/types'
+import type { Customer, Order, OrderLine, PlanSheet, ReportLog } from '../lib/types'
 
 const { Text } = Typography
 
@@ -33,6 +33,18 @@ function PlansPage() {
   const [reportQty, setReportQty] = useState<number | null>(null)
   const [reporting, setReporting] = useState(false)
   const [traceOrder, setTraceOrder] = useState<Order | null>(null)
+  const [logsFor, setLogsFor] = useState<PlanSheet | null>(null)
+  const [logs, setLogs] = useState<ReportLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
+
+  /** 打开报工流水（留痕：谁、何时、报了哪道工序多少只） */
+  async function openLogs(r: PlanSheet) {
+    setLogsFor(r)
+    setLogsLoading(true)
+    try { setLogs(await api<ReportLog[]>(`/plan-sheets/${r.id}/report-logs`)) }
+    catch (e) { message.error('加载报工流水失败：' + (e as Error).message) }
+    finally { setLogsLoading(false) }
+  }
 
   async function openTrace(orderId: number) {
     try {
@@ -183,6 +195,7 @@ function PlansPage() {
           {(r.status === 'confirmed' || r.status === 'production') && (
             <Button type="primary" size="small" ghost onClick={() => openReport(r)}>报工</Button>
           )}
+          <Button size="small" onClick={() => openLogs(r)}>流水</Button>
           <Button size="small" onClick={() => setDetail(r)}>详情</Button>
         </Space>
       ),
@@ -209,6 +222,31 @@ function PlansPage() {
       {detail && <PlanDetail plan={detail} onClose={() => setDetail(null)} onTrace={() => openTrace(detail.orderId)} />
       }
       {traceOrder && <OrderTraceModal order={traceOrder} onClose={() => setTraceOrder(null)} />}
+      <Modal
+        title={`报工流水 ${logsFor?.planNo ?? ''}`}
+        open={!!logsFor}
+        onCancel={() => setLogsFor(null)}
+        footer={<Button onClick={() => setLogsFor(null)}>关闭</Button>}
+        width={760}
+      >
+        <Table<ReportLog>
+          rowKey="id"
+          size="small"
+          loading={logsLoading}
+          dataSource={logs}
+          pagination={false}
+          locale={{ emptyText: <Empty description="暂无报工记录" /> }}
+          columns={[
+            { title: '时间', dataIndex: 'createdAt', width: 150, render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm') },
+            { title: '产品', dataIndex: 'productName', render: (v?: string | null) => v || '—' },
+            { title: '第几道', dataIndex: 'routeSeq', width: 70, render: (v: number, r: ReportLog) => `${v}${r.isLast ? '（末道）' : ''}` },
+            { title: '工序', dataIndex: 'processName', width: 130, render: (v?: string | null) => v || '成品直报' },
+            { title: '数量', dataIndex: 'quantity', width: 80 },
+            { title: '操作人', dataIndex: 'operatorName', width: 100, render: (v?: string | null) => v || <Text type="secondary">未绑定</Text> },
+          ]}
+        />
+      </Modal>
+
       <Modal
         title={`行报工 ${reportPlan?.planNo ?? ''}`}
         open={!!reportPlan} onCancel={() => setReportPlan(null)}

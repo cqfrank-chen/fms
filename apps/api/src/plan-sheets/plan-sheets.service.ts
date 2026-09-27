@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, goodsReceiptLines, goodsReceipts, orderLines, orders,
-  planSheetLines, planSheets, processes, productProcesses, products, receivables, reportLogs, workCenters,
+  operators, planSheetLines, planSheets, processes, productProcesses, products, receivables, reportLogs, workCenters,
 } from '../db/schema';
 import type { PlanStatus } from '../db/schema';
 import { fromCents, sumLineCents } from '../common/money';
@@ -257,6 +257,23 @@ export class PlanSheetsService {
       await this.logReport(tx, plan.id, line.id, cur, step.name, dto.doneQty, false);
     });
     return this.findOne(planId);
+  }
+
+  /** 报工流水（留痕展示）：按计划单查每次报工，带操作人与产品名 */
+  async reportLogs(planId: number) {
+    const rows = await db
+      .select({ l: reportLogs, operatorName: operators.name, productName: products.name })
+      .from(reportLogs)
+      .leftJoin(operators, eq(reportLogs.operatorId, operators.id))
+      .leftJoin(planSheetLines, eq(reportLogs.planSheetLineId, planSheetLines.id))
+      .leftJoin(products, eq(planSheetLines.productId, products.id))
+      .where(eq(reportLogs.planSheetId, planId))
+      .orderBy(desc(reportLogs.id));
+    return rows.map(({ l, operatorName, productName }) => ({
+      ...l,
+      operatorName: operatorName ?? null,
+      productName: productName ?? null,
+    }));
   }
 
   /** 报工流水留痕：谁（X-Operator-Id）、何时、报了哪道工序、多少只 */

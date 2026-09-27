@@ -207,6 +207,7 @@ function ReceiptsTab() {
     { title: '批次', dataIndex: 'batchNo', width: 150 },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={stColor(v)}>{R[v]}</Tag> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
+    { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">—</Text> },
     {
       title: '操作', width: 170, render: (_, r) => (
         <Space size={4}>
@@ -339,6 +340,7 @@ function OutboundTab() {
     { title: 'OQC', dataIndex: 'oqc', width: 90, render: (v: string) => <Tag>{OQC_LABEL[v] ?? v}</Tag> },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: string) => <Tag color={stColor(v)}>{OUTBOUND_STATUS_LABEL[v] ?? v}</Tag> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
+    { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">—</Text> },
     {
       title: '操作', width: 230, render: (_, r) => (
         <Space size={4}>
@@ -470,6 +472,8 @@ function IncomingTab() {
     { title: '批次', dataIndex: 'batchNo', width: 150, render: (v?: string | null) => v || '—' },
     { title: 'IQC', dataIndex: 'iqcStatus', width: 110, render: (v: string) => <Tag color="orange">{IQC_LABEL[v] ?? v}</Tag> },
     { title: '状态', dataIndex: 'status', width: 90, render: (v?: string) => <Tag color={stColor(v ?? 'confirmed')}>{R[v ?? 'confirmed'] ?? v}</Tag> },
+    { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">—</Text> },
+
     {
       title: '操作', width: 100, render: (_, r) => (
         (r.status ?? 'confirmed') === 'confirmed'
@@ -584,6 +588,7 @@ function StocktakeTab() {
     },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={stColor(v)}>{R[v]}</Tag> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
+    { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">—</Text> },
     {
       title: '操作', width: 150, render: (_, r) => (
         r.status === 'draft'

@@ -341,6 +341,7 @@ function CollectTab() {
     { title: '模式', dataIndex: 'mode', width: 90, render: (v: string) => <Tag color={v === 'settle' ? 'blue' : 'purple'}>{SLIP_MODE_LABEL[v]}</Tag> },
     { title: '金额', dataIndex: 'amount', width: 105, render: (v: number) => fmt(v) },
     { title: '核销对象', width: 170, render: (_, r) => (r.lines?.length ? r.lines.map((l) => l.recvNo ?? '').filter(Boolean).join('、') : r.mode === 'prepay' ? '（挂客户预收余额）' : '—') },
+    { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">—</Text> },
     { title: '状态', dataIndex: 'status', width: 85, render: (v: string) => <Tag color={v === 'confirmed' ? 'success' : 'error'}>{v === 'confirmed' ? '生效' : '已冲销'}</Tag> },
     { title: '操作', width: 85, render: (_, r) => (r.status === 'confirmed'
       ? <Popconfirm title="冲销将回滚核销，确认？" onConfirm={() => voidSlip(r.id)}><Button size="small" danger loading={acting === r.id}>冲销</Button></Popconfirm>
@@ -419,6 +420,7 @@ function PayTab() {
     { title: '模式', dataIndex: 'mode', width: 100, render: (v: string) => <Tag color={v === 'settle' ? 'blue' : 'purple'}>{SLIP_MODE_LABEL[v]}</Tag> },
     { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => fmt(v) },
     { title: '核销对象', width: 200, render: (_, r) => (r.lines?.length ? r.lines.map((l) => l.payNo ?? '').filter(Boolean).join('、') : r.mode === 'prepay' ? '（挂供应商预付余额）' : '—') },
+    { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">—</Text> },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v === 'confirmed' ? 'success' : 'error'}>{v === 'confirmed' ? '生效' : '已冲销'}</Tag> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
     { title: '操作', width: 90, render: (_, r) => (r.status === 'confirmed'

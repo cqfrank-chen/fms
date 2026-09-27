@@ -54,6 +54,12 @@ export class PlanSheetsController {
     return this.service.findAll({ status, customerId: customerId ? Number(customerId) : undefined, kw });
   }
 
+  /** 报工流水（留痕展示） */
+  @Get(':id/report-logs')
+  reportLogs(@Param('id', ParseIntPipe) id: number) {
+    return this.service.reportLogs(id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
