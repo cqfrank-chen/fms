@@ -45,6 +45,18 @@ echo.
 
 REM ---- 3. 构建镜像（首次约 5-15 分钟，视网络）----
 echo  [3/5] 构建服务镜像（首次较慢，请耐心等待）...
+REM ---- 离线镜像：包内 docker\images\*.tar 存在则先 docker load（全程不联网）----
+set "IMGDIR="
+if exist "..\docker\images\*.tar" set "IMGDIR=..\docker\images"
+if not defined IMGDIR if exist "docker\images\*.tar" set "IMGDIR=docker\images"
+if defined IMGDIR (
+  echo        检测到离线镜像，正在载入（可能需要几分钟）...
+  for %%F in ("!IMGDIR!\*.tar") do (
+    echo          载入 %%~nxF ...
+    docker load -i "%%F"
+  )
+)
+
 REM ---- 记录构建提交号（设置页「系统更新」据此比对 GitHub 版本）----
 set "SHA="
 if exist "..\REVISION.txt" for /f "tokens=3" %%a in ('findstr /b "构建提交" "..\REVISION.txt" 2^>nul') do set "SHA=%%a"
