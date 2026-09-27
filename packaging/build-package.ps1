@@ -27,8 +27,13 @@ function New-Zip($srcDir, $zipPath) {
   Push-Location $srcDir
   try {
     # 通配符打包：条目名不带 ./ 前缀（否则 Windows 资源管理器会显示为空）
-    tar -a -c -f $zipPath *
-    if ($LASTEXITCODE -ne 0) { throw ('tar 打包失败：' + $zipPath) }
+    # 跨平台：Linux/CI 用 Info-ZIP（GNU tar 不能生成 zip），Windows 用 bsdtar 的 -a
+    if (Get-Command zip -ErrorAction SilentlyContinue) {
+      zip -qr $zipPath *
+    } else {
+      tar -a -c -f $zipPath *
+    }
+    if ($LASTEXITCODE -ne 0) { throw ('打包失败：' + $zipPath) }
   } finally { Pop-Location }
 }
 
