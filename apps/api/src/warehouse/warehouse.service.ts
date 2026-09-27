@@ -3,12 +3,15 @@ import { and, asc, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, goodsReceipts, goodsReceiptLines, incomingGoods, inventory, orderLines, orders,
-  outboundLines, outbounds, payables, planSheets, products, receivables, stocktakes, suppliers,
+  outboundAllocations, outboundLines, outbounds, payables, planSheets, products, receivables, stocktakes, suppliers,
 } from '../db/schema';
 import type { Outbound, PackagingSpec } from '../db/schema';
 import { fromCents, MONEY_EPS, round2, sumLineCents, toCents } from '../common/money';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
+/** 占位批次：非真实入库，禁止参与 FIFO 扣减，避免"假库存"被当货发出去 */
+const PLACEHOLDER_BATCHES = ['FG-未入库', 'FG-冲销回补'];
+const PLACEHOLDER_SHORTFALL = 'FG-未入库';
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -310,7 +313,15 @@ export class WarehouseService {
         if (!cur) throw new NotFoundException('出库单不存在');
         throw new BadRequestException(`仅已出库单可冲销（当前：${cur.status}）`);
       }
-      for (const l of lines) await this.addBackToEarliest(tx, l.productId, l.quantity);
+      // 按出库时的批次归因精确回补；修复前历史单据无归因 → 回退「回补最早行」兼容路径
+      for (const l of lines) {
+        const allocs = await tx.select().from(outboundAllocations).where(eq(outboundAllocations.outboundLineId, l.id));
+        if (allocs.length) {
+          for (const a of allocs) await this.bumpStock(tx, l.productId, a.batchNo, a.quantity);
+        } else {
+          await this.addBackToEarliest(tx, l.productId, l.quantity);
+        }
+      }
       // 关联订单级应收（订单确认时开立，sourceType='order'）：货退回 → 欠款按退回金额冲减；行锁防并发冲减丢更新
       const [recv] = await tx
         .select()
@@ -344,7 +355,15 @@ export class WarehouseService {
         if (!cur) throw new NotFoundException('出库单不存在');
         throw new BadRequestException(`${errText}（当前：${cur.status}）`);
       }
-      for (const l of lines) await this.deductStock(tx, l.productId, l.quantity);
+      // FIFO 扣减并落批次归因：冲销时按真实批次回补
+      for (const l of lines) {
+        const allocs = await this.deductStock(tx, l.productId, l.quantity);
+        if (allocs.length) {
+          await tx.insert(outboundAllocations).values(
+            allocs.map((a) => ({ outboundLineId: l.id, inventoryId: a.inventoryId, batchNo: a.batchNo, quantity: a.quantity })),
+          );
+        }
+      }
     });
     const one = (await this.outboundsList()).find((x) => x.id === id);
     return { ...one, shipped: true };
@@ -392,6 +411,37 @@ export class WarehouseService {
         amount: dto.amount,
         status: 'draft',
       });
+    });
+    return this.incomingList();
+  }
+
+  /**
+   * 来料冲销：错录来料不再永久污染材料成本。
+   * 关联应付未核销则同步冲销；已核销则拒绝（需先冲销付款单，保证账目不断链）。
+   */
+  async voidIncoming(id: number) {
+    await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(incomingGoods)
+        .set({ status: 'voided', updatedAt: new Date() })
+        .where(and(eq(incomingGoods.id, id), eq(incomingGoods.status, 'confirmed')))
+        .returning();
+      if (!updated.length) {
+        const [cur] = await tx.select().from(incomingGoods).where(eq(incomingGoods.id, id));
+        if (!cur) throw new NotFoundException('来料登记单不存在');
+        throw new BadRequestException(`仅已确认的来料登记可冲销（当前：${cur.status}）`);
+      }
+      const [pay] = await tx
+        .select()
+        .from(payables)
+        .where(and(eq(payables.sourceType, 'incoming'), eq(payables.sourceId, id)))
+        .for('update');
+      if (pay && pay.status !== 'voided') {
+        if (toCents(pay.settledAmount) > 0) {
+          throw new BadRequestException(`关联应付 ${pay.payNo} 已核销 ${pay.settledAmount}，请先冲销付款单再冲销来料`);
+        }
+        await tx.update(payables).set({ status: 'voided', amount: 0, updatedAt: new Date() }).where(eq(payables.id, pay.id));
+      }
     });
     return this.incomingList();
   }
@@ -454,6 +504,28 @@ export class WarehouseService {
     return this.stocktakesList();
   }
 
+  /**
+   * 盘点冲销：把确认时「账面→实盘」的差异反向应用回去。
+   * 采用反向增量（-diffQty）而非覆盖为账面数，避免覆盖确认后发生的正常出入库。
+   */
+  async voidStocktake(id: number) {
+    await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(stocktakes)
+        .set({ status: 'voided', updatedAt: new Date() })
+        .where(and(eq(stocktakes.id, id), eq(stocktakes.status, 'confirmed')))
+        .returning();
+      if (!updated.length) {
+        const [cur] = await tx.select().from(stocktakes).where(eq(stocktakes.id, id));
+        if (!cur) throw new NotFoundException('盘点单不存在');
+        throw new BadRequestException(`仅已确认的盘点单可冲销（当前：${cur.status}）`);
+      }
+      const s = updated[0];
+      if (s.diffQty !== 0) await this.bumpStock(tx, s.productId, s.batchNo, -s.diffQty);
+    });
+    return this.stocktakesList();
+  }
+
   // ==================== 库存内部操作 ====================
   /** 明确批次 ±delta（入库/冲销回补）：命中即原子自增；缺失则插入（并发撞唯一键转自增，避免读改写丢更新） */
   private async bumpStock(tx: Tx, productId: number, batchNo: string, delta: number) {
@@ -488,28 +560,37 @@ export class WarehouseService {
     }
   }
 
-  /** 出库扣减：按 id 升序 FOR UPDATE 锁定该产品批次行（统一锁序防死锁），FIFO 扣减；正库存不足 → 允许负库存 */
-  private async deductStock(tx: Tx, productId: number, qty: number) {
-    const rows = await tx
+  /**
+   * 出库扣减：按 id 升序 FOR UPDATE 锁定该产品批次行（统一锁序防死锁），FIFO 扣减。
+   * - 占位批次（FG-未入库/FG-冲销回补）不参与 FIFO：假库存不得被当货发出
+   * - 正库存不足 → 差额记到 FG-未入库 负库存（可追溯），并返回扣减归因供冲销精确回补
+   */
+  private async deductStock(tx: Tx, productId: number, qty: number): Promise<Array<{ inventoryId: number | null; batchNo: string; quantity: number }>> {
+    const all = await tx
       .select()
       .from(inventory)
       .where(eq(inventory.productId, productId))
       .orderBy(asc(inventory.id))
       .for('update');
+    const rows = all.filter((r) => !PLACEHOLDER_BATCHES.includes(r.batchNo));
+    const allocs: Array<{ inventoryId: number | null; batchNo: string; quantity: number }> = [];
     let remain = qty;
     for (const r of rows) {
       if (remain <= 0) break;
       if (r.quantity <= 0) continue;
       const take = Math.min(r.quantity, remain);
       await tx.update(inventory).set({ quantity: r.quantity - take, updatedAt: new Date() }).where(eq(inventory.id, r.id));
+      allocs.push({ inventoryId: r.id, batchNo: r.batchNo, quantity: take });
       remain -= take;
     }
     if (remain > 0) {
-      if (rows.length) {
-        await tx.update(inventory).set({ quantity: rows[0].quantity - remain, updatedAt: new Date() }).where(eq(inventory.id, rows[0].id));
-      } else {
-        await tx.insert(inventory).values({ productId, batchNo: 'FG-未入库', quantity: -remain });
-      }
+      await this.bumpStock(tx, productId, PLACEHOLDER_SHORTFALL, -remain);
+      const [ph] = await tx
+        .select()
+        .from(inventory)
+        .where(and(eq(inventory.productId, productId), eq(inventory.batchNo, PLACEHOLDER_SHORTFALL)));
+      allocs.push({ inventoryId: ph?.id ?? null, batchNo: PLACEHOLDER_SHORTFALL, quantity: -remain });
     }
+    return allocs;
   }
 }

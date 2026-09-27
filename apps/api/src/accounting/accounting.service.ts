@@ -480,7 +480,8 @@ export class AccountingService {
     const matRes = await db.execute(sql`
       SELECT COALESCE(SUM(amount),0)::numeric AS material
       FROM incoming_goods
-      WHERE created_at >= ${monthStart}::timestamptz AND created_at < ${monthEnd}::timestamptz`);
+      WHERE status = 'confirmed'
+        AND created_at >= ${monthStart}::timestamptz AND created_at < ${monthEnd}::timestamptz`);
     const material = round2(Number((matRes.rows[0] as any)?.material ?? 0));
     // 六类成本
     const costs = await db.select().from(monthlyCosts).where(eq(monthlyCosts.month, month));

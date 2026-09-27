@@ -150,6 +150,8 @@ export interface Outbound {
 }
 
 export interface IncomingGoods {
+  /** 登记即 confirmed；冲销后 voided（不再计入材料成本） */
+  status?: 'confirmed' | 'voided'
   id: number
   incomingNo: string
   supplierId: number

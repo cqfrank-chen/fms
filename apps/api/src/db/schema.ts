@@ -327,6 +327,21 @@ export const outboundLines = pgTable('outbound_lines', {
   packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求快照（自订单行）
 });
 
+/**
+ * 出库批次归因：记录每行出库「实际消耗的库存批次」。
+ * 用途：冲销时按真实批次精确回补（替代旧的"回补最早行"近似做法），并让批次流向可追溯。
+ */
+export const outboundAllocations = pgTable('outbound_allocations', {
+  id: serial('id').primaryKey(),
+  outboundLineId: integer('outbound_line_id')
+    .notNull()
+    .references(() => outboundLines.id, { onDelete: 'cascade' }),
+  inventoryId: integer('inventory_id').references(() => inventory.id),
+  batchNo: text('batch_no').notNull(), // 消耗的批次（含「FG-未入库」负库存欠账）
+  quantity: integer('quantity').notNull(), // 本批次消耗量（负数=正库存不足的欠账）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 /** 来料检验状态（IQC 预留，一期线下纸质） */
 export const iqcStatusEnum = pgEnum('iqc_status', ['pending', 'passed']);
 
@@ -341,6 +356,7 @@ export const incomingGoods = pgTable('incoming_goods', {
   quantity: integer('quantity').notNull(),
   amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(), // 金额（元）
   batchNo: text('batch_no'), // 供应商批次（追溯）
+  status: receiptStatusEnum('status').default('confirmed').notNull(), // 登记即确认；冲销后为 voided（不再计入材料成本）
   iqcStatus: iqcStatusEnum('iqc_status').default('pending').notNull(), // IQC 预留
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间

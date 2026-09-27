@@ -422,6 +422,7 @@ function IncomingTab() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [creating, setCreating] = useState(false)
+  const [acting, setActing] = useState<number | null>(null)
   const [form] = Form.useForm()
 
   const load = useCallback(async () => {
@@ -449,6 +450,16 @@ function IncomingTab() {
     finally { setCreating(false) }
   }
 
+  async function voidRow(id: number) {
+    setActing(id)
+    try {
+      await api(`/incoming-goods/${id}/void`, { method: 'POST' })
+      message.success('已冲销：不再计入材料成本，关联应付同步冲销')
+      load()
+    } catch (e) { message.error((e as Error).message) }
+    finally { setActing(null) }
+  }
+
   const columns: ColumnsType<IncomingGoods> = [
     { title: '登记单号', dataIndex: 'incomingNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
     { title: '登记/更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string, r?: IncomingGoods) => <Text type="secondary" style={{ fontSize: 12 }}>{(v ?? r?.createdAt ?? '').slice(0, 16).replace('T', ' ')}</Text> },
@@ -457,7 +468,19 @@ function IncomingTab() {
     { title: '数量', dataIndex: 'quantity', width: 90 },
     { title: '金额(元)', dataIndex: 'amount', width: 110 },
     { title: '批次', dataIndex: 'batchNo', width: 150, render: (v?: string | null) => v || '—' },
-    { title: 'IQC', dataIndex: 'iqcStatus', width: 130, render: (v: string) => <Tag color="orange">{IQC_LABEL[v] ?? v}</Tag> },
+    { title: 'IQC', dataIndex: 'iqcStatus', width: 110, render: (v: string) => <Tag color="orange">{IQC_LABEL[v] ?? v}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 90, render: (v?: string) => <Tag color={stColor(v ?? 'confirmed')}>{R[v ?? 'confirmed'] ?? v}</Tag> },
+    {
+      title: '操作', width: 100, render: (_, r) => (
+        (r.status ?? 'confirmed') === 'confirmed'
+          ? (
+            <Popconfirm title="冲销将不再计入材料成本，并同步冲销未核销的应付；确认？" onConfirm={() => voidRow(r.id)}>
+              <Button size="small" danger loading={acting === r.id}>冲销</Button>
+            </Popconfirm>
+          )
+          : <Text type="secondary" style={{ fontSize: 12 }}>已冲销</Text>
+      ),
+    },
   ]
   return (
     <div>
@@ -539,6 +562,16 @@ function StocktakeTab() {
     finally { setActing(null) }
   }
 
+  async function voidRow(id: number) {
+    setActing(id)
+    try {
+      await api(`/stocktakes/${id}/void`, { method: 'POST' })
+      message.success('已冲销：盘盈/盘亏调整已反向应用')
+      load()
+    } catch (e) { message.error((e as Error).message) }
+    finally { setActing(null) }
+  }
+
   const columns: ColumnsType<Stocktake> = [
     { title: '盘点单号', dataIndex: 'stocktakeNo', width: 160, render: (v: string) => <Text strong>{v}</Text> },
     { title: 'SKU', dataIndex: 'productName', width: 200 },
@@ -552,10 +585,16 @@ function StocktakeTab() {
     { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={stColor(v)}>{R[v]}</Tag> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{v.slice(0, 16).replace('T', ' ')}</Text> : '—') },
     {
-      title: '操作', width: 110, render: (_, r) => (
+      title: '操作', width: 150, render: (_, r) => (
         r.status === 'draft'
           ? <Popconfirm title="按实盘数校准库存，确认？" onConfirm={() => confirm(r.id)}><Button type="primary" size="small" loading={acting === r.id}>确认校准</Button></Popconfirm>
-          : <Text type="secondary" style={{ fontSize: 12 }}>已校准</Text>
+          : r.status === 'confirmed'
+            ? (
+              <Popconfirm title="冲销将把盘盈/盘亏调整反向应用回库存；确认？" onConfirm={() => voidRow(r.id)}>
+                <Button size="small" danger loading={acting === r.id}>冲销</Button>
+              </Popconfirm>
+            )
+            : <Text type="secondary" style={{ fontSize: 12 }}>已冲销</Text>
       ),
     },
   ]

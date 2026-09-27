@@ -108,6 +108,7 @@ export class IncomingController {
   constructor(private readonly svc: WarehouseService) {}
   @Get() list() { return this.svc.incomingList(); }
   @Post() create(@Body() dto: CreateIncomingDto) { return this.svc.createIncoming(dto); }
+  @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidIncoming(id); }
 }
 
 @Controller('stocktakes')
@@ -116,4 +117,5 @@ export class StocktakesController {
   @Get() list() { return this.svc.stocktakesList(); }
   @Post() create(@Body() dto: CreateStocktakeDto) { return this.svc.createStocktake(dto); }
   @Post(':id/confirm') confirm(@Param('id', ParseIntPipe) id: number) { return this.svc.confirmStocktake(id); }
+  @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidStocktake(id); }
 }
