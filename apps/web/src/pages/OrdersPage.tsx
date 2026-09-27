@@ -542,6 +542,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [detail, setDetail] = useState<Order | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [cancelingId, setCancelingId] = useState<number | null>(null)
 
   async function doDelete(r: Order) {
     setDeletingId(r.id)
@@ -582,6 +583,17 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   }
   useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** 取消订单（五态收敛）：未投产可取消，未开工计划单与未核销应收同步冲销 */
+  async function doCancel(r: Order) {
+    setCancelingId(r.id)
+    try {
+      await api(`/orders/${r.id}/cancel`, { method: 'POST' })
+      message.success(`订单 ${r.orderNo} 已取消`)
+      fetchRows()
+    } catch (e) { message.error((e as Error).message) }
+    finally { setCancelingId(null) }
+  }
+
   const columns: ColumnsType<Order> = useMemo(() => [
     { title: '订单号', dataIndex: 'orderNo', width: 170, render: (v: string) => <Text strong>{v}</Text> },
     { title: '客户', dataIndex: 'customerName', width: 160 },
@@ -608,6 +620,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
+    { title: '录单人', dataIndex: 'operatorName', width: 100, render: (v?: string | null) => v || <Text type="secondary">未绑定</Text> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD HH:mm')}</Text> : '—') },
     {
       title: '操作', width: 300,
@@ -627,11 +640,21 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
               </Popconfirm>
             </>
           )}
+          {(r.status === 'draft' || r.status === 'confirmed') && (
+            <Popconfirm
+              title={`取消订单 ${r.orderNo}？`}
+              description="未开工的计划单与未核销的应收会同步冲销；已报工/已出库的订单不能取消。"
+              okText="取消订单" okButtonProps={{ danger: true }} cancelText="返回"
+              onConfirm={() => doCancel(r)}
+            >
+              <Button danger size="small" loading={cancelingId === r.id}>取消订单</Button>
+            </Popconfirm>
+          )}
           <Button size="small" onClick={() => setDetail(r)}>详情</Button>
         </Space>
       ),
     },
-  ], [confirmingId, deletingId])
+  ], [confirmingId, deletingId, cancelingId])
 
   const filterBar = !archived && (
     <Space wrap style={{ marginBottom: 12 }}>

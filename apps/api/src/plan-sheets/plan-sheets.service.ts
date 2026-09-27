@@ -3,10 +3,11 @@ import { and, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, goodsReceiptLines, goodsReceipts, orderLines, orders,
-  planSheetLines, planSheets, processes, productProcesses, products, receivables, workCenters,
+  planSheetLines, planSheets, processes, productProcesses, products, receivables, reportLogs, workCenters,
 } from '../db/schema';
 import type { PlanStatus } from '../db/schema';
 import { fromCents, sumLineCents } from '../common/money';
+import { currentOperatorId } from '../common/operator-context';
 
 /** 事务句柄类型（drizzle transaction callback 参数） */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -202,6 +203,7 @@ export class PlanSheetsService {
       if (route.length === 0) {
         // 无工序路由：成品直报（可分批）
         await this.reportDirectTx(tx, plan, line, dto);
+        await this.logReport(tx, plan.id, line.id, line.routeSeq ?? 1, null, dto.doneQty, true);
         return;
       }
 
@@ -221,6 +223,7 @@ export class PlanSheetsService {
       if (isLast) {
         // 末道：成品累计到整批 → 完成聚合 + 入库草稿（复用成品直报的收尾），routeSeq 置 L+1 标记全走完
         await this.reportDirectTx(tx, plan, line, { ...dto, doneQty: required }, L + 1);
+        await this.logReport(tx, plan.id, line.id, cur, step.name, required, true);
         return;
       }
 
@@ -246,8 +249,35 @@ export class PlanSheetsService {
       if (!advanced) throw new BadRequestException('报工状态已变化，请刷新后重试');
       // 报工即算计划单「更新」（刷新时间；首报开工 confirmed→production 留在排期池推进）
       await tx.update(planSheets).set({ status: plan.status === 'confirmed' ? 'production' : plan.status, updatedAt: new Date() }).where(eq(planSheets.id, planId));
+      // 五态收敛：首报开工 → 订单进入「生产中」（已取消/已完成不回退）
+      await tx
+        .update(orders)
+        .set({ status: 'production', updatedAt: new Date() })
+        .where(and(eq(orders.id, plan.orderId), inArray(orders.status, ['draft', 'confirmed'])));
+      await this.logReport(tx, plan.id, line.id, cur, step.name, dto.doneQty, false);
     });
     return this.findOne(planId);
+  }
+
+  /** 报工流水留痕：谁（X-Operator-Id）、何时、报了哪道工序、多少只 */
+  private async logReport(
+    tx: Tx,
+    planSheetId: number,
+    planSheetLineId: number,
+    routeSeq: number,
+    processName: string | null,
+    quantity: number,
+    isLast: boolean,
+  ) {
+    await tx.insert(reportLogs).values({
+      planSheetId,
+      planSheetLineId,
+      routeSeq,
+      processName,
+      quantity,
+      isLast,
+      operatorId: currentOperatorId(),
+    });
   }
 
   /**
@@ -283,9 +313,17 @@ export class PlanSheetsService {
     const nextPlanStatus: PlanStatus = allDone ? 'completed' : anyDone ? 'production' : 'confirmed';
     await tx.update(planSheets).set({ status: nextPlanStatus, updatedAt: new Date() }).where(eq(planSheets.id, planId));
 
-    // 3. 订单联动：计划单已完成 → 订单已完成（进归档）
+    // 3. 订单联动（五态）：首报 → 生产中；全部完成 → 已完成（已取消不回写）
     if (allDone) {
-      await tx.update(orders).set({ status: 'completed', updatedAt: new Date() }).where(eq(orders.id, plan.orderId));
+      await tx
+        .update(orders)
+        .set({ status: 'completed', updatedAt: new Date() })
+        .where(and(eq(orders.id, plan.orderId), ne(orders.status, 'cancelled')));
+    } else if (nextPlanStatus === 'production') {
+      await tx
+        .update(orders)
+        .set({ status: 'production', updatedAt: new Date() })
+        .where(and(eq(orders.id, plan.orderId), inArray(orders.status, ['draft', 'confirmed'])));
     }
 
     // 4. 入库草稿 upsert：找未确认草稿，无则新建（批次=一计划单一批次）

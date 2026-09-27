@@ -111,6 +111,8 @@ export const orders = pgTable('orders', {
   dueDate: timestamp('due_date', { withTimezone: true }).notNull(), // 交期
   note: text('note'), // 备注
   status: orderStatusEnum('status').default('draft').notNull(), // 五态
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 录单人
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间（状态流转/编辑刷新）
 });
@@ -259,6 +261,8 @@ export const goodsReceipts = pgTable('goods_receipts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }), // 仓管确认时间（I08）
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 仓管确认人
 });
 
 /** 入库单行：产品×数量，锚定计划单行（反查） */
@@ -309,6 +313,8 @@ export const outbounds = pgTable('outbounds', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   shippedAt: timestamp('shipped_at', { withTimezone: true }),
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 建单/放行人
 });
 
 /** 出库单行：引用订单行 × 本批发货数量（≤ 订单行剩余），包装快照 */
@@ -358,6 +364,8 @@ export const incomingGoods = pgTable('incoming_goods', {
   batchNo: text('batch_no'), // 供应商批次（追溯）
   status: receiptStatusEnum('status').default('confirmed').notNull(), // 登记即确认；冲销后为 voided（不再计入材料成本）
   iqcStatus: iqcStatusEnum('iqc_status').default('pending').notNull(), // IQC 预留
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 登记人
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 });
@@ -373,6 +381,8 @@ export const stocktakes = pgTable('stocktakes', {
   bookQty: integer('book_qty').notNull(), // 账面数（建档时库存快照）
   actualQty: integer('actual_qty').notNull(), // 实盘数
   diffQty: integer('diff_qty').notNull(), // 差异（实盘-账面）
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 盘点人
   status: receiptStatusEnum('status').default('draft').notNull(), // 复用：草稿→已确认（校准）→已冲销
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -456,6 +466,8 @@ export const collectionSlips = pgTable('collection_slips', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   voidedAt: timestamp('voided_at', { withTimezone: true }),
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 收款经办人
 });
 
 /** 收款核销明细：收款单 → 应收（支持一张收款单核销多笔应收 / 部分核销） */
@@ -484,6 +496,8 @@ export const paymentSlips = pgTable('payment_slips', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
   voidedAt: timestamp('voided_at', { withTimezone: true }),
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id), // 付款经办人
 });
 
 /** 付款核销明细 */
@@ -496,6 +510,23 @@ export const paymentSlipLines = pgTable('payment_slip_lines', {
     .notNull()
     .references(() => payables.id),
   amount: numeric('amount', { precision: 10, scale: 2, mode: 'number' }).notNull(),
+});
+
+/** 报工流水：每次报工一行（留痕：操作人 + 工序 + 数量 + 时间），支撑逐道追溯 */
+export const reportLogs = pgTable('report_logs', {
+  id: serial('id').primaryKey(),
+  planSheetId: integer('plan_sheet_id')
+    .notNull()
+    .references(() => planSheets.id, { onDelete: 'cascade' }),
+  planSheetLineId: integer('plan_sheet_line_id')
+    .notNull()
+    .references(() => planSheetLines.id, { onDelete: 'cascade' }),
+  routeSeq: integer('route_seq').notNull(), // 报的是第几道
+  processName: text('process_name'), // 工序名快照
+  quantity: integer('quantity').notNull(), // 本次报工数
+  isLast: boolean('is_last').default(false).notNull(), // 是否末道（累计成品）
+  operatorId: integer('operator_id').references(() => operators.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 /** 月度成本固定六类（材料自动从来料汇总，不在此手填） */

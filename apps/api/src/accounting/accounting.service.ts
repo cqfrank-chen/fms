@@ -6,6 +6,7 @@ import {
   payables, paymentSlipLines, paymentSlips, receivables, suppliers,
 } from '../db/schema';
 import { toCents, fromCents, round2, MONEY_EPS, centsEq, remainOf } from '../common/money';
+import { currentOperatorId } from '../common/operator-context';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
@@ -218,6 +219,7 @@ export class AccountingService {
           mode: dto.mode,
           amount: round2(dto.amount),
           note: dto.note ?? null,
+          operatorId: currentOperatorId(),
         })
         .returning();
       if (dto.mode === 'settle' || dto.mode === 'apply') {
@@ -351,6 +353,7 @@ export class AccountingService {
           mode: dto.mode,
           amount: round2(dto.amount),
           note: dto.note ?? null,
+          operatorId: currentOperatorId(),
         })
         .returning();
       if (dto.mode === 'settle' || dto.mode === 'apply') {

@@ -1,4 +1,5 @@
 import { message } from 'antd'
+import { getOperatorId } from './operator'
 
 /** 统一 API 请求封装（fetch + JSON + 错误归一） */
 const API = '/api'
@@ -7,9 +8,14 @@ export async function api<T = unknown>(
   path: string,
   options: { method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; body?: unknown } = {},
 ): Promise<T> {
+  // 留痕：把「本机操作人」随每个请求发出（后端 OperatorInterceptor 写入经办人字段）
+  const opId = getOperatorId()
   const res = await fetch(`${API}${path}`, {
     method: options.method ?? 'GET',
-    headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(opId ? { 'X-Operator-Id': String(opId) } : {}),
+    },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
   if (!res.ok) {

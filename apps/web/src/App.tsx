@@ -6,6 +6,7 @@ import {
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import AlertBell from './components/AlertBell'
+import OperatorPicker from './components/OperatorPicker'
 import AccountingPage from './pages/AccountingPage'
 import AiPage from './pages/AiPage'
 import DashboardPage from './pages/DashboardPage'
@@ -67,6 +68,7 @@ export default function App() {
           </Typography.Text>
         </div>
         <Space size={16}>
+          <OperatorPicker />
           <AlertBell />
           <Badge
             status={online ? 'success' : 'error'}

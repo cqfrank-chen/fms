@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { customers, orderLines, orders, planSheets, products } from '../db/schema';
+import { customers, operators, orderLines, orders, outbounds, planSheetLines, planSheets, products, receivables } from '../db/schema';
 import type { OrderStatus } from '../db/schema';
+import { currentOperatorId } from '../common/operator-context';
+import { toCents } from '../common/money';
 
 export interface OrderLineDto {
   productId: number;
@@ -64,7 +66,7 @@ export class OrdersService {
     const created = await db.transaction(async (tx) => {
       const [order] = await tx
         .insert(orders)
-        .values({ orderNo, customerId: dto.customerId, poNo: dto.poNo ?? null, dueDate, note: dto.note ?? null })
+        .values({ orderNo, customerId: dto.customerId, poNo: dto.poNo ?? null, dueDate, note: dto.note ?? null, operatorId: currentOperatorId() })
         .returning();
       await tx.insert(orderLines).values(
         dto.lines.map((l) => ({
@@ -82,6 +84,46 @@ export class OrdersService {
     return this.findOne(created.id);
   }
 
+  /**
+   * 取消订单（五态收敛：draft/confirmed → cancelled）。
+   * 已发货 / 已报工 / 计划单已完成 → 拒绝（须先冲销相关单据）；
+   * 未开工计划单置 voided，未核销的订单应收同步冲销（账目不断链）。
+   */
+  async cancelOrder(id: number) {
+    await db.transaction(async (tx) => {
+      const [o] = await tx.select().from(orders).where(eq(orders.id, id)).for('update');
+      if (!o) throw new NotFoundException('订单不存在');
+      if (o.status === 'cancelled') throw new BadRequestException('订单已取消');
+      if (o.status === 'completed') throw new BadRequestException('已完成订单不可取消（请走出库冲销/退货流程）');
+      const ships = await tx.select().from(outbounds).where(eq(outbounds.orderId, id));
+      if (ships.some((s) => s.status === 'shipped')) throw new BadRequestException('存在已出库单据，请先冲销出库再取消');
+      const [plan] = await tx.select().from(planSheets).where(eq(planSheets.orderId, id)).for('update');
+      if (plan) {
+        if (plan.status === 'completed') throw new BadRequestException('计划单已完成，不可取消');
+        const lines = await tx.select().from(planSheetLines).where(eq(planSheetLines.planSheetId, plan.id));
+        if (lines.some((l) => (l.completedQuantity ?? 0) > 0)) {
+          throw new BadRequestException('已发生报工，不可取消（请先冲销相关单据）');
+        }
+        if (plan.status !== 'voided') {
+          await tx.update(planSheets).set({ status: 'voided', updatedAt: new Date() }).where(eq(planSheets.id, plan.id));
+        }
+      }
+      const [recv] = await tx
+        .select()
+        .from(receivables)
+        .where(and(eq(receivables.sourceId, id), eq(receivables.sourceType, 'order')))
+        .for('update');
+      if (recv && recv.status !== 'voided') {
+        if (toCents(recv.settledAmount) > 0) {
+          throw new BadRequestException(`应收 ${recv.recvNo} 已核销 ${recv.settledAmount}，请先冲销收款单`);
+        }
+        await tx.update(receivables).set({ status: 'voided', amount: 0, updatedAt: new Date() }).where(eq(receivables.id, recv.id));
+      }
+      await tx.update(orders).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(orders.id, id));
+    });
+    return this.findOne(id);
+  }
+
   /** 列表（可选筛选：状态/客户/单号PO关键字） */
   async findAll(q: OrderListQuery) {
     const conds = [];
@@ -95,9 +137,11 @@ export class OrdersService {
       .select({
         order: orders,
         customerName: customers.name,
+        operatorName: operators.name,
       })
       .from(orders)
       .leftJoin(customers, eq(orders.customerId, customers.id))
+      .leftJoin(operators, eq(orders.operatorId, operators.id))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(orders.id));
     const rows = await base;
@@ -182,7 +226,7 @@ export class OrdersService {
   }
 
   /** 为列表行补订单行+产品名 */
-  private async attachLines(rows: Array<{ order: any; customerName: string | null }>) {
+  private async attachLines(rows: Array<{ order: any; customerName: string | null; operatorName?: string | null }>) {
     if (!rows.length) return [];
     const orderIds = rows.map((r) => r.order.id);
     const lines = await db
@@ -197,9 +241,10 @@ export class OrdersService {
       arr.push({ ...line, productName });
       byOrder.set(line.orderId, arr);
     }
-    return rows.map(({ order, customerName }) => ({
+    return rows.map(({ order, customerName, operatorName }) => ({
       ...order,
       customerName,
+      operatorName: operatorName ?? null,
       totalAmount: (byOrder.get(order.id) ?? []).reduce((s, l) => s + l.quantity * l.unitPrice, 0),
       lines: byOrder.get(order.id) ?? [],
     }));

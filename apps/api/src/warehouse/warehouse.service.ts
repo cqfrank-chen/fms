@@ -7,6 +7,7 @@ import {
 } from '../db/schema';
 import type { Outbound, PackagingSpec } from '../db/schema';
 import { fromCents, MONEY_EPS, round2, sumLineCents, toCents } from '../common/money';
+import { currentOperatorId } from '../common/operator-context';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 /** 占位批次：非真实入库，禁止参与 FIFO 扣减，避免"假库存"被当货发出去 */
@@ -86,7 +87,7 @@ export class WarehouseService {
     await db.transaction(async (tx) => {
       const updated = await tx
         .update(goodsReceipts)
-        .set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() })
+        .set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date(), operatorId: currentOperatorId() })
         .where(and(eq(goodsReceipts.id, id), eq(goodsReceipts.status, 'draft')))
         .returning();
       if (!updated.length) {
@@ -114,7 +115,7 @@ export class WarehouseService {
       if (!batchNo) batchNo = await nextSeqNo(tx, `FG-${ymd(now)}-`);
       const [g] = await tx
         .insert(goodsReceipts)
-        .values({ receiptNo, planSheetId: null, batchNo, note: dto.note ?? null })
+        .values({ receiptNo, planSheetId: null, batchNo, note: dto.note ?? null, operatorId: currentOperatorId() })
         .returning();
       await tx.insert(goodsReceiptLines).values({
         receiptId: g.id,
@@ -203,6 +204,7 @@ export class WarehouseService {
           shipNo: await nextSeqNo(tx, `OUT-${ymd(new Date())}-`),
           orderId: dto.orderId,
           oqc: dto.oqc,
+          operatorId: currentOperatorId(),
         })
         .returning();
       await tx.insert(outboundLines).values(
@@ -401,6 +403,7 @@ export class WarehouseService {
           amount: dto.amount,
           batchNo: dto.batchNo ?? null,
           iqcStatus: 'pending', // IQC 预留：一期线下纸质，登记默认待检
+          operatorId: currentOperatorId(),
         })
         .returning();
       await tx.insert(payables).values({
@@ -485,7 +488,7 @@ export class WarehouseService {
     await db.transaction(async (tx) => {
       const updated = await tx
         .update(stocktakes)
-        .set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() })
+        .set({ status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date(), operatorId: currentOperatorId() })
         .where(and(eq(stocktakes.id, id), eq(stocktakes.status, 'draft')))
         .returning();
       if (!updated.length) {

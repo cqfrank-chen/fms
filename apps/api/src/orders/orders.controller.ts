@@ -80,6 +80,12 @@ export class OrdersController {
   }
 
   /** 订单确认：草稿 → 已确认，自动生成计划单草稿（I05） */
+  /** 取消订单（五态收敛）：仅未投产订单可取消，未开工计划单与未核销应收同步冲销 */
+  @Post(':id/cancel')
+  cancel(@Param('id', ParseIntPipe) id: number) {
+    return this.service.cancelOrder(id);
+  }
+
   @Post(':id/confirm')
   confirm(@Param('id', ParseIntPipe) id: number) {
     return this.planSheetsService.confirmOrder(id);

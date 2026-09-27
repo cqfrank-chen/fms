@@ -23,6 +23,8 @@ export interface OrderLine {
 }
 
 export interface Order {
+  /** 留痕：录单人姓名（来自本机操作人绑定） */
+  operatorName?: string | null
   id: number
   orderNo: string
   customerId: number
