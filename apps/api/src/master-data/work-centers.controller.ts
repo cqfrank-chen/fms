@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Roles } from '../auth/decorators';
 import { MasterDataService } from './master-data.service';
 
 class CreateWorkCenterDto {
@@ -50,17 +51,20 @@ export class WorkCentersController {
     return this.svc.listWorkCenters();
   }
 
+  @Roles('admin', 'planner')
   @Post()
   create(@Body() dto: CreateWorkCenterDto) {
     return this.svc.createWorkCenter(dto);
   }
 
+  @Roles('admin', 'planner')
   @Patch(':key')
   update(@Param('key') key: string, @Body() dto: UpdateWorkCenterDto) {
     return this.svc.updateWorkCenter(key, dto);
   }
 
   /** 删除泳道：仍挂工序或有计划行时拒绝 */
+  @Roles('admin', 'planner')
   @Delete(':key')
   remove(@Param('key') key: string) {
     return this.svc.removeWorkCenter(key);

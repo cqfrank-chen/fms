@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Badge, Button, Drawer, Empty, Space, Tag, Typography } from 'antd'
 import { BellOutlined } from '@ant-design/icons'
+import { api } from '../lib/api'
 
 /** 规则预警条目（与后端 rule-alerts.service 对齐） */
 export interface AiAlert {
@@ -26,10 +27,9 @@ export default function AlertBell() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/ai/alerts')
-      if (!res.ok) return
-      setResp(await res.json())
-    } catch { /* 后端不可达时不打扰 */ }
+      // 走统一封装：自动附加 Authorization（登录鉴权后 /api/ai/alerts 需要登录态）
+      setResp(await api<AlertsResp>('/ai/alerts'))
+    } catch { /* 后端不可达 / 未登录时不打扰 */ }
   }, [])
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Roles } from '../auth/decorators';
 import { MasterDataService } from './master-data.service';
 
 class CreateProcessDto {
@@ -46,17 +47,20 @@ export class ProcessesController {
     return this.svc.listProcesses();
   }
 
+  @Roles('admin', 'planner')
   @Post()
   create(@Body() dto: CreateProcessDto) {
     return this.svc.createProcess(dto);
   }
 
+  @Roles('admin', 'planner')
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProcessDto) {
     return this.svc.updateProcess(id, dto);
   }
 
   /** 删除工序：被产品工艺路线引用时拒绝并说明数量 */
+  @Roles('admin', 'planner')
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.removeProcess(id);

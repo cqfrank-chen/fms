@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from 
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { SETTLEMENTS } from '../db/schema';
 import type { Settlement } from '../db/schema';
+import { Roles } from '../auth/decorators';
 import { CustomersService } from './customers.service';
 
 export class CreateCustomerDto {
@@ -32,16 +33,19 @@ export class CustomersController {
     return this.service.findAll();
   }
 
+  @Roles('admin', 'planner')
   @Post()
   create(@Body() dto: CreateCustomerDto) {
     return this.service.create(dto);
   }
 
+  @Roles('admin', 'planner')
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateCustomerDto>) {
     return this.service.update(id, dto);
   }
 
+  @Roles('admin', 'planner')
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);

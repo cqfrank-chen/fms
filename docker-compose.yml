@@ -46,6 +46,8 @@ services:
       # 业务时区：日期/单号按本地业务日计算（东八区）。容器默认 UTC 会导致
       # 0-8 点的单号落到前一天、排期交期整体偏移一天。
       TZ: ${TZ:-Asia/Shanghai}
+      # 登录鉴权（I15）：JWT 签名密钥；留空时服务启动随机生成并打印警告（重启后需重新登录）
+      JWT_SECRET: ${JWT_SECRET:-}
       # AI 网关（I12）：根 .env 配置，重启 app 生效；AI_API_KEY 为空 → mock 降级
       AI_API_KEY: ${AI_API_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}

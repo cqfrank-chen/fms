@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { desc, sql } from 'drizzle-orm';
+import { Roles } from '../auth/decorators';
 import { db } from '../db';
 import { aiParseFeedback } from '../db/schema';
 import type { NewAiParseFeedback } from '../db/schema';
@@ -12,6 +13,7 @@ import type { NewAiParseFeedback } from '../db/schema';
 @Controller('ai/feedback')
 export class AiFeedbackController {
   /** 记录一次 AI 解析的人工确认反馈 */
+  @Roles('admin', 'planner')
   @Post()
   async record(@Body() body: {
     source: string;

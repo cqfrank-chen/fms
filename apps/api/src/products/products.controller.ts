@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put } 
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { PRODUCT_TYPES } from '../db/schema';
 import type { ProductType } from '../db/schema';
+import { Roles } from '../auth/decorators';
 import { ProductsService } from './products.service';
 
 export class CreateProductDto {
@@ -42,16 +43,19 @@ export class ProductsController {
     return this.service.findAll();
   }
 
+  @Roles('admin', 'planner')
   @Post()
   create(@Body() dto: CreateProductDto) {
     return this.service.create(dto);
   }
 
+  @Roles('admin', 'planner')
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateProductDto>) {
     return this.service.update(id, dto);
   }
 
+  @Roles('admin', 'planner')
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);
@@ -72,6 +76,7 @@ export class ProductsController {
   }
 
   /** 整表替换某产品的工序路线（事务；服务端重排 seq 1..N） */
+  @Roles('admin', 'planner')
   @Put(':id/process-routes')
   replaceRoutes(
     @Param('id', ParseIntPipe) id: number,

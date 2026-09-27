@@ -382,9 +382,8 @@ function ScheduleModal({
   useEffect(() => {
     if (!task || !open) return;
     let cancelled = false;
-    fetch(`/api/scheduling/verify?lineId=${task.lineId}&wcKey=${encodeURIComponent(wcKey)}&startDate=${encodeURIComponent(startDate)}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((j) => { if (!cancelled) setVerify(j); })
+    api(`/scheduling/verify?lineId=${task.lineId}&wcKey=${encodeURIComponent(wcKey)}&startDate=${encodeURIComponent(startDate)}`)
+      .then((j) => { if (!cancelled) setVerify(j as VerifyResult | null); })
       .catch(() => { if (!cancelled) setVerify(null); });
     return () => { cancelled = true; };
   }, [task?.lineId, wcKey, startDate, open]);
@@ -568,9 +567,8 @@ export default function SchedulingPage() {
   const openOrder = async (t: SchedTask) => {
     setTaskDetail(null);
     try {
-      const res = await fetch(`/api/orders/${t.orderId}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setOrderDetail(await res.json());
+      // 经 api() 统一附加 Authorization（登录鉴权后 /api/orders/:id 需要登录态）
+      setOrderDetail((await api(`/orders/${t.orderId}`)) as Order);
     } catch (e: any) {
       message.error(`订单加载失败：${e?.message || e}`);
     }

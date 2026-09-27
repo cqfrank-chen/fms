@@ -609,3 +609,30 @@ export const appSettings = pgTable('app_settings', {
 
 export type AppSetting = typeof appSettings.$inferSelect;
 export type NewAppSetting = typeof appSettings.$inferInsert;
+
+// ============================================================
+// 登录鉴权与角色权限（I15）——正式账号体系取代「免登录 + 操作人选择」
+// 与既有 operators 的关系：users.operatorId 可选绑定一个操作人，
+// 绑定后所有留痕自动取该操作人（OperatorInterceptor 优先用登录用户绑定值），
+// 未绑定则回退请求头 X-Operator-Id（向后兼容，见 common/operator.interceptor.ts）。
+// ============================================================
+
+/** 角色词表（权限矩阵见 src/auth/roles.guard.ts 顶部注释） */
+export const USER_ROLES = ['admin', 'planner', 'warehouse', 'accounting', 'workshop'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+export const userRoleEnum = pgEnum('user_role', USER_ROLES);
+
+/** 系统用户（登录账号） */
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  username: text('username').notNull().unique(), // 登录名（唯一）
+  passwordHash: text('password_hash').notNull(), // bcryptjs 哈希（纯 JS，alpine 无编译工具链也可用）
+  displayName: text('display_name').notNull(), // 显示名（顶栏展示）
+  role: userRoleEnum('role').notNull(), // 角色：admin/planner/warehouse/accounting/workshop
+  enabled: boolean('enabled').default(true).notNull(), // 停用后无法登录（保留账号与留痕关联）
+  operatorId: integer('operator_id').references(() => operators.id), // 绑定的操作人（留痕用，可空）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;

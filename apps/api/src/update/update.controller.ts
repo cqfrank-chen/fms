@@ -1,4 +1,5 @@
 import { Controller, Get, Post } from '@nestjs/common';
+import { Roles } from '../auth/decorators';
 import { UpdateService } from './update.service';
 
 /** 自动更新（I13）：版本比对 / 下载 / 提交更新请求 */
@@ -9,9 +10,11 @@ export class UpdateController {
   @Get('status')
   status() { return this.svc.status(); }
 
+  @Roles('admin')
   @Post('download')
   download() { return this.svc.download(); }
 
+  @Roles('admin')
   @Post('apply')
   apply() { return this.svc.apply(); }
 }

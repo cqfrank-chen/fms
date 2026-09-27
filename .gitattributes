@@ -3,6 +3,10 @@
 # 导致 if(...) 块与 echo 行被截断执行；CRLF 可避免。
 *.bat text eol=crlf
 
+# Linux 部署脚本必须 LF：本机 core.autocrlf=true 时 git archive（发布包 system/ 的产出方式）
+# 会把 .sh 转成 CRLF，Linux bash 解析 `do\r` / `{\r` 直接语法报错（已在容器内实测复现）
+*.sh text eol=lf
+
 # 二进制文件不做换行转换
 *.png binary
 *.jpg binary

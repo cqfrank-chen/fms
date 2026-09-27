@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { AccountingService } from '../accounting/accounting.service';
+import { Roles } from '../auth/decorators';
 import { AI_CONFIG_FIELDS, AiConfigService } from './ai-config.service';
 import type { AiConfig } from './ai-config.service';
 import { LlmGatewayService } from './llm-gateway.service';
@@ -53,6 +54,7 @@ export class AiController {
   }
 
   /** 保存 AI 配置：patch 中 undefined=不改、空串=清除（回退 .env）；保存即生效 */
+  @Roles('admin')
   @Post('config')
   async saveConfig(@Body() body: Record<string, unknown>) {
     const patch: Partial<Record<keyof AiConfig, string | undefined>> = {};
@@ -75,6 +77,7 @@ export class AiController {
   }
 
   /** 清除全部 DB 覆盖（回退 .env 默认） */
+  @Roles('admin')
   @Post('config/reset')
   async resetConfig() {
     await this.aiCfg.reset();
@@ -83,6 +86,7 @@ export class AiController {
   }
 
   /** 连通性测试：真实发一条最小请求验证 key/baseUrl/model */
+  @Roles('admin')
   @Post('test')
   async test(@Body('kind') kind?: string) {
     if (kind === 'chat') return this.llm.testChat();

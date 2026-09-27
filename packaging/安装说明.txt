@@ -29,7 +29,9 @@
    它只修改本机 hosts（Windows 标准做法），不影响系统其它设置；
    解除绑定：set-domain.bat /remove    仅预览：set-domain.bat 加 -PrintOnly
 
-   无需登录，点左侧菜单即可使用：订单 / 计划单 / 排程 / 仓储 / 账目 / AI 助手。
+   登录后点左侧菜单即可使用：订单 / 计划单 / 排程 / 仓储 / 账目 / AI 助手。
+   初始管理员：admin / Fms@2026（首次登录后请点右上角「修改密码」；菜单按角色显示，
+   账号与角色在「设置 · 主数据 → 用户账号与角色权限」里维护）
 
 【自动更新（可选，推荐）】
    1) 服务器上双击运行  system\auto-update.bat  →  选「安装为计划任务」
@@ -66,7 +68,10 @@
   说明：
     · 包装文件（setup.bat / 本说明 / docker-README.txt）的版本管理来源是 packaging\；
     · CI（GitHub Actions，推送 v* tag 触发）目前使用内联组装流程出包，尚未调用该脚本；
-      两者产物结构一致，仅"由谁组装"不同（已知小债，见 Review 报告）。
+      两者产物结构一致，仅"由谁组装"不同（已知小债，见 Review 报告）；
+    · Linux 云服务器（Ubuntu/Debian）部署见 deploy/deploy-linux.sh：
+      sudo bash system/deploy/deploy-linux.sh —— 自动建 swap、装 Docker、配国内镜像源、
+      随机化数据库口令与 JWT_SECRET、docker load 离线镜像后 --no-build 启动并做健康检查。
 
 【WSL2 内核兼容性（Win10 新机必读）】
   · Windows 10（1903–21H2）：需要 docker\wsl_update_x64.msi，setup.bat 会自动静默安装

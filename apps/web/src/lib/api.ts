@@ -1,27 +1,51 @@
 import { message } from 'antd'
 import { getOperatorId } from './operator'
+import { getToken, clearAuth } from './token'
+import { LOGIN_PATH, navigate } from './router'
 
-/** 统一 API 请求封装（fetch + JSON + 错误归一） */
+/** 统一 API 请求封装（fetch + JSON + 错误归一 + 登录态注入） */
 const API = '/api'
 
-export async function api<T = unknown>(
-  path: string,
-  options: { method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; body?: unknown } = {},
-): Promise<T> {
-  // 留痕：把「本机操作人」随每个请求发出（后端 OperatorInterceptor 写入经办人字段）
+export interface ApiOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+  body?: unknown
+  /** 免登录接口（如 /auth/login）：不带 token，401 也不触发登出跳转（否则会把「密码错」当登录失效） */
+  skipAuth?: boolean
+}
+
+/** 401 处理：清登录态 + 跳登录页（同一时刻只提示/跳转一次，避免并发请求刷屏） */
+let redirecting = false
+function onUnauthorized(): void {
+  clearAuth()
+  if (redirecting) return
+  redirecting = true
+  message.error('登录已失效，请重新登录')
+  navigate(LOGIN_PATH, true)
+  window.setTimeout(() => { redirecting = false }, 800)
+}
+
+export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
+  // 留痕：优先用登录用户绑定的操作人（后端按 req.user.operatorId 取值），
+  // 未绑定时后端回退该请求头（向后兼容旧版「本机操作人」）
   const opId = getOperatorId()
-  const res = await fetch(`${API}${path}`, {
+  const token = options.skipAuth ? null : getToken()
+  const res = await fetch(API + path, {
     method: options.method ?? 'GET',
     headers: {
       ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
       ...(opId ? { 'X-Operator-Id': String(opId) } : {}),
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
+  if (res.status === 401 && !options.skipAuth) {
+    onUnauthorized()
+    throw new Error('登录已失效，请重新登录')
+  }
   if (!res.ok) {
     // NestJS ValidationPipe 400 返回 { message: string[] }；统一取首条
     const text = await res.text()
-    let detail = `HTTP ${res.status}`
+    let detail = 'HTTP ' + res.status
     try {
       const json = JSON.parse(text)
       if (Array.isArray(json.message) && json.message.length) detail = json.message[0]
@@ -45,5 +69,5 @@ export async function api<T = unknown>(
 export function loadOptions<T>(path: string, apply: (rows: T[]) => void, label: string): void {
   api<T[]>(path)
     .then(apply)
-    .catch((e: unknown) => message.error(`${label}加载失败：${(e as Error).message}；下拉可能为空，请刷新重试`))
+    .catch((e: unknown) => message.error(label + '加载失败：' + (e as Error).message + '；下拉可能为空，请刷新重试'))
 }

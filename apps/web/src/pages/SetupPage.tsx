@@ -5,6 +5,7 @@ import type { FieldConfig } from '../components/CrudResource'
 import ProcessDictCard from '../components/ProcessDictCard'
 import ProcessRouteCard from '../components/ProcessRouteCard'
 import UpdateCard from '../components/UpdateCard'
+import UserManageCard from '../components/UserManageCard'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL } from '../lib/labels'
 import { api } from '../lib/api'
 import type { ColumnsType } from 'antd/es/table'
@@ -148,6 +149,7 @@ export default function SetupPage() {
           fields={OPERATOR_FIELDS}
           onChanged={bumpData}
         />
+        <UserManageCard />
         <ProcessDictCard onChanged={bumpData} />
         <ProcessRouteCard reloadToken={dataVersion} />
         <AiConfigCard />

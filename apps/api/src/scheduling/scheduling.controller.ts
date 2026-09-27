@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { Roles } from '../auth/decorators';
 import { SchedulingService } from './scheduling.service';
 
 class ScheduleDto {
@@ -37,11 +38,13 @@ export class SchedulingController {
     return this.svc.verify(lineId, wcKey, startDate);
   }
 
+  @Roles('admin', 'planner')
   @Post('plan-lines/:lineId/schedule')
   schedule(@Param('lineId', ParseIntPipe) lineId: number, @Body() dto: ScheduleDto) {
     return this.svc.scheduleLine(lineId, dto);
   }
 
+  @Roles('admin', 'planner')
   @Delete('plan-lines/:lineId/schedule')
   unschedule(@Param('lineId', ParseIntPipe) lineId: number) {
     return this.svc.unscheduleLine(lineId);

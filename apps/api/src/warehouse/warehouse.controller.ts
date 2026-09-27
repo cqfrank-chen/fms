@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize, IsArray, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min, ValidateNested,
 } from 'class-validator';
+import { Roles } from '../auth/decorators';
 import { WarehouseService } from './warehouse.service';
 
 class OutboundLineDto {
@@ -87,8 +88,11 @@ export class InventoryController {
 export class ReceiptsController {
   constructor(private readonly svc: WarehouseService) {}
   @Get() list() { return this.svc.receipts(); }
+  @Roles('admin', 'warehouse')
   @Post('manual') createManual(@Body() dto: CreateManualReceiptDto) { return this.svc.createManualReceipt(dto); }
+  @Roles('admin', 'warehouse')
   @Post(':id/confirm') confirm(@Param('id', ParseIntPipe) id: number) { return this.svc.confirmReceipt(id); }
+  @Roles('admin', 'warehouse')
   @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidReceipt(id); }
 }
 
@@ -96,10 +100,15 @@ export class ReceiptsController {
 export class OutboundsController {
   constructor(private readonly svc: WarehouseService) {}
   @Get() list() { return this.svc.outboundsList(); }
+  @Roles('admin', 'warehouse')
   @Post() create(@Body() dto: CreateOutboundDto) { return this.svc.createOutbound(dto); }
+  @Roles('admin', 'warehouse')
   @Post(':id/submit') submit(@Param('id', ParseIntPipe) id: number) { return this.svc.submitOutbound(id); }
+  @Roles('admin', 'warehouse')
   @Post(':id/oqc-pass') oqcPass(@Param('id', ParseIntPipe) id: number) { return this.svc.oqcPass(id); }
+  @Roles('admin', 'warehouse')
   @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidOutbound(id); }
+  @Roles('admin', 'warehouse')
   @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) { return this.svc.removeDraft(id); }
 }
 
@@ -107,7 +116,9 @@ export class OutboundsController {
 export class IncomingController {
   constructor(private readonly svc: WarehouseService) {}
   @Get() list() { return this.svc.incomingList(); }
+  @Roles('admin', 'warehouse')
   @Post() create(@Body() dto: CreateIncomingDto) { return this.svc.createIncoming(dto); }
+  @Roles('admin', 'warehouse')
   @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidIncoming(id); }
 }
 
@@ -115,7 +126,10 @@ export class IncomingController {
 export class StocktakesController {
   constructor(private readonly svc: WarehouseService) {}
   @Get() list() { return this.svc.stocktakesList(); }
+  @Roles('admin', 'warehouse')
   @Post() create(@Body() dto: CreateStocktakeDto) { return this.svc.createStocktake(dto); }
+  @Roles('admin', 'warehouse')
   @Post(':id/confirm') confirm(@Param('id', ParseIntPipe) id: number) { return this.svc.confirmStocktake(id); }
+  @Roles('admin', 'warehouse')
   @Post(':id/void') void(@Param('id', ParseIntPipe) id: number) { return this.svc.voidStocktake(id); }
 }

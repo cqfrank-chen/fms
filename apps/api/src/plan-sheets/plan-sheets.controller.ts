@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { IsInt, IsOptional, Min } from 'class-validator';
 import type { PlanStatus } from '../db/schema';
+import { Roles } from '../auth/decorators';
 import { PlanSheetsService } from './plan-sheets.service';
 
 /** 行报工 DTO：本次完成数量（增量，办公室 PC 代录）
@@ -28,18 +29,21 @@ export class PlanSheetsController {
   constructor(private readonly service: PlanSheetsService) {}
 
   /** 订单确认：草稿 → 已确认 + 自动生成计划单草稿（POST /orders/:id/confirm 由 orders 模块复用） */
+  @Roles('admin', 'planner')
   @Post(':id/audit')
   audit(@Param('id', ParseIntPipe) id: number) {
     return this.service.audit(id);
   }
 
   /** 审核不通过：计划单作废 + 订单退回草稿（可编辑后重新确认） */
+  @Roles('admin', 'planner')
   @Post(':id/reject')
   reject(@Param('id', ParseIntPipe) id: number) {
     return this.service.reject(id);
   }
 
   /** 行报工（I06）：录完成数量 → 状态聚合 → 触发入库单草稿 */
+  @Roles('admin', 'planner', 'workshop')
   @Post(':id/report')
   report(@Param('id', ParseIntPipe) id: number, @Body() dto: ReportDto) {
     return this.service.report(id, dto);

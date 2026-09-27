@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Res } from '@n
 import { IsArray, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Response } from 'express';
+import { Roles } from '../auth/decorators';
 import { AccountingService } from './accounting.service';
 
 class SlipLineDto {
@@ -61,6 +62,7 @@ export class AccountingController {
 
   // 收款单
   @Get('collection-slips') collectionSlips() { return this.svc.collectionSlipsList(); }
+  @Roles('admin', 'accounting')
   @Post('collection-slips')
   createCollection(@Body() dto: CreateSlipDto) {
     return this.svc.createCollectionSlip({
@@ -68,10 +70,12 @@ export class AccountingController {
       lines: dto.lines?.map((l) => ({ receivableId: l.id, amount: l.amount })),
     });
   }
+  @Roles('admin', 'accounting')
   @Post('collection-slips/:id/void') voidCollection(@Param('id', ParseIntPipe) id: number) { return this.svc.voidCollectionSlip(id); }
 
   // 付款单
   @Get('payment-slips') paymentSlips() { return this.svc.paymentSlipsList(); }
+  @Roles('admin', 'accounting')
   @Post('payment-slips')
   createPayment(@Body() dto: CreateSlipDto) {
     return this.svc.createPaymentSlip({
@@ -79,12 +83,14 @@ export class AccountingController {
       lines: dto.lines?.map((l) => ({ payableId: l.id, amount: l.amount })),
     });
   }
+  @Roles('admin', 'accounting')
   @Post('payment-slips/:id/void') voidPayment(@Param('id', ParseIntPipe) id: number) { return this.svc.voidPaymentSlip(id); }
 
   // 对账单 / 利润 / 成本
   @Get('statements') statements() { return this.svc.statements(); }
   @Get('profit') profit(@Query('month') month: string) { return this.svc.profit(month || this.currentMonth()); }
   @Get('monthly-costs') costs(@Query('month') month: string) { return this.svc.listMonthlyCosts(month || this.currentMonth()); }
+  @Roles('admin', 'accounting')
   @Post('monthly-costs') upsertCost(@Body() dto: CostDto) { return this.svc.upsertMonthlyCost(dto); }
 
   // 四表导出

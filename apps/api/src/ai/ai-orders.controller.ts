@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { db } from '../db';
 import { aiParseDrafts } from '../db/schema';
+import { Roles } from '../auth/decorators';
 import { OrderParserService } from './order-parser.service';
 
 class ParseOrderDto {
@@ -29,6 +30,7 @@ export class AiOrdersController {
   constructor(private readonly parser: OrderParserService) {}
 
   /** AI 订单解析：文本/图片 → 结构化草稿 + 规则校验 + 低置信标红（确认建单复用 POST /orders） */
+  @Roles('admin', 'planner')
   @Post('parse')
   async parse(@Body() dto: ParseOrderDto) {
     try {
@@ -57,6 +59,7 @@ export class AiOrdersController {
   }
 
   /** 保存/覆盖草稿（单槽 upsert id=1；保持 createdAt，刷新 updatedAt） */
+  @Roles('admin', 'planner')
   @Post('draft')
   async saveDraft(@Body() body: { result?: unknown; draft?: unknown }) {
     if (!body.result || typeof body.result !== 'object' || Array.isArray(body.result)) {
@@ -81,6 +84,7 @@ export class AiOrdersController {
   }
 
   /** 清除草稿（确认建单成功 / 显式放弃） */
+  @Roles('admin', 'planner')
   @Delete('draft')
   async clearDraft() {
     await db.delete(aiParseDrafts).where(eq(aiParseDrafts.id, 1));

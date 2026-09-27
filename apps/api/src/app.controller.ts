@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
+import { Public } from './auth/decorators';
 
 @Controller()
 export class AppController {
@@ -11,7 +12,8 @@ export class AppController {
     return this.appService.getServiceName();
   }
 
-  /** 健康检查：API + 数据库连通性（首页状态徽标消费） */
+  /** 健康检查：API + 数据库连通性（首页状态徽标消费）；@Public = 免登录白名单（探活/容器健康检查） */
+  @Public()
   @Get('health')
   async health(): Promise<{ status: string; db: string; time: string }> {
     const dbOk = await this.appService.checkDb();

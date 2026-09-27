@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { Roles } from '../auth/decorators';
 import { PackTemplatesService } from './pack-templates.service';
 
 export class CreatePackTemplateDto {
@@ -28,11 +29,13 @@ export class PackTemplatesController {
     return this.service.findAll();
   }
 
+  @Roles('admin', 'planner')
   @Post()
   create(@Body() dto: CreatePackTemplateDto) {
     return this.service.create(dto);
   }
 
+  @Roles('admin', 'planner')
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);
