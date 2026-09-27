@@ -134,9 +134,25 @@ export class UpdateService {
       name = `fms-${sha.slice(0, 7)}.zip`;
     }
 
-    const res = await fetch(url, { headers: this.headers(), redirect: 'follow' });
-    if (!res.ok) throw new BadRequestException(`下载失败：HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
+    // 网络抖动/连接超时常见（资产下载需可达 github.com），3 次退避重试并给出可读错误
+    let res: Response | null = null;
+    let lastErr = '';
+    for (let attempt = 1; attempt <= 3 && !res; attempt++) {
+      try {
+        const r = await fetch(url, { headers: this.headers(), redirect: 'follow' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        res = r;
+      } catch (e) {
+        lastErr = (e as Error).message || String(e);
+        this.logger.warn('download attempt ' + attempt + ' failed: ' + lastErr);
+        if (attempt < 3) await new Promise((ok) => setTimeout(ok, 1500 * attempt));
+      }
+    }
+    if (!res) {
+      throw new BadRequestException('下载更新包失败（' + lastErr + '）。请确认服务器能访问 github.com 与 objects.githubusercontent.com 后重试');
+    }
+    const okRes = res;
+    const buf = Buffer.from(await okRes.arrayBuffer());
     const file = join(UPDATES_DIR, name);
     await writeFile(file, buf);
     const sha256 = createHash('sha256').update(buf).digest('hex').toUpperCase();
