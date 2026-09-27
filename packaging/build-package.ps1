@@ -14,6 +14,7 @@ param(
   [string]$OutDir = 'D:\futures',
   [string]$PkgDirName = 'fms-发布包',
   [string]$InstallerPath = '',
+  [string]$WslMsiPath = '',
   [switch]$Fat,
   [switch]$SkipDir
 )
@@ -90,6 +91,13 @@ try {
   New-Item -ItemType Directory -Path $dockerDir -Force | Out-Null
   Copy-Item (Join-Path $packagingDir 'docker-README.txt') (Join-Path $dockerDir 'README.txt') -Force
   Copy-Item (Join-Path $packagingDir 'docker-daemon.json') (Join-Path $dockerDir 'daemon.json') -Force
+  # WSL2 内核更新包（Win10 需要；国内官方源常拉不动，随包携带）
+  $wsl = $WslMsiPath
+  if (-not $wsl -or -not (Test-Path $wsl)) { $wsl = Join-Path $env:USERPROFILE 'Downloads\wsl_update_x64.msi' }
+  if (Test-Path $wsl) {
+    Copy-Item $wsl (Join-Path $dockerDir 'wsl_update_x64.msi') -Force
+    Write-Host ('已包含 WSL2 内核包 : ' + [math]::Round((Get-Item $wsl).Length / 1MB, 1) + ' MB')
+  } else { Write-Host '未找到 WSL2 内核包（Win11/新 Win10 通常不需要）' }
 
   # 4) 胖包：放入 Docker Desktop 安装器
   if ($Fat) {
