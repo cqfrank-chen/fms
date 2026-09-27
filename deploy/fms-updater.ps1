@@ -9,7 +9,9 @@ param(
   [string]$AppDir,
   [int]$HealthTimeoutSec = 240,
   [switch]$Force,          # 无请求文件也强制走一次更新（用于手动升级）
-  [switch]$ForcePackage    # 强制走「压缩包模式」（不依赖 git，用于新机/测试）
+  [switch]$ForcePackage,   # 强制走「压缩包模式」（不依赖 git，用于新机/测试）
+  [switch]$Watch,          # 常驻守护：循环检查更新请求（近实时，替代计划任务）
+  [int]$IntervalSec = 15   # 守护模式的检查间隔（秒）
 )
 $ErrorActionPreference = 'Continue'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -146,4 +148,13 @@ try {
 } finally {
   Pop-Location
   Log '================ 结束 ================'
+}
+
+# ---- 常驻守护：每 IntervalSec 秒检查一次（设置页点「一键更新」后十几秒内自动完成）----
+if ($Watch) {
+  Log ('守护模式：每 ' + $IntervalSec + ' 秒检查一次更新请求；可在任务管理器中结束本进程')
+  while ($true) {
+    & $MyInvocation.MyCommand.Path -AppDir $AppDir -HealthTimeoutSec $HealthTimeoutSec
+    Start-Sleep -Seconds $IntervalSec
+  }
 }

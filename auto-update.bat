@@ -4,7 +4,8 @@ setlocal
 REM ============================================================
 REM  工厂管理系统 FMS · 自动更新（宿主代理）
 REM  用法：
-REM    auto-update.bat install      注册计划任务（每 5 分钟检查一次更新请求）
+REM    auto-update.bat install      注册计划任务（每 1 分钟检查，无需常驻进程）
+REM    auto-update.bat watch        常驻守护（每 15 秒检查，点完前端十几秒内完成；需保持窗口/进程）
 REM    auto-update.bat run          立即执行一次（有请求才更新）
 REM    auto-update.bat force        立即执行一次（无请求也重建，用于手动升级）
 REM    auto-update.bat status       查看代理状态与最近结果
@@ -16,16 +17,18 @@ set "ACTION=%~1"
 if "%ACTION%"=="" set "ACTION=status"
 
 if /i "%ACTION%"=="status" (
-  if exist "%~dp0updates\agent.status" (
-    type "%~dp0updates\agent.status"
-  ) else (
-    echo  尚未运行过（无 updates\agent.status）。可执行：auto-update.bat run
-  )
+  if exist "%~dp0updates\agent.status" ( type "%~dp0updates\agent.status" ) else ( echo  尚未运行过（无 updates\agent.status）。可执行：auto-update.bat run )
   echo.
   echo  计划任务状态：
   schtasks /Query /TN "%TASK%" 2>nul | findstr /i "%TASK%" || echo    未安装（执行 auto-update.bat install 安装）
   if exist "%~dp0updates\apply.request" (echo. & echo  存在待处理更新请求： & type "%~dp0updates\apply.request")
   pause & exit /b 0
+)
+
+if /i "%ACTION%"=="watch" (
+  echo  常驻守护模式（每 15 秒检查）；关闭本窗口即停止。
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Watch -IntervalSec 15
+  exit /b 0
 )
 
 REM ---- 计划任务安装/卸载需要管理员 ----
@@ -37,11 +40,11 @@ if errorlevel 1 (
 )
 
 if /i "%ACTION%"=="install" (
-  schtasks /Create /TN "%TASK%" /SC MINUTE /MO 5 /RL HIGHEST /F ^
+  schtasks /Create /TN "%TASK%" /SC MINUTE /MO 1 /RL HIGHEST /F ^
     /TR "powershell -NoProfile -ExecutionPolicy Bypass -File \"%PS1%\"" >nul
   if errorlevel 1 (echo  [错误] 注册计划任务失败。 & pause & exit /b 1)
-  echo  已安装计划任务「%TASK%」：每 5 分钟检查一次更新请求。
-  echo  立即执行一次以生成状态文件...
+  echo  已安装计划任务「%TASK%」：每 1 分钟检查一次更新请求（设置页点「一键更新」后最多约 1 分钟自动完成）。
+  echo  想要十几秒级完成：改用  auto-update.bat watch（常驻守护）。
   powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
   pause & exit /b 0
 )
@@ -59,6 +62,6 @@ if /i "%ACTION%"=="force" (
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
 echo.
-echo  提示：安装为计划任务后即可在设置页「系统更新」一键更新：auto-update.bat install
+echo  提示：安装代理后即可在设置页「系统更新」纯前端一键更新：auto-update.bat install
 pause
 endlocal
