@@ -5,6 +5,7 @@ import type { FieldConfig } from '../components/CrudResource'
 import MasterImportCard from '../components/MasterImportCard'
 import ProcessDictCard from '../components/ProcessDictCard'
 import ProcessRouteCard from '../components/ProcessRouteCard'
+import InvoiceSettingsCard from '../components/InvoiceSettingsCard'
 import UpdateCard from '../components/UpdateCard'
 import UserManageCard from '../components/UserManageCard'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL } from '../lib/labels'
@@ -155,6 +156,8 @@ export default function SetupPage() {
         <UserManageCard />
         <ProcessDictCard onChanged={bumpData} />
         <ProcessRouteCard reloadToken={dataVersion} />
+        {/* 开票默认税率（I16 收敛②）：复用 app_settings 的极简单行配置 */}
+        <InvoiceSettingsCard />
         <AiConfigCard />
         <UpdateCard />
       </div>

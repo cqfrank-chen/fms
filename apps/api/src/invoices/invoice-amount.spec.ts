@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { RATE_SCALE, bpToRate, rateToBp, taxCentsOf } from '../common/money';
 import { normalizeInvoiceAmounts, solveExclFromIncl } from './invoice-amount';
+import { ALLOWED_DEFAULT_TAX_RATES, normalizeDefaultTaxRate } from './invoice-settings';
 import {
   alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage, invoiceNoImmutableMessage,
   orderCustomerMismatchMessage, ordersMissingMessage, voidedImmutableMessage,
@@ -119,6 +120,49 @@ describe('开票金额简化入参（I16 交互简化）：只给含税金额', 
   it('含税金额为 0 或负数仍拒绝', () => {
     expectReject(() => normalizeInvoiceAmounts({ amountInclCents: 0 }), ['含税金额', '必须大于 0']);
     expectReject(() => normalizeInvoiceAmounts({ amountInclCents: -100 }), ['含税金额', '不能为负']);
+  });
+});
+
+describe('红字发票金额（I16 红冲）：负数三金额 + 与正数镜像', () => {
+  it('全额红冲镜像：+3539.82/13% → −3539.82，税额与含税同时取负，净额可精确归零', () => {
+    const r = normalizeInvoiceAmounts(
+      { amountExclCents: -353982, taxRate: 0.13, taxCents: -46018, amountInclCents: -400000 },
+      { allowNegative: true },
+    );
+    expect(r).toEqual({ amountExclCents: -353982, taxRate: 0.13, taxCents: -46018, amountInclCents: -400000 });
+    expect(r.amountExclCents + r.taxCents).toBe(r.amountInclCents);
+  });
+
+  it('负数税额按绝对值对称（12345 × 13% → 正 1605 / 负 −1605，不是 −1604）', () => {
+    const r = normalizeInvoiceAmounts({ amountExclCents: -12345, taxRate: 0.13 }, { allowNegative: true });
+    expect(r.taxCents).toBe(-1605);
+    expect(r.amountInclCents).toBe(-12345 - 1605);
+  });
+
+  it('只给负含税金额也能反解（红字票按正数反解后取负）', () => {
+    const r = normalizeInvoiceAmounts({ amountInclCents: -11300, taxRate: 0.13 }, { allowNegative: true });
+    expect(r).toEqual({ amountExclCents: -10000, taxRate: 0.13, taxCents: -1300, amountInclCents: -11300 });
+  });
+
+  it('红字票三金额必须为负：给 0 或正数一律拒绝', () => {
+    expectReject(() => normalizeInvoiceAmounts({ amountExclCents: 10000, taxRate: 0.13 }, { allowNegative: true }), ['红字发票', '必须为负数']);
+    expectReject(() => normalizeInvoiceAmounts({ amountInclCents: 0 }, { allowNegative: true }), ['红字发票', '必须为负数']);
+    expectReject(() => normalizeInvoiceAmounts({ amountExclCents: -10000, taxRate: 0.13, taxCents: 1300 }, { allowNegative: true }), ['红字发票', '税额', '负数']);
+  });
+});
+
+describe('开票默认税率设置（I16 收敛②）', () => {
+  it('仅允许 0 / 1% / 6% / 9% / 13%（按万分点整数比较）', () => {
+    expect(ALLOWED_DEFAULT_TAX_RATES).toEqual([0, 0.01, 0.06, 0.09, 0.13]);
+    expect(normalizeDefaultTaxRate(0)).toBe(0);
+    expect(normalizeDefaultTaxRate('0.13')).toBe(0.13);
+    expect(normalizeDefaultTaxRate(0.09)).toBe(0.09);
+  });
+
+  it('非法值给中文提示（含允许值）', () => {
+    expectReject(() => normalizeDefaultTaxRate(0.03), ['开票默认税率', '0 / 1% / 6% / 9% / 13%']);
+    expectReject(() => normalizeDefaultTaxRate('abc'), ['开票默认税率', '必须是数字']);
+    expectReject(() => normalizeDefaultTaxRate(13), ['开票默认税率']);
   });
 });
 

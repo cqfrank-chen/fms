@@ -141,11 +141,16 @@ async function main() {
   eq('已开完 未开票余额(分)', row.uninvoicedCents, 0);
   eq('已开完 是否超额', row.overInvoiced, false);
 
-  // 超过价格：仍成功、状态仍为已开完、不报错
-  const over = await req('POST', '/invoices', {
+  // 超过价格：默认阻止（I16 收敛⑤），只有「高级」显式勾选「允许超开」才继续
+  const overBlocked = await req('POST', '/invoices', {
     invoiceNo: 'SIM-0003', amountInclCents: 5000, issueDate: today(), orderIds: [S.o1],
   }, token);
-  eq('超额开票仍成功（不报错）', over.status, 201);
+  eq('默认超开被阻止 → 400', overBlocked.status, 400);
+  const over = await req('POST', '/invoices', {
+    invoiceNo: 'SIM-0003', amountInclCents: 5000, issueDate: today(), orderIds: [S.o1],
+    allowOverInvoiced: true,
+  }, token);
+  eq('高级勾选允许超开后仍成功（不报错）', over.status, 201);
   ok('超额开票返回 warning', typeof over.body.warning === 'string' && over.body.warning.includes('超出订单金额'), over.body.warning);
   row = await orderRow(token, S.o1);
   eq('超额后 已开票(分)', row.invoicedCents, 105000);

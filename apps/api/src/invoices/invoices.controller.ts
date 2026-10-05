@@ -1,11 +1,13 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
-import { Type } from 'class-transformer';
-import { IsArray, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Roles } from '../auth/decorators';
 import { INVOICE_STATUSES, INVOICE_TYPES } from '../db/schema';
 import type { InvoiceStatus, InvoiceType } from '../db/schema';
 import { InvoicesService } from './invoices.service';
-import type { CreateInvoiceDto as CreateInvoiceBody, UpdateInvoiceDto as UpdateInvoiceBody } from './invoices.service';
+import type {
+  CreateInvoiceDto as CreateInvoiceBody, RedFlushDto as RedFlushBody, UpdateInvoiceDto as UpdateInvoiceBody,
+} from './invoices.service';
 
 class ListInvoicesDto {
   @IsOptional()
@@ -46,6 +48,19 @@ class ListInvoicesDto {
   @Type(() => Number)
   @IsInt({ message: '订单 ID（orderId）须为整数' })
   orderId?: number;
+
+  /** 只看待补票号（占位号且未作废）：?missingNo=true */
+  @IsOptional()
+  // 只接受 true/false/1/0；其它字符串原样透传 → 触发 @IsBoolean 报 400（避免非法值被静默当成 false）
+  @Transform(({ value }) =>
+    value === true || value === 'true' || value === '1'
+      ? true
+      : value === false || value === 'false' || value === '0'
+        ? false
+        : value,
+  )
+  @IsBoolean({ message: 'missingNo 须为布尔值（true/false）' })
+  missingNo?: boolean;
 }
 
 class SummaryInvoicesDto {
@@ -102,6 +117,41 @@ class CreateInvoiceDto implements CreateInvoiceBody {
   @IsOptional()
   @IsString()
   remark?: string;
+
+  /** 允许超开（高级区显式勾选）：默认不允许，超出订单金额直接 400 */
+  @IsOptional()
+  @IsBoolean({ message: 'allowOverInvoiced 须为布尔值' })
+  allowOverInvoiced?: boolean;
+}
+
+/** 红冲入参：红字票必须有自己的真实票号 + 冲红原因；金额为正数红冲额（缺省=全额） */
+class RedFlushDto implements RedFlushBody {
+  @IsString({ message: '冲红原因（reason）必填' })
+  @IsNotEmpty({ message: '冲红原因（reason）必填' })
+  reason: string;
+
+  @IsString({ message: '红字发票号（invoiceNo）必填' })
+  @IsNotEmpty({ message: '红字发票号（invoiceNo）必填' })
+  invoiceNo: string;
+
+  @IsOptional()
+  @IsInt({ message: '红冲金额（amountInclCents，正数，单位：分）必须是整数' })
+  @Min(1, { message: '红冲金额（amountInclCents）必须大于 0' })
+  amountInclCents?: number;
+
+  @IsOptional()
+  @IsString({ message: '红冲日期（issueDate）须为 YYYY-MM-DD 字符串' })
+  issueDate?: string;
+
+  @IsOptional()
+  @IsString()
+  remark?: string;
+}
+
+/** 开票设置（当前只有默认税率） */
+class InvoiceSettingsDto {
+  @IsNumber({}, { message: '开票默认税率（defaultTaxRate）须为数字（0 / 0.01 / 0.06 / 0.09 / 0.13）' })
+  defaultTaxRate: number;
 }
 
 class UpdateInvoiceDto implements UpdateInvoiceBody {
@@ -175,6 +225,12 @@ export class InvoicesController {
     return this.svc.orderStatus(id);
   }
 
+  /** 开票设置：默认税率（登录即可读） */
+  @Get('settings')
+  settings() {
+    return this.svc.getSettings();
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.svc.findOne(id);
@@ -184,6 +240,13 @@ export class InvoicesController {
   @Post()
   create(@Body() dto: CreateInvoiceDto) {
     return this.svc.create(dto);
+  }
+
+  /** 保存开票设置（默认税率）—— 必须声明在 PUT :id 之前，否则 'settings' 会被 :id 路由吞掉 */
+  @Roles('admin', 'accounting')
+  @Put('settings')
+  saveSettings(@Body() dto: InvoiceSettingsDto) {
+    return this.svc.saveSettings(dto);
   }
 
   @Roles('admin', 'accounting')
@@ -197,4 +260,12 @@ export class InvoicesController {
   voidInvoice(@Param('id', ParseIntPipe) id: number, @Body() dto: VoidInvoiceDto) {
     return this.svc.voidInvoice(id, dto.reason);
   }
+
+  /** 红冲（跨月错票）：开具负数金额的红字发票冲减原票，原票状态置「已红冲」 */
+  @Roles('admin', 'accounting')
+  @Post(':id/red-flush')
+  redFlush(@Param('id', ParseIntPipe) id: number, @Body() dto: RedFlushDto) {
+    return this.svc.redFlush(id, dto);
+  }
+
 }

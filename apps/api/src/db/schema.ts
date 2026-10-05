@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 // ============================================================
 // 主数据（I03，spec §3）——术语对齐 CONTEXT.md
@@ -653,8 +654,13 @@ export const INVOICE_TYPES = ['vat_special', 'vat_general', 'electronic', 'other
 export type InvoiceType = (typeof INVOICE_TYPES)[number];
 export const invoiceTypeEnum = pgEnum('invoice_type', INVOICE_TYPES);
 
-/** 发票状态：正常 / 已作废（不作物理删除，仅置状态留痕） */
-export const INVOICE_STATUSES = ['normal', 'voided'] as const;
+/**
+ * 发票状态：
+ *   normal       正常（红字发票的 status 也是 normal，靠 red_flush_of + 负数金额识别）
+ *   voided       已作废（当月错票；不作物理删除，仅置状态留痕，不计入统计）
+ *   red_flushed  已红冲（跨月错票：原票被红字发票冲减；净额统计仍计入原票正数并叠加红字负数）
+ */
+export const INVOICE_STATUSES = ['normal', 'voided', 'red_flushed'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export const invoiceStatusEnum = pgEnum('invoice_status', INVOICE_STATUSES);
 
@@ -673,7 +679,11 @@ export const invoices = pgTable(
     taxCents: bigint('tax_cents', { mode: 'number' }).default(0).notNull(), // 税额（分）
     amountInclCents: bigint('amount_incl_cents', { mode: 'number' }).notNull(), // 含税金额（分）
     issueDate: date('issue_date').notNull(), // 开票日期（业务日 YYYY-MM-DD）
-    status: invoiceStatusEnum('status').default('normal').notNull(), // 正常 / 已作废
+    status: invoiceStatusEnum('status').default('normal').notNull(), // 正常 / 已作废 / 已红冲
+    /** 红冲来源：本票是红字发票时指向被冲的原票（可空）；红字票金额为负、原票金额为正 */
+    redFlushOf: integer('red_flush_of').references((): AnyPgColumn => invoices.id),
+    /** 冲红原因（红字发票必填；与作废原因分开留痕） */
+    redReason: text('red_reason'),
     voidReason: text('void_reason'), // 作废原因（必填于作废动作）
     voidedAt: timestamp('voided_at', { withTimezone: true }), // 作废时间
     /** 留痕：开票操作人（取登录用户绑定操作人，回退请求头 X-Operator-Id；空=未绑定） */
@@ -684,7 +694,11 @@ export const invoices = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex('invoices_no_normal_uq').on(t.invoiceNo).where(sql`status = 'normal'`)],
+  (t) => [
+    uniqueIndex('invoices_no_normal_uq').on(t.invoiceNo).where(sql`status = 'normal'`),
+    // I16 红冲：票号在「未作废」（normal + red_flushed）范围内唯一（新索引更严格，覆盖上面那条；纯新增，不动既有索引）
+    uniqueIndex('invoices_no_active_uq').on(t.invoiceNo).where(sql`status <> 'voided'`),
+  ],
 );
 
 /** 发票 × 订单 关联（多对多）：一张发票可挂多张订单，一张订单可被多张发票分批开票；也可都不挂 */

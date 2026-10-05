@@ -672,11 +672,12 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
               <Button danger size="small" loading={cancelingId === r.id}>取消订单</Button>
             </Popconfirm>
           )}
-          {/* 快捷开票（I16）：带入该订单剩余未开票金额，点确定即结清 */}
+          {/* 快捷开票（I16）：带入该订单剩余未开票金额，点确定即结清；已开完默认阻止，需在「高级」勾选允许超开 */}
           <Button
             size="small" type="primary" ghost
-            disabled={r.invoiceState === 'done'}
-            title={r.invoiceState === 'done' ? '该订单已开完票（如需继续开票请在账务页操作）' : '按剩余未开票金额开票'}
+            title={r.invoiceState === 'done'
+              ? '该订单已开完票：默认阻止继续开票，如确需超开请在弹窗「高级」里勾选「允许超开」'
+              : '按剩余未开票金额开票'}
             onClick={() => setInvoiceFor(r)}
           >
             开发票

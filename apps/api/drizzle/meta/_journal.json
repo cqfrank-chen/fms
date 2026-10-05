@@ -134,6 +134,20 @@
       "when": 1791201675009,
       "tag": "0018_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791204877276,
+      "tag": "0019_red_invoice",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791204957601,
+      "tag": "0020_invoice_no_active_uq",
+      "breakpoints": true
     }
   ]
 }

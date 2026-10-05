@@ -13,6 +13,7 @@ import type {
   Customer, Invoice, InvoicePage, InvoiceStatus, InvoiceSummary, InvoiceType, Order, OrderInvoiceStatus,
 } from '../lib/types'
 import InvoiceFormModal from './InvoiceFormModal'
+import InvoiceRedFlushModal from './InvoiceRedFlushModal'
 
 const { Text } = Typography
 const { RangePicker } = DatePicker
@@ -56,6 +57,10 @@ export default function InvoicesPanel() {
   const [voiding, setVoiding] = useState<Invoice | null>(null)
   const [voidReason, setVoidReason] = useState('作废重开')
   const [voidSaving, setVoidSaving] = useState(false)
+  /** 只看待补票号（I16 收敛①） */
+  const [missingNo, setMissingNo] = useState(false)
+  /** 红冲弹窗目标（原票） */
+  const [redFlushing, setRedFlushing] = useState<Invoice | null>(null)
   const [focusOrderId, setFocusOrderId] = useState<number | undefined>()
   const [orderStatus, setOrderStatus] = useState<OrderInvoiceStatus | null>(null)
   const [orderLoading, setOrderLoading] = useState(false)
@@ -81,6 +86,7 @@ export default function InvoicesPanel() {
       if (customerId) p.set('customerId', String(customerId))
       if (status) p.set('status', status)
       if (keyword.trim()) p.set('keyword', keyword.trim())
+      if (missingNo) p.set('missingNo', 'true')
       const [list, sum] = await Promise.all([
         api<InvoicePage>('/invoices?' + p.toString()),
         api<InvoiceSummary>('/invoices/summary?' + rangeParams.toString()),
@@ -90,7 +96,7 @@ export default function InvoicesPanel() {
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
     } finally { setLoading(false) }
-  }, [rangeParams, page, pageSize, customerId, status, keyword])
+  }, [rangeParams, page, pageSize, customerId, status, keyword, missingNo])
 
   useEffect(() => { load() }, [load])
 
@@ -123,9 +129,16 @@ export default function InvoicesPanel() {
   const baseColumns: ColumnsType<Invoice> = [
     { title: '发票号码', dataIndex: 'invoiceNo', width: 190, render: (v: string, r) => <InvoiceNoText invoiceNo={v} status={r.status} /> },
     { title: '客户', dataIndex: 'customerName', width: 140, ellipsis: true },
-    { title: '开票金额(元)', dataIndex: 'amountInclCents', width: 130, align: 'right', render: (v: number, r) => (
-      r.status === 'voided' ? <Text type="secondary" delete>{fmtCents(v)}</Text> : <Text strong>{fmtCents(v)}</Text>
-    ) },
+    {
+      title: '开票金额(元)', dataIndex: 'amountInclCents', width: 130, align: 'right',
+      render: (v: number, r) => (
+        r.status === 'voided'
+          ? <Text type="secondary" delete>{fmtCents(v)}</Text>
+          : r.isRed
+            ? <Text strong style={{ color: '#cf1322' }}>{fmtCents(v)}</Text> // 红字票：负数（红冲）
+            : <Text strong>{fmtCents(v)}</Text>
+      ),
+    },
     { title: '开票日期', dataIndex: 'issueDate', width: 110 },
     {
       title: '关联订单', width: 190,
@@ -141,18 +154,41 @@ export default function InvoicesPanel() {
         )
         : <Text type="secondary" style={{ fontSize: 12 }}>未关联订单</Text>),
     },
-    { title: '状态', dataIndex: 'status', width: 90, render: (v: InvoiceStatus) => (v === 'normal' ? <Tag color="success">正常</Tag> : <Tag color="error">已作废</Tag>) },
+    {
+      title: '状态', dataIndex: 'status', width: 150,
+      render: (v: InvoiceStatus, r) => {
+        if (v === 'voided') return <Tag color="error">已作废</Tag>
+        if (v === 'red_flushed') {
+          return (
+            <Space size={4} wrap>
+              <Tag color="purple">已红冲</Tag>
+              {!!(r.redFlushNos ?? []).length && <Text type="secondary" style={{ fontSize: 12 }}>红字票 {r.redFlushNos!.join('、')}</Text>}
+            </Space>
+          )
+        }
+        return r.isRed
+          ? <Tag color="volcano">红字票（冲 {r.redFlushOfNo ?? '原票'}）</Tag>
+          : <Tag color="success">正常</Tag>
+      },
+    },
     { title: '备注', dataIndex: 'remark', width: 140, ellipsis: true, render: (v?: string | null) => v || '—' },
     {
-      title: '操作', width: 130, fixed: 'right',
-      render: (_, r) => (r.status === 'normal'
-        ? (
+      title: '操作', width: 190, fixed: 'right',
+      render: (_, r) => {
+        if (r.status !== 'normal') {
+          return <Text type="secondary" style={{ fontSize: 12 }}>{r.voidReason ? `作废：${r.voidReason}` : '已红冲（净额由红字票冲减）'}</Text>
+        }
+        return (
           <Space size={4}>
             <Button size="small" onClick={() => setModal({ open: true, edit: r })}>编辑</Button>
+            {/* 红冲（跨月错票）：未作废、非红字票、且仍有可红冲余额 */}
+            {!r.isRed && (r.redRemainCents ?? 0) > 0 && (
+              <Button size="small" onClick={() => setRedFlushing(r)}>红冲</Button>
+            )}
             <Button size="small" danger onClick={() => { setVoiding(r); setVoidReason('作废重开') }}>作废</Button>
           </Space>
         )
-        : <Text type="secondary" style={{ fontSize: 12 }}>{r.voidReason ? `作废：${r.voidReason}` : '已作废'}</Text>),
+      },
     },
   ]
 
@@ -163,6 +199,14 @@ export default function InvoicesPanel() {
     { title: '不含税(元)', dataIndex: 'amountExclCents', width: 120, align: 'right', render: (v: number) => fmtCents(v) },
     { title: '税额(元)', dataIndex: 'taxCents', width: 110, align: 'right', render: (v: number) => fmtCents(v) },
     { title: '经办人', dataIndex: 'operatorName', width: 90, render: (v?: string | null) => v || <Text type="secondary">未绑定</Text> },
+    {
+      title: '红冲关系', width: 200,
+      render: (_, r) => (r.isRed
+        ? <Text style={{ fontSize: 12 }}>冲减原票 <Text strong>{r.redFlushOfNo ?? '—'}</Text>{r.redReason ? `（${r.redReason}）` : ''}</Text>
+        : (r.redFlushedCents ?? 0) > 0
+          ? <Text style={{ fontSize: 12 }}>已红冲 {fmtCents(r.redFlushedCents)} 元，可再冲 {fmtCents(r.redRemainCents ?? 0)} 元</Text>
+          : <Text type="secondary">—</Text>),
+    },
   ]
 
   const columns: ColumnsType<Invoice> = useMemo(() => {
@@ -182,8 +226,24 @@ export default function InvoicesPanel() {
   return (
     <div>
       <Card size="small" title="开票记录">
+        {/* 待补票号提醒（I16 收敛①）：可点击直接筛选 */}
+        {(summary?.pendingNoCount ?? 0) > 0 && (
+          <Alert
+            type="warning" showIcon style={{ marginBottom: 12 }}
+            message={`有 ${summary?.pendingNoCount} 张发票待补票号（占位号「待补号-…」）：不影响开票与统计，拿到真实票号后在行内「编辑」补录即可`}
+            action={(
+              <Space size={6}>
+                <Button size="small" type="primary" ghost onClick={() => { setMissingNo(true); setPage(1) }}>只看待补票号</Button>
+                {missingNo && <Button size="small" onClick={() => { setMissingNo(false); setPage(1) }}>取消筛选</Button>}
+              </Space>
+            )}
+          />
+        )}
         <Space size={8} wrap style={{ marginBottom: 12 }}>
           <Button type="primary" onClick={() => setModal({ open: true, edit: null })}>+ 开票</Button>
+          <Button size="small" type={missingNo ? 'primary' : 'default'} onClick={() => { setMissingNo((v) => !v); setPage(1) }}>
+            {missingNo ? '✓ 只看待补票号' : '只看待补票号'}
+          </Button>
           <RangePicker
             size="small" value={range as never} allowEmpty={[true, true]}
             onChange={(v) => { setRange(v as RangeValue); setPage(1) }}
@@ -203,7 +263,8 @@ export default function InvoicesPanel() {
             onSearch={(v) => { setKeyword(v); setPage(1) }} />
           <Button size="small" onClick={() => load()}>刷新</Button>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            共 {data.total} 张（含已作废）｜本期开票 {summary?.count ?? 0} 张 / {fmtCents(summary?.amountInclCents ?? 0)} 元
+            共 {data.total} 张（含已作废与红字票）｜本期净额 {summary?.count ?? 0} 张 / {fmtCents(summary?.amountInclCents ?? 0)} 元
+            {(summary?.pendingNoCount ?? 0) > 0 ? `｜待补票号 ${summary?.pendingNoCount} 张` : ''}
           </Text>
         </Space>
 
@@ -315,7 +376,14 @@ export default function InvoicesPanel() {
                             { title: '不含税(元)', dataIndex: 'amountExclCents', width: 120, align: 'right', render: (v: number) => fmtCents(v) },
                             { title: '税额(元)', dataIndex: 'taxCents', width: 110, align: 'right', render: (v: number) => fmtCents(v) },
                             { title: '开票金额(元)', dataIndex: 'amountInclCents', width: 130, align: 'right', render: (v: number) => <Text strong>{fmtCents(v)}</Text> },
-                            { title: '状态', dataIndex: 'status', width: 120, render: (v: InvoiceStatus, r) => (v === 'normal' ? <Tag color="success">正常</Tag> : <Tag color="error">已作废{r.voidReason ? `：${r.voidReason}` : ''}</Tag>) },
+                            {
+                              title: '状态', dataIndex: 'status', width: 150,
+                              render: (v: InvoiceStatus, r) => {
+                                if (v === 'voided') return <Tag color="error">已作废{r.voidReason ? `：${r.voidReason}` : ''}</Tag>
+                                if (v === 'red_flushed') return <Tag color="purple">已红冲</Tag>
+                                return r.isRed ? <Tag color="volcano">红字票</Tag> : <Tag color="success">正常</Tag>
+                              },
+                            },
                           ]} />
                       </div>
                     )}
@@ -329,6 +397,10 @@ export default function InvoicesPanel() {
       <InvoiceFormModal
         open={modal.open} edit={modal.edit} customers={customers} orders={orders}
         onClose={(reload) => { setModal({ open: false, edit: null }); if (reload) { void load(); if (focusOrderId) void openOrderStatus(focusOrderId) } }} />
+
+      <InvoiceRedFlushModal
+        open={!!redFlushing} invoice={redFlushing}
+        onClose={(reload) => { setRedFlushing(null); if (reload) { void load(); if (focusOrderId) void openOrderStatus(focusOrderId) } }} />
 
       <Modal
         title={voiding ? `作废发票 ${voiding.invoiceNo}` : '作废发票'}

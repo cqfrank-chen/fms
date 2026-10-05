@@ -342,5 +342,143 @@ apps/api > node test/excel-order-e2e.mjs（回归，空库）
 3. **金额仍不可改**：简化没有放宽「改金额须作废重开」的凭证约束（仅票号在占位状态下可补录）。
 4. **订单列表移除「未开票(元)」列**：按客户要求只保留三列，未开票余额改在「详情」「开票弹窗提示」「账务页订单对账」查看；接口字段仍保留。
 5. **快捷开票不做超额拦截**：已开完的订单按钮置灰，但仍可从账务页继续开票（按既有业务弹性，返回 warning）。
-6. 既有缺口（无红字发票、开票↔收款未自动勾稽、发票代码未采集、冲销无原因/冲销人）依旧未处理，建议单独立票。
+6. 既有缺口（无红字发票、开票↔收款未自动勾稽、发票代码未采集、冲销无原因/冲销人）在第六步中已补红字发票，其余保持。
+
+---
+
+## 第六步：遗留项收敛（A 红字发票 / B 待补票号 / C 默认税率 / D 超开闸门）
+
+均保持「极简主路径 + 能力收进高级区」，迁移全部只新增（0019 / 0020）。
+
+### A. 红字发票（跨月红冲）—— 最高优先级
+
+**模型（迁移 0019）**：`invoices` 新增 `red_flush_of`（自引用外键 → 被冲原票，可空）与 `red_reason`（冲红原因）；
+枚举 `invoice_status` 新增 `red_flushed`（已红冲）。红字票是一张**负数金额**发票（三金额均为负），它自身的 `status` 仍为 `normal`，靠 `red_flush_of` + 负数识别。
+另新增部分唯一索引 `invoices_no_active_uq`（`WHERE status <> 'voided'`，迁移 0020，纯新增）：票号在「未作废」范围内唯一（原 $`WHERE status='normal'` 索引保留不动）。
+
+**净额口径（关键设计）**：
+```
+已开票净额 = Σ(未作废且非红字票含税) + Σ(未作废红字票含税，负数)
+即：只要 status <> 'voided' 就计入；已被红冲的原票（red_flushed）仍计其正数，由红字票的负数冲减
+```
+这样全额红冲后净额**精确归零**（原票 +X 与红字票 −X 相抵），部分红冲后净额 = 原票 − 已红冲。
+订单三态、`summary`（合计与按客户/按月）、`invoicedCentsByOrder`、超开闸门全部改用该净额；
+作废只剔除该票自身（红字票作废即撤销红冲，净额回升），记录始终可查。
+
+**接口**：`POST /api/invoices/:id/red-flush`（admin/accounting）
+入参：`invoiceNo` 必填（红字票自带真实票号，不支持占位号）、`reason` 必填（冲红原因）、
+`amountInclCents` 选填**正数红冲额**（缺省 = 原票含税 = 全额红冲，改小 = 部分红冲）、`issueDate`、`remark`。
+服务端：红字票沿用原票客户/票种/税率/**关联订单**（订单净额与统计自动扣减）→ 生成负数三金额发票 →
+原票状态置 `red_flushed`。
+
+**约束与校验（全部中文提示）**
+| 规则 | 行为 |
+| --- | --- |
+| 累计红冲 ≤ 原票金额 | 超出 400：「红冲金额超过可红冲余额：原票 …，已红冲 …，本次 …，还可红冲 …」 |
+| 已作废票不可红冲 | 400「发票 … 已作废，不可红冲（当月错票直接用「作废」即可）」 |
+| 红字票不可再红冲 | 400「发票 … 是红字发票，不可再红冲」 |
+| 冲红原因 / 红字票号必填 | DTO + Service 双重校验（中文提示） |
+| 已被红冲的原票不可再作废 | 400「已被红冲，不可再作废（否则正负叠加会算成负净额）」 |
+| 红字票税率不可改 | 400「红字发票的税率沿用被冲原票，不可修改」 |
+| 作废红字票 | 允许；若该原票已无有效红字票 → 原票状态自动由「已红冲」还原为「正常」 |
+| 负数金额 | `normalizeInvoiceAmounts(input, { allowNegative: true })`：三金额必须为负；税额按绝对值对称（+12345×13% → −1605），保证红字票与原票逐分镜像、净额可精确归零 |
+
+**交互**：发票行「红冲」按钮（未作废、非红字票、仍有可红冲余额时才显示）→ 弹窗默认**全额红冲**
+（金额自动带出可红冲余额，可改小做部分红冲）+ 红字票号 + 日期 + 冲红原因（默认「红冲重开」）；
+票种/税率/金额拆分/备注收进「高级」。列表用 Tag 区分：正常（绿）/ 已作废（红）/ 已红冲（紫，附红字票号）/ 红字票（橙，附被冲原票号）；
+红字票金额以红色负数展示；「红冲关系」列（明细区）显示已红冲金额与可再冲余额。
+
+### B. 待补票号（收敛①）
+
+- 列表：`GET /api/invoices?missingNo=true`（占位号且未作废；非法值 400「missingNo 须为布尔值」）
+- 统计：`GET /api/invoices/summary` 新增 `pendingNoCount`（按同一日期区间）
+- 前端：账务页顶部 Alert「有 N 张发票待补票号」+「只看待补票号」一键筛选按钮；列表保留橙色「待补票号」标记；补录后提示自动消失
+
+### C. 开票默认税率（收敛②）
+
+- 存储：复用既有 `app_settings`（key = `invoice.default_tax_rate`），**不引入任何配置框架**
+- 接口：`GET /api/invoices/settings`（登录可读）/ `PUT /api/invoices/settings`（admin/accounting）
+- 校验：仅允许 0 / 1% / 6% / 9% / 13%（`normalizeDefaultTaxRate`，按万分点整数比较），非法值 400 中文提示
+- 前端：设置页新增「开票默认税率」卡片；开票弹窗打开时带出该税率（默认 0%，用户仍可在「高级」逐张调整）
+
+### D. 超开闸门（收敛⑤）
+
+- 默认**阻止**：`POST /api/invoices` 关联订单时，若「当前净额 + 本次金额 > 订单金额」→ 400
+  「所选订单已开完票：订单金额 …，已开票 …，本次 … 将超出；如需继续请在「高级」里勾选「允许超开」后重试」
+- 显式放行：`allowOverInvoiced: true`（前端「高级」勾选「允许超开」）→ 放行并仍返回 `warning`（超出金额）
+- 纯函数 `overInvoiceBlocked(orderAmount, currentNet, newAmount, allow)` 覆盖：差 1 分也阻止；红冲后净额下降可再次正常开票
+
+### 保持不变的项与理由
+
+- **③ 改金额须作废/红冲后重开**：保持不放开 —— 发票是财税凭证，金额一改税控/申报就对不上；本次新增红冲后，
+  「改金额」有两条合规出口（当月作废、跨月红冲）。仅「占位票号补录真实票号」这一条非金额通道保留。
+- **④ 订单列表只留三列（价格/已开票/开票状态）**：符合客户「极简」要求；未开票余额仍在订单详情、
+  开票弹窗提示、账务页订单对账中，接口字段未删。
+- **⑥ 开票↔收款自动勾稽**：本次**不做** —— 属报表层新能力（发票 ↔ 收款核销配对、按票回款分析），
+  需要新的勾稽模型与页面，与本轮「收敛遗留项」不同层；同屏对账（订单金额/已开票/已收款/未收）已能满足当前需要，建议另立票。
+
+### 本轮改动文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/api/src/db/schema.ts` | `invoice_status` + `red_flushed`；`invoices.red_flush_of` / `red_reason`；新增未作废票号唯一索引 |
+| `apps/api/drizzle/0019_red_invoice.sql`、`0020_invoice_no_active_uq.sql` | 纯新增迁移 |
+| `apps/api/src/invoices/invoice-amount.ts` | `allowNegative` 选项（红字票负数校验、税额绝对值对称、负含税反解） |
+| `apps/api/src/invoices/invoice-stats.ts` | 净额口径 `isCountedInvoice`；`redFlushedCents` / `redRemainCents` / `overInvoiceBlocked` |
+| `apps/api/src/invoices/invoice-settings.ts` | **新增**：默认税率 key + `normalizeDefaultTaxRate` |
+| `apps/api/src/invoices/invoices.service.ts` | 红冲 `redFlush()`、作废还原原票状态、净额聚合、`missingNo` 过滤、`pendingNoCount`、超开闸门、设置读写、红冲关系装配 |
+| `apps/api/src/invoices/invoices.controller.ts` | `POST :id/red-flush`、`GET/PUT settings`（PUT 必须声明在 `:id` 之前）、`missingNo`/`allowOverInvoiced` 入参 |
+| `apps/api/src/invoices/*.spec.ts` | 新增 16 项单测（红字负数三金额、红冲净额、可红冲余额、作废红字票、三态回退、超开闸门、默认税率） |
+| `apps/api/test/invoice-red-e2e.mjs` | **新增**红冲/待补票号/默认税率/超开 端到端（77 项 + SQL 净额复算） |
+| `apps/api/test/invoice-simple-e2e.mjs`、`invoice-e2e.mjs` | 超开用例按新契约拆分（默认 400 被拦 + 允许超开 201） |
+| `apps/web/src/lib/types.ts`、`labels.ts`、`lib/money.ts` | 红冲字段与状态、默认税率选项 |
+| `apps/web/src/components/InvoiceRedFlushModal.tsx` | **新增**红冲弹窗（默认全额、可部分、高级区） |
+| `apps/web/src/components/InvoiceSettingsCard.tsx` | **新增**设置页「开票默认税率」卡片 |
+| `apps/web/src/components/InvoiceFormModal.tsx` | 带出默认税率；「高级」新增「允许超开」；超开默认前端拦截并中文提示 |
+| `apps/web/src/components/InvoicesPanel.tsx` | 待补票号提醒 + 一键筛选；红冲按钮/红冲关系列/红字标签；净额文案 |
+| `apps/web/src/pages/SetupPage.tsx`、`OrdersPage.tsx` | 挂设置卡；「开发票」按钮不再置灰（提示可用高级超开） |
+
+### 真实命令与输出
+
+```
+apps/api > npm test            → Test Suites: 8 passed, 8 total；Tests: 125 passed, 125 total（开票两 suite 共 46 项）
+apps/api > npm run build       → exit 0
+apps/web > npm run build       → ✓ built in 319ms（dist/assets/index-DGBqQx_H.js 1,517.55 kB）
+
+node test/invoice-red-e2e.mjs（空库）→ 通过 77 项，失败 0 项
+  A1 全额红冲：原票 +1000.00 → 红字票 −1000.00；原票状态 red_flushed；订单净额 0 / 未开票 / 张数 2
+  A2 部分红冲 200+200，第三次 200 → 400「还可红冲 100.00 元」，按余额 100 冲完 → 净额 0
+  A3 作废红字票 → 净额 100→300→500 回升；最后一张作废后原票状态还原为 normal、可红冲余额回到全额
+  A4 已作废票红冲 400；红字票再红冲 400；缺原因/缺红字票号 400（均中文提示）
+  B  待补票号：missingNo=true 只剩 1 张；pendingNoCount=1；补录后归 0；missingNo=abc → 400
+  C  默认税率：GET 0 → PUT 0.06 → GET 0.06；PUT 0.03 → 400；SQL 核对 app_settings = '0.06'；
+     按 6% 开票（只给含税 10600）→ 反解不含税 10000 / 税额 600
+  D  超开：默认 400（提示「允许超开」）；allowOverInvoiced=true → 201 + warning；订单转超额
+  E  未登录 401；workshop 红冲/改设置 403、可读设置
+  F  SQL 复算：净额张数/含税/不含税/税额 与接口一致（status <> 'voided' 求和）；
+     三金额恒等式违规 0 行；红字票为负、原票为正；O1 净额 0、O2 净额 50000 接口=SQL
+
+node test/invoice-simple-e2e.mjs（回归，空库）→ 通过 65 项，失败 0 项（原 64 + 超开拆分为 2 条断言）
+node test/invoice-e2e.mjs（回归，空库）      → 通过 142 项，失败 0 项（原 141 + 同上拆分）
+node test/excel-order-e2e.mjs（回归，空库）  → 通过 161 项，失败 0 项
+
+仓库根 > docker compose up -d --build
+  fms-app / fms-nginx Up，fms-postgres healthy；docker logs 两者 ERROR = 0 / 0；health 200
+  生产库自动迁移：pg_indexes 出现 invoices_no_active_uq；__drizzle_migrations 最新 id=21（0019/0020 已执行）
+  生产只读冒烟：GET /invoices/settings → {"defaultTaxRate":0}；?missingNo=true → 空列表；
+                ?missingNo=abc → 400「missingNo 须为布尔值（true/false）」；summary 含 pendingNoCount；
+                /orders 每行含 invoiceState；未登录红冲 → 401（路由已挂载）；前端首页 200
+```
+
+### 本轮后仍未收敛的项与理由
+
+1. **开票↔收款自动勾稽**（⑥）：本轮明确不做（见上）；目前只有同屏对账。
+2. **发票代码 / 税控 20 位票号校验**：红字票号只校验「必填 + 未作废唯一」，未做税控格式校验（税控系统才是权威）；
+   如需对接税控建议单独立票（加 `invoice_code` 列与校验规则）。
+3. **红字票字段**：未记录税控「红字信息表编号」（`red_info_no`）——实务跨月红冲需要它；本轮按需求只做「自己的真实票号 + 原因」，需要时可直接加列（纯新增）。
+4. **超额开票仍可显式放行**：按需求 D 保留「高级勾选允许超开」的弹性；放行后只给 warning，不做审批流。
+5. **多订单合并开票的红冲**：红冲整张票（其关联的多张订单同时按比例扣减净额），不支持按订单拆分红冲；
+   如需按单红冲，应在开票时按单开票。
+6. 既有缺口（部分冲销/退款、编号并发重试、营收按业务日、月结账期口径、导出不含发票）仍未处理。
+
 

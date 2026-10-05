@@ -83,11 +83,21 @@ export const INVOICE_TYPE_LABEL: Record<string, string> = {
   other: '其他',
 }
 
-/** 开票：发票状态 */
+/** 开票：发票状态（red_flushed = 已红冲：跨月错票被红字发票冲减） */
 export const INVOICE_STATUS_LABEL: Record<string, string> = {
   normal: '正常',
   voided: '已作废',
+  red_flushed: '已红冲',
 }
+
+/** 开票：默认税率可选项（设置页；与后端 ALLOWED_DEFAULT_TAX_RATES 一致） */
+export const DEFAULT_TAX_RATE_OPTIONS = [
+  { value: 0, label: '0%（免税/出口，默认）' },
+  { value: 0.01, label: '1%（小规模优惠）' },
+  { value: 0.06, label: '6%（现代服务）' },
+  { value: 0.09, label: '9%（交通运输等）' },
+  { value: 0.13, label: '13%（货物）' },
+]
 
 /** 开票：订单开票状态三态（简化交互：未开票 / 部分开票 / 已开完） */
 export const INVOICE_STATE_LABEL: Record<string, string> = {

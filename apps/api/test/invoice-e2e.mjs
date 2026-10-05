@@ -374,11 +374,17 @@ async function main() {
   // 动态取「当前未开票余额」→ 再开一张约为其 2 倍的票，必然超额（作废票不计入，故不能写死金额）
   const beforeOver = await req('GET', `/invoices/order-status?orderId=${STATE.orderId}`, undefined, token);
   const overExcl = Math.max(10000, beforeOver.body.uninvoicedCents * 2);
-  const over = await req('POST', '/invoices', {
+  const overBlocked = await req('POST', '/invoices', {
     invoiceNo: 'INV-2026-0003', invoiceType: 'vat_general', customerId: STATE.customerId,
     ...amountsOf(overExcl, 0.13), issueDate: today(), orderIds: [STATE.orderId], remark: '超额测试',
   }, token);
-  eq('超额开票仍创建成功（业务弹性）', over.status, 201);
+  eq('超开默认被阻止 → 400（I16 收敛⑤）', overBlocked.status, 400);
+  const over = await req('POST', '/invoices', {
+    invoiceNo: 'INV-2026-0003', invoiceType: 'vat_general', customerId: STATE.customerId,
+    ...amountsOf(overExcl, 0.13), issueDate: today(), orderIds: [STATE.orderId], remark: '超额测试',
+    allowOverInvoiced: true,
+  }, token);
+  eq('显式「允许超开」后仍创建成功', over.status, 201);
   ok('返回 warning 说明超额', typeof over.body.warning === 'string' && over.body.warning.includes('超出订单金额'), over.body.warning);
   const stOver = await req('GET', `/invoices/order-status?orderId=${STATE.orderId}`, undefined, token);
   eq('订单进度：已超额标记', stOver.body.overInvoiced, true);

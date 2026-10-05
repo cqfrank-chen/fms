@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "invoices_no_active_uq" ON "invoices" USING btree ("invoice_no") WHERE status <> 'voided';

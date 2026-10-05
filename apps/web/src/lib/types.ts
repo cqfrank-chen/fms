@@ -326,7 +326,8 @@ export interface MonthlyCost {
 // ---------- 开票域（I16）：与收款/核销并行的独立线 ----------
 
 export type InvoiceType = 'vat_special' | 'vat_general' | 'electronic' | 'other'
-export type InvoiceStatus = 'normal' | 'voided'
+/** red_flushed = 已红冲（跨月错票被红字发票冲减；净额统计仍计原票正数，由红字负数冲减） */
+export type InvoiceStatus = 'normal' | 'voided' | 'red_flushed'
 /** 订单开票状态：未开票 / 部分开票 / 已开完 */
 export type InvoiceState = 'none' | 'partial' | 'done'
 
@@ -356,7 +357,18 @@ export interface Invoice {
   updatedAt?: string
   orderRefs: InvoiceOrderRef[]
   orderNos: string[]
-  /** 超额开票提示（不阻断写入） */
+  /** 红冲：本票是红字发票时指向的原票 id / 原票号 */
+  redFlushOf?: number | null
+  redFlushOfNo?: string | null
+  /** 冲红原因（红字票必填） */
+  redReason?: string | null
+  /** 本票是红字发票（金额为负） */
+  isRed?: boolean
+  /** 本票为原票时：其未作废红字票号列表 / 已红冲金额（分）/ 可红冲余额（分） */
+  redFlushNos?: string[]
+  redFlushedCents?: number
+  redRemainCents?: number
+  /** 超额开票提示（仅「允许超开」放行后回传） */
   warning?: string
 }
 
@@ -377,8 +389,15 @@ export interface InvoiceSummaryRow {
 export interface InvoiceSummary extends InvoiceSummaryRow {
   from: string | null
   to: string | null
+  /** 区间内「待补票号」（占位号且未作废）张数 */
+  pendingNoCount: number
   byCustomer: Array<InvoiceSummaryRow & { customerId: number; customerName: string }>
   byMonth: Array<InvoiceSummaryRow & { month: string }>
+}
+
+/** 开票设置（复用 app_settings 的极简单行配置） */
+export interface InvoiceSettings {
+  defaultTaxRate: number
 }
 
 /** 单订单开票/收款进度（订单金额 / 已开票 / 未开票 / 已收款 / 未收） */

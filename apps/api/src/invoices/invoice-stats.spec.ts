@@ -1,4 +1,7 @@
-import { buildOrderInvoiceView, orderInvoiceState, partialInvoiceNote, summarizeInvoices } from './invoice-stats';
+import {
+  buildOrderInvoiceView, isCountedInvoice, orderInvoiceState, overInvoiceBlocked,
+  partialInvoiceNote, redFlushedCents, redRemainCents, summarizeInvoices,
+} from './invoice-stats';
 
 const inv = (status: string, excl: number, tax: number) => ({
   status, amountExclCents: excl, taxCents: tax, amountInclCents: excl + tax,
@@ -86,5 +89,77 @@ describe('订单开票状态三态（I16 交互简化）：未开票 / 部分开
     expect(buildOrderInvoiceView(100000, [inv('normal', 88495, 11505)]).invoiceState).toBe('done');
     expect(buildOrderInvoiceView(100000, [inv('normal', 44248, 5752)]).invoiceState).toBe('partial');
     expect(buildOrderInvoiceView(100000, [inv('voided', 88495, 11505)]).invoiceState).toBe('none');
+  });
+});
+
+describe('红字发票净额口径（I16 红冲）：正常票 + 红字票（负）', () => {
+  /** 红字票：三金额均为负 */
+  const red = (exclMag: number, taxMag: number) => ({
+    status: 'normal', amountExclCents: -exclMag, taxCents: -taxMag, amountInclCents: -(exclMag + taxMag),
+  });
+
+  it('计入规则：未作废即计入（已红冲原票计正数、红字票计负数），仅作废票剔除', () => {
+    expect(isCountedInvoice('normal')).toBe(true);
+    expect(isCountedInvoice('red_flushed')).toBe(true);
+    expect(isCountedInvoice('voided')).toBe(false);
+  });
+
+  it('净额合计 = 正常票 − 红字票（原票 113.00 全额红冲 113.00 → 净额 0）', () => {
+    const t = summarizeInvoices([inv('red_flushed', 10000, 1300), red(10000, 1300)]);
+    expect(t).toEqual({ count: 2, amountExclCents: 0, taxCents: 0, amountInclCents: 0 });
+  });
+
+  it('部分红冲：原票 1000.00、红冲 300.00 → 净额 700.00', () => {
+    const t = summarizeInvoices([inv('red_flushed', 100000, 0), red(30000, 0)]);
+    expect(t.amountInclCents).toBe(70000);
+  });
+
+  it('作废的红字票不计入（红冲被撤销 → 净额回到原票金额）', () => {
+    const t = summarizeInvoices([inv('red_flushed', 100000, 0), { ...red(30000, 0), status: 'voided' }]);
+    expect(t.amountInclCents).toBe(100000);
+    expect(t.count).toBe(1);
+  });
+
+  it('已红冲金额与可红冲余额：累计红冲不得超过原票金额', () => {
+    const rows = [red(30000, 0), red(20000, 0)];
+    expect(redFlushedCents(rows)).toBe(50000);
+    expect(redRemainCents(100000, rows)).toBe(50000);
+    expect(redRemainCents(50000, rows)).toBe(0);
+    // 作废的红字票不占用可红冲额度
+    expect(redRemainCents(100000, [{ ...red(30000, 0), status: 'voided' }])).toBe(100000);
+  });
+
+  it('订单净额与三态随红冲回退：全额红冲 → 未开票 / 部分红冲 → 部分开票', () => {
+    const full = buildOrderInvoiceView(100000, [inv('red_flushed', 100000, 0), red(100000, 0)]);
+    expect(full.invoicedCents).toBe(0);
+    expect(full.invoiceState).toBe('none');
+    expect(full.uninvoicedCents).toBe(100000);
+    const partial = buildOrderInvoiceView(100000, [inv('red_flushed', 100000, 0), red(30000, 0)]);
+    expect(partial.invoicedCents).toBe(70000);
+    expect(partial.invoiceState).toBe('partial');
+    expect(partial.uninvoicedCents).toBe(30000);
+  });
+});
+
+describe('超开闸门（I16 收敛⑤）：默认阻止、高级显式放行', () => {
+  it('未超开 → 不阻止', () => {
+    expect(overInvoiceBlocked(100000, 0, 100000, false)).toBe(false);
+    expect(overInvoiceBlocked(100000, 40000, 60000, false)).toBe(false);
+  });
+
+  it('投影净额超出 → 默认阻止（差 1 分也阻止）', () => {
+    expect(overInvoiceBlocked(100000, 40000, 60001, false)).toBe(true);
+    expect(overInvoiceBlocked(100000, 100000, 1, false)).toBe(true);
+  });
+
+  it('显式 allow=true（高级勾选）→ 放行', () => {
+    expect(overInvoiceBlocked(100000, 100000, 50000, true)).toBe(false);
+    expect(overInvoiceBlocked(0, 0, 1, true)).toBe(false);
+  });
+
+  it('红冲后净额下降，可再次正常开票（闸门按净额判断）', () => {
+    // 原票 1000.00 已开满、红冲 300.00 → 净额 700.00，再开 300.00 不算超开
+    expect(overInvoiceBlocked(100000, 70000, 30000, false)).toBe(false);
+    expect(overInvoiceBlocked(100000, 70000, 30001, false)).toBe(true);
   });
 });

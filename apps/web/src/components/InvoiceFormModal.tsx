@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Col, Collapse, DatePicker, Descriptions, Input, InputNumber, Modal, Row, Select, Space, Typography, message,
+  Alert, Checkbox, Col, Collapse, DatePicker, Descriptions, Input, InputNumber, Modal, Row, Select, Space, Typography, message,
 } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
@@ -54,6 +54,10 @@ export default function InvoiceFormModal({
   const [issueDate, setIssueDate] = useState<Dayjs | null>(dayjs())
   const [remark, setRemark] = useState('')
   const [saving, setSaving] = useState(false)
+  /** 允许超开（I16 收敛⑤）：默认阻止；只有「高级」显式勾选才放行 */
+  const [allowOver, setAllowOver] = useState(false)
+  /** 设置页配置的开票默认税率（未配置 = 0） */
+  const [defaultTaxRate, setDefaultTaxRate] = useState(0)
 
   // ---- 打开时初始化（编辑载入 / 新建按带入项预填） ----
   useEffect(() => {
@@ -78,7 +82,20 @@ export default function InvoiceFormModal({
       setIssueDate(dayjs())
       setRemark('')
       setAmountTouched(false)
+      setAllowOver(false)
     }
+  }, [open, edit]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- 开票默认税率（设置页配置；新建时带出，用户仍可不管） ----
+  useEffect(() => {
+    if (!open) return
+    api<{ defaultTaxRate: number }>('/invoices/settings')
+      .then((s) => {
+        const rate = Number(s.defaultTaxRate ?? 0)
+        setDefaultTaxRate(rate)
+        if (!edit) setTaxRate(rate)
+      })
+      .catch(() => { /* 读不到就用 0%，不阻断开票 */ })
   }, [open, edit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- 客户候选 ----
@@ -123,6 +140,14 @@ export default function InvoiceFormModal({
     if (!customerId) { message.warning('请选择关联订单（或在「高级」里选择客户）'); return }
     if (inclCents <= 0) { message.warning('请填写开票金额（含税，须大于 0）'); return }
     if (!issueDate) { message.warning('请选择开票日期'); return }
+    // 超开闸门（默认阻止）：所选订单已开完 / 本次将超出 → 必须到「高级」显式勾选「允许超开」
+    if (!editing && selected.length && !allowOver && inclCents > remainCents) {
+      message.warning(
+        `所选订单未开票余额仅 ${(remainCents / 100).toFixed(2)} 元，本次开票 ${(inclCents / 100).toFixed(2)} 元会超出：`
+        + '如确需超开，请在「高级」里勾选「允许超开」',
+      )
+      return
+    }
     if (editing && !isPlaceholderNo && invoiceNo.trim() !== edit!.invoiceNo) {
       message.warning('真实票号不可修改（如需换号请先作废后重开）')
       return
@@ -139,6 +164,7 @@ export default function InvoiceFormModal({
           ...(invoiceNo.trim() ? { invoiceNo: invoiceNo.trim() } : {}),
           invoiceType, customerId, amountInclCents: inclCents, taxRate,
           issueDate: issueDate.format('YYYY-MM-DD'), orderIds, remark,
+          ...(allowOver ? { allowOverInvoiced: true } : {}),
         }
       const res = await api<Invoice>(editing ? `/invoices/${edit!.id}` : '/invoices', { method: editing ? 'PUT' : 'POST', body })
       if (res?.warning) message.warning(res.warning)
@@ -159,8 +185,11 @@ export default function InvoiceFormModal({
             options={Object.entries(INVOICE_TYPE_LABEL).map(([value, label]) => ({ value, label }))} />
         </Col>
         <Col span={12}>
-          <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>税率（默认 0%）</Text>
-          <Select style={{ width: '100%' }} value={taxRate} onChange={(v) => setTaxRate(Number(v))} options={TAX_RATE_OPTIONS} />
+          <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+            税率（默认 {Number(((editing ? Number(edit?.taxRate ?? 0) : defaultTaxRate) * 100).toFixed(4))}%{editing && edit?.isRed ? '，红字票沿用原票不可改' : '，设置页可配'}）
+          </Text>
+          <Select style={{ width: '100%' }} value={taxRate} disabled={editing && !!edit?.isRed}
+            onChange={(v) => setTaxRate(Number(v))} options={TAX_RATE_OPTIONS} />
         </Col>
       </Row>
       <Row gutter={12}>
@@ -182,6 +211,16 @@ export default function InvoiceFormModal({
       </Row>
       {editing && isPlaceholderNo && (
         <Alert type="info" showIcon message="当前为占位票号（待补号-…）：拿到真实发票号后可在此补录，无需作废重开。" />
+      )}
+      {!editing && (
+        <div>
+          <Checkbox checked={allowOver} onChange={(e) => setAllowOver(e.target.checked)}>
+            允许超开（订单已开完时仍继续开票；默认阻止）
+          </Checkbox>
+          <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+            不勾选时：所选订单未开票余额不足会被拒绝（中文提示）；勾选后放行，仅在返回里给 warning 说明超出金额。
+          </Text>
+        </div>
       )}
     </Space>
   )

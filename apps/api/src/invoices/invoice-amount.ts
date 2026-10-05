@@ -60,6 +60,11 @@ export const rateText = (rate: number): string => `${Number((rate * 100).toFixed
  * 无解返回 null（该含税金额在给定税率下不存在合法的分位拆分）。
  */
 export const solveExclFromIncl = (incl: number, rate: number): number | null => {
+  // 负数（红字发票）按绝对值反解后取负，保证与正数完全镜像
+  if (Math.round(incl) < 0) {
+    const solved = solveExclFromIncl(-Math.round(incl), rate);
+    return solved === null ? null : -solved;
+  }
   const d = RATE_SCALE + rateToBp(rate);
   const num = Math.round(incl) * RATE_SCALE;
   const base = Math.floor(num / d);
@@ -75,12 +80,23 @@ export const solveExclFromIncl = (incl: number, rate: number): number | null => 
   return null;
 };
 
+export interface NormalizeInvoiceOptions {
+  /** 红字发票场景：允许（且要求）三金额为负数，恒等式按绝对值对称校验 */
+  allowNegative?: boolean;
+}
+
+/** 税额期望值：正数用定点半进位；负数按绝对值对称（红字票与原票逐分镜像，净额才可能精确归零） */
+const expectTaxOf = (excl: number, rate: number): number =>
+  excl < 0 ? -taxCentsOf(-excl, rate) : taxCentsOf(excl, rate);
+
 /**
  * 校验并归一化开票金额。
  * · 简化入参（推荐）：只给 amountInclCents（含税，单位分），税率缺省 0 → 不含税 = 含税、税额 = 0；
- * · 完整入参（兼容既有调用）：给 amountExclCents（± taxCents/amountInclCents），按三金额恒等式强校验。
+ * · 完整入参（兼容既有调用）：给 amountExclCents（± taxCents/amountInclCents），按三金额恒等式强校验；
+ * · 红字发票（opts.allowNegative=true）：三金额必须为负，校验口径与正数镜像。
  */
-export function normalizeInvoiceAmounts(input: InvoiceAmountInput): NormalizedInvoiceAmounts {
+export function normalizeInvoiceAmounts(input: InvoiceAmountInput, opts: NormalizeInvoiceOptions = {}): NormalizedInvoiceAmounts {
+  const allowNeg = opts.allowNegative === true;
   const noExcl = isAbsent(input.amountExclCents);
   const noIncl = isAbsent(input.amountInclCents);
   if (noExcl && noIncl) {
@@ -98,23 +114,32 @@ export function normalizeInvoiceAmounts(input: InvoiceAmountInput): NormalizedIn
   let excl: number;
   if (!noExcl) {
     excl = intField(numField(input.amountExclCents, 'amountExclCents', '不含税金额'), 'amountExclCents', '不含税金额');
-    if (excl < 0) {
+    if (!allowNeg && excl < 0) {
       throw new BadRequestException(`不含税金额（amountExclCents）不能为负，实际：${excl} 分`);
+    }
+    if (allowNeg && excl >= 0) {
+      throw new BadRequestException(`红字发票的不含税金额必须为负数（红冲金额），实际：${excl} 分`);
     }
   } else {
     const incl = intField(numField(input.amountInclCents, 'amountInclCents', '含税金额'), 'amountInclCents', '含税金额');
-    if (incl < 0) {
+    if (!allowNeg && incl < 0) {
       throw new BadRequestException(`含税金额（amountInclCents）不能为负，实际：${incl} 分`);
     }
-    if (incl <= 0) {
+    if (!allowNeg && incl <= 0) {
       throw new BadRequestException(`含税金额必须大于 0：实际 ${yuanText(incl)}`);
+    }
+    if (allowNeg && incl >= 0) {
+      throw new BadRequestException(`红字发票的含税金额必须为负数（红冲金额），实际：${incl} 分`);
     }
     if (!isAbsent(input.taxCents)) {
       const tax = intField(numField(input.taxCents, 'taxCents', '税额'), 'taxCents', '税额');
-      if (tax < 0) {
+      if (!allowNeg && tax < 0) {
         throw new BadRequestException(`税额（taxCents）不能为负，实际：${tax} 分`);
       }
-      if (tax > incl) {
+      if (allowNeg && tax > 0) {
+        throw new BadRequestException(`红字发票的税额必须为负数或 0，实际：${tax} 分`);
+      }
+      if (!allowNeg && tax > incl) {
         throw new BadRequestException(`含税金额（amountInclCents）${yuanText(incl)} 小于税额（taxCents）${yuanText(tax)}，无法反解不含税金额`);
       }
       excl = incl - tax;
@@ -129,13 +154,16 @@ export function normalizeInvoiceAmounts(input: InvoiceAmountInput): NormalizedIn
     }
   }
 
-  // 恒等式 1：税额 = round(不含税 × 税率)
-  const expectTax = taxCentsOf(excl, rate);
+  // 恒等式 1：税额 = round(不含税 × 税率)（负数按绝对值对称）
+  const expectTax = expectTaxOf(excl, rate);
   let tax = expectTax;
   if (!isAbsent(input.taxCents)) {
     const provided = intField(numField(input.taxCents, 'taxCents', '税额'), 'taxCents', '税额');
-    if (provided < 0) {
+    if (!allowNeg && provided < 0) {
       throw new BadRequestException(`税额（taxCents）不能为负，实际：${provided} 分`);
+    }
+    if (allowNeg && provided > 0) {
+      throw new BadRequestException(`红字发票的税额必须为负数或 0，实际：${provided} 分`);
     }
     if (provided !== expectTax) {
       throw new BadRequestException(
@@ -145,17 +173,22 @@ export function normalizeInvoiceAmounts(input: InvoiceAmountInput): NormalizedIn
     tax = provided;
   }
 
-  // 恒等式 2：含税 = 不含税 + 税额；恒等式 3：含税 > 0
+  // 恒等式 2：含税 = 不含税 + 税额；恒等式 3：正常票含税 > 0 / 红字票含税 < 0
   const expectIncl = inclCentsOf(excl, tax);
-  if (expectIncl <= 0) {
+  if (!allowNeg && expectIncl <= 0) {
     throw new BadRequestException(
       `含税金额必须大于 0：不含税 ${yuanText(excl)} + 税额 ${yuanText(tax)} = ${yuanText(expectIncl)}`,
+    );
+  }
+  if (allowNeg && expectIncl >= 0) {
+    throw new BadRequestException(
+      `红字发票的含税金额必须小于 0：不含税 ${yuanText(excl)} + 税额 ${yuanText(tax)} = ${yuanText(expectIncl)}`,
     );
   }
   let incl = expectIncl;
   if (!isAbsent(input.amountInclCents)) {
     const provided = intField(numField(input.amountInclCents, 'amountInclCents', '含税金额'), 'amountInclCents', '含税金额');
-    if (provided < 0) {
+    if (!allowNeg && provided < 0) {
       throw new BadRequestException(`含税金额（amountInclCents）不能为负，实际：${provided} 分`);
     }
     if (provided !== expectIncl) {

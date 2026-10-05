@@ -2,16 +2,19 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { and, asc, desc, eq, gte, ilike, inArray, like, lte, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../db';
-import { customers, invoiceOrders, invoices, operators, orderLines, orders, receivables } from '../db/schema';
+import { appSettings, customers, invoiceOrders, invoices, operators, orderLines, orders, receivables } from '../db/schema';
 import type { InvoiceStatus, InvoiceType } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
-import { toCents } from '../common/money';
-import { normalizeInvoiceAmounts } from './invoice-amount';
+import { fromCents, toCents } from '../common/money';
+import { normalizeInvoiceAmounts, solveExclFromIncl, yuanText } from './invoice-amount';
 import {
   alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage, invoiceNoImmutableMessage,
   orderCustomerMismatchMessage, ordersMissingMessage, voidedImmutableMessage,
 } from './invoice-messages';
-import { buildOrderInvoiceView, summarizeInvoices } from './invoice-stats';
+import { INVOICE_DEFAULT_TAX_RATE_KEY, normalizeDefaultTaxRate } from './invoice-settings';
+import {
+  buildOrderInvoiceView, overInvoiceBlocked, redFlushedCents, redRemainCents, summarizeInvoices,
+} from './invoice-stats';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 /** 业务日（本地时区，东八区）：开票日期默认当天，不因 UTC 化串日 */
@@ -48,6 +51,23 @@ export interface CreateInvoiceDto {
   issueDate?: string;
   orderIds?: number[];
   remark?: string;
+  /**
+   * 允许超开（I16 收敛⑤）：默认 false = 超出订单金额直接 400；
+   * 只有前端「高级」显式勾选才放行（放行后仍返回 warning 提示）。
+   */
+  allowOverInvoiced?: boolean;
+}
+
+/** 红冲入参（I16 红字发票）：金额为**正数红冲额**（缺省=全额红冲），服务端落库为负数金额 */
+export interface RedFlushDto {
+  /** 冲红原因（必填） */
+  reason?: string;
+  /** 红字发票号（必填：红字票必须有自己的真实票号，不支持占位号） */
+  invoiceNo?: string;
+  /** 红冲金额（正数，单位分）；缺省 = 原票含税金额（全额红冲）；可小于原票 = 部分红冲 */
+  amountInclCents?: number;
+  issueDate?: string;
+  remark?: string;
 }
 
 export interface UpdateInvoiceDto {
@@ -72,6 +92,8 @@ export interface InvoiceListQuery {
   to?: string;
   keyword?: string;
   orderId?: number;
+  /** 只看待补票号（I16 收敛①）：票号为占位号「待补号-…」且未作废 */
+  missingNo?: boolean;
 }
 
 /** PostgreSQL 唯一约束冲突（SQLSTATE 23505） */
@@ -83,8 +105,10 @@ const isUniqueViolation = (e: unknown): boolean =>
  * ------------------------------------------------------------------
  * · 开票只记「开票事实」（票号/票种/税率/三金额/关联订单），不参与核销、不改收款逻辑；
  * · 金额全部按「分」整数存储与校验（money.ts 定点助手），三兄弟恒等式由 invoice-amount.ts 强校验；
- * · 订单已开票金额**实时聚合**（invoice_orders × invoices where status='normal'），不落冗余字段；
- * · 作废只置状态并留痕（原因/时间/操作人），保留可查、不计入统计；未作废票号唯一（部分唯一索引）。
+ * · 订单已开票金额**实时聚合**（净额口径：未作废的票全部计入，红字票为负数），不落冗余字段；
+ * · 作废（当月错票）与红冲（跨月错票，红字发票）都只置状态并留痕，保留可查；
+ *   净额 = Σ(未作废正常票) + Σ(未作废红字票，负)，已红冲原票仍计正数，故全额红冲后净额精确归零；
+ * · 未作废票号唯一（部分唯一索引）。
  */
 @Injectable()
 export class InvoicesService {
@@ -116,8 +140,9 @@ export class InvoicesService {
       .offset((page - 1) * pageSize);
 
     const refs = await this.orderRefs(rows.map((r) => r.inv.id));
+    const red = await this.redRelations(rows.map((r) => r.inv));
     return {
-      items: rows.map((r) => this.toItem(r, refs.get(r.inv.id) ?? [])),
+      items: rows.map((r) => this.toItem(r, refs.get(r.inv.id) ?? [], red.get(r.inv.id))),
       total: Number(countRow?.n ?? 0),
       page,
       pageSize,
@@ -139,7 +164,8 @@ export class InvoicesService {
       .where(eq(invoices.id, id));
     if (!row) throw new NotFoundException('发票不存在');
     const refs = await this.orderRefs([row.inv.id]);
-    return this.toItem(row, refs.get(row.inv.id) ?? []);
+    const red = await this.redRelations([row.inv]);
+    return this.toItem(row, refs.get(row.inv.id) ?? [], red.get(row.inv.id));
   }
 
   private listWhere(q: InvoiceListQuery) {
@@ -152,6 +178,9 @@ export class InvoicesService {
       conds.push(
         sql`exists (select 1 from ${invoiceOrders} io where io.invoice_id = ${invoices.id} and io.order_id = ${Number(q.orderId)})`,
       );
+    }
+    if (q.missingNo) {
+      conds.push(and(eq(invoices.status, 'normal' as InvoiceStatus), like(invoices.invoiceNo, `${INVOICE_PLACEHOLDER_PREFIX}%`)));
     }
     const kwRaw = (q.keyword ?? '').trim();
     if (kwRaw) {
@@ -186,9 +215,50 @@ export class InvoicesService {
     return map;
   }
 
+  /**
+   * 红冲关系（I16 红字发票）：给每张票挂上
+   *   redFlushOfNo    本票为红字票时的原票号
+   *   redFlushNos     本票为原票时的红字票号列表（未作废）
+   *   redFlushedCents 该原票已红冲金额（正数，分）
+   *   redRemainCents  该原票还可红冲金额（正数，分）
+   */
+  private async redRelations(rows: Array<{ id: number; invoiceNo: string; status: InvoiceStatus; redFlushOf: number | null; amountInclCents: number }>) {
+    const map = new Map<number, { redFlushOfNo: string | null; redFlushNos: string[]; redFlushedCents: number; redRemainCents: number }>();
+    if (!rows.length) return map;
+    const ids = rows.map((r) => r.id);
+    const originIds = [...new Set(rows.map((r) => r.redFlushOf).filter((x): x is number => x != null))];
+    const originRows = originIds.length
+      ? await db.select({ id: invoices.id, no: invoices.invoiceNo }).from(invoices).where(inArray(invoices.id, originIds))
+      : [];
+    const originNo = new Map(originRows.map((r) => [r.id, r.no]));
+    const children = await db
+      .select({ id: invoices.id, no: invoices.invoiceNo, status: invoices.status, of: invoices.redFlushOf, cents: invoices.amountInclCents })
+      .from(invoices)
+      .where(inArray(invoices.redFlushOf, ids));
+    const byOrigin = new Map<number, Array<{ no: string; status: InvoiceStatus; cents: number }>>();
+    for (const c of children) {
+      if (c.of == null) continue;
+      const arr = byOrigin.get(c.of) ?? [];
+      arr.push({ no: c.no, status: c.status, cents: Math.round(Number(c.cents ?? 0)) });
+      byOrigin.set(c.of, arr);
+    }
+    for (const r of rows) {
+      const kids = (byOrigin.get(r.id) ?? []).filter((k) => k.status !== 'voided');
+      const flushed = redFlushedCents(kids.map((k) => ({ status: k.status, amountExclCents: 0, taxCents: 0, amountInclCents: k.cents })));
+      map.set(r.id, {
+        redFlushOfNo: r.redFlushOf != null ? (originNo.get(r.redFlushOf) ?? null) : null,
+        redFlushNos: kids.map((k) => k.no),
+        redFlushedCents: flushed,
+        redRemainCents: redRemainCents(r.amountInclCents, kids.map((k) => ({ status: k.status, amountExclCents: 0, taxCents: 0, amountInclCents: k.cents }))),
+      });
+    }
+    return map;
+  }
+
   private toItem(
     row: { inv: typeof invoices.$inferSelect; customerName?: string | null; operatorName?: string | null; voidOperatorName?: string | null },
     refs: Array<{ orderId: number; orderNo: string }>,
+    red?: { redFlushOfNo: string | null; redFlushNos: string[]; redFlushedCents: number; redRemainCents: number },
   ) {
     return {
       ...row.inv,
@@ -197,16 +267,31 @@ export class InvoicesService {
       voidOperatorName: row.voidOperatorName ?? null,
       orderRefs: refs,
       orderNos: refs.map((r) => r.orderNo),
+      redFlushOfNo: red?.redFlushOfNo ?? null,
+      redFlushNos: red?.redFlushNos ?? [],
+      redFlushedCents: red?.redFlushedCents ?? 0,
+      redRemainCents: red?.redRemainCents ?? Math.abs(Math.round(row.inv.amountInclCents)),
+      isRed: row.inv.redFlushOf != null,
     };
   }
 
   // ==================== 开票数目（统计） ====================
-  /** 开票数目/金额：张数 + 含税/不含税/税额合计 + 按客户/按月分组（只计未作废） */
+  /**
+   * 开票数目/金额（**净额口径**）：张数 + 含税/不含税/税额合计 + 按客户/按月分组。
+   * 只剔除已作废票；红字票以负数计入、已红冲原票仍计正数 → 合计即净额。
+   * pendingNoCount：区间内「待补票号」张数（占位号且未作废）。
+   */
   async summary(from?: string, to?: string) {
-    const conds = [eq(invoices.status, 'normal' as InvoiceStatus)];
+    const conds = [ne(invoices.status, 'voided' as InvoiceStatus)];
     if (from) conds.push(gte(invoices.issueDate, from));
     if (to) conds.push(lte(invoices.issueDate, to));
     const where = and(...conds);
+    const pendingNoWhere = and(
+      eq(invoices.status, 'normal' as InvoiceStatus),
+      like(invoices.invoiceNo, `${INVOICE_PLACEHOLDER_PREFIX}%`),
+      ...(from ? [gte(invoices.issueDate, from)] : []),
+      ...(to ? [lte(invoices.issueDate, to)] : []),
+    );
 
     const [row] = await db
       .select({
@@ -246,11 +331,17 @@ export class InvoicesService {
       .groupBy(sql`to_char(${invoices.issueDate}, 'YYYY-MM')`)
       .orderBy(asc(sql`to_char(${invoices.issueDate}, 'YYYY-MM')`));
 
+    const [pendingRow] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(invoices)
+      .where(pendingNoWhere);
+
     const num = (v: unknown) => Number(v ?? 0);
     return {
       from: from ?? null,
       to: to ?? null,
       count: Number(row?.count ?? 0),
+      pendingNoCount: Number(pendingRow?.n ?? 0),
       amountExclCents: num(row?.amountExclCents),
       taxCents: num(row?.taxCents),
       amountInclCents: num(row?.amountInclCents),
@@ -288,6 +379,7 @@ export class InvoicesService {
     const orderAmountCents = await this.orderAmountCents(orderId);
     const invs = await this.invoiceRowsByOrder(orderId);
     const view = buildOrderInvoiceView(orderAmountCents, invs.map((x) => x.inv));
+    const redMap = await this.redRelations(invs.map((x) => x.inv));
 
     // 订单级应收（订单确认时开立）的已收/未收：只读聚合
     const [recv] = await db
@@ -316,7 +408,11 @@ export class InvoicesService {
       receivableCents,
       receivedCents,
       unreceivedCents: Math.max(0, receivableCents - receivedCents),
-      invoices: invs.map((x) => this.toItem({ inv: x.inv, customerName: row.customerName, operatorName: x.operatorName, voidOperatorName: x.voidOperatorName }, [])),
+      invoices: invs.map((x) => this.toItem(
+        { inv: x.inv, customerName: row.customerName, operatorName: x.operatorName, voidOperatorName: x.voidOperatorName },
+        [],
+        redMap.get(x.inv.id),
+      )),
     };
   }
 
@@ -328,6 +424,16 @@ export class InvoicesService {
       .from(invoices)
       .where(like(invoices.invoiceNo, `${prefix}%`));
     return `${prefix}${pad2(Number(row?.mx ?? 0) + 1)}`;
+  }
+
+  /** 多订单合计：订单金额（分）与当前已开票净额（分）——超开闸门用 */
+  private async ordersInvoiceTotals(orderIds: number[]): Promise<{ amountCents: number; invoicedCents: number }> {
+    let amountCents = 0;
+    for (const id of orderIds) amountCents += await this.orderAmountCents(id);
+    const netMap = await this.invoicedCentsByOrder(orderIds);
+    let invoicedCents = 0;
+    for (const id of orderIds) invoicedCents += netMap.get(id) ?? 0;
+    return { amountCents, invoicedCents };
   }
 
   /** 订单金额（分）：按订单行 Σ(数量 × round(单价×100))，SQL 定点计算，无浮点尾差 */
@@ -352,7 +458,10 @@ export class InvoicesService {
       .orderBy(asc(invoices.id));
   }
 
-  /** 批量：订单 id → 已开票含税金额（分，只计未作废）。订单列表/详情挂「已开票/未开票」用 */
+  /**
+   * 批量：订单 id → 已开票含税净额（分）。订单列表/详情挂「已开票/开票状态」用。
+   * 净额口径：未作废的票全部计入（红字票为负数、已红冲原票仍计正数）。
+   */
   async invoicedCentsByOrder(orderIds: number[]): Promise<Map<number, number>> {
     const map = new Map<number, number>();
     if (!orderIds.length) return map;
@@ -361,7 +470,7 @@ export class InvoicesService {
       .from(invoiceOrders)
       .innerJoin(
         invoices,
-        and(eq(invoiceOrders.invoiceId, invoices.id), eq(invoices.status, 'normal' as InvoiceStatus)),
+        and(eq(invoiceOrders.invoiceId, invoices.id), ne(invoices.status, 'voided' as InvoiceStatus)),
       )
       .where(inArray(invoiceOrders.orderId, orderIds));
     for (const r of rows) map.set(r.orderId, (map.get(r.orderId) ?? 0) + Math.round(Number(r.cents ?? 0)));
@@ -385,6 +494,26 @@ export class InvoicesService {
     this.assertDate(issueDate, '开票日期（issueDate）');
     const orderIds = [...new Set((dto.orderIds ?? []).map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0))];
 
+    // 先校验关联订单存在（否则超开闸门会先报「已开完」而不是更准确的「订单不存在」）
+    if (orderIds.length) {
+      const found = await db.select({ id: orders.id }).from(orders).where(inArray(orders.id, orderIds));
+      if (found.length !== orderIds.length) {
+        const has = new Set(found.map((r) => r.id));
+        throw new BadRequestException(ordersMissingMessage(orderIds.filter((x) => !has.has(x))));
+      }
+    }
+
+    // 超开闸门（I16 收敛⑤）：默认阻止；只有「高级」显式勾选 allowOverInvoiced 才放行（放行后仍回 warning）
+    if (orderIds.length && !dto.allowOverInvoiced) {
+      const totals = await this.ordersInvoiceTotals(orderIds);
+      if (overInvoiceBlocked(totals.amountCents, totals.invoicedCents, amounts.amountInclCents, false)) {
+        throw new BadRequestException(
+          `所选订单已开完票：订单金额 ${yuanText(totals.amountCents)}，已开票 ${yuanText(totals.invoicedCents)}，本次 ${yuanText(amounts.amountInclCents)} 将超出；`
+          + '如需继续请在「高级」里勾选「允许超开」后重试',
+        );
+      }
+    }
+
     // 票号占位（在事务内取号，避免并发撞号）
     let invoiceNo = invoiceNoInput;
     const created = await db
@@ -398,7 +527,7 @@ export class InvoicesService {
         const [dup] = await tx
           .select({ id: invoices.id })
           .from(invoices)
-          .where(and(eq(invoices.invoiceNo, invoiceNo), eq(invoices.status, 'normal' as InvoiceStatus)));
+          .where(and(eq(invoices.invoiceNo, invoiceNo), ne(invoices.status, 'voided' as InvoiceStatus)));
         if (dup) {
           throw new BadRequestException(invoiceNoConflictMessage(invoiceNo));
         }
@@ -445,13 +574,20 @@ export class InvoicesService {
     if (dto.amountExclCents !== undefined) {
       throw new BadRequestException(amountImmutableMessage('不含税金额（amountExclCents）'));
     }
+    const isRed = cur.redFlushOf != null;
+    if (isRed && dto.taxRate !== undefined) {
+      throw new BadRequestException('红字发票的税率沿用被冲原票，不可修改（如需更正请作废该红字票后重新红冲）');
+    }
     const nextRate = dto.taxRate !== undefined ? dto.taxRate : Number(cur.taxRate);
-    const amounts = normalizeInvoiceAmounts({
-      amountExclCents: cur.amountExclCents,
-      taxRate: nextRate,
-      taxCents: dto.taxCents,
-      amountInclCents: dto.amountInclCents,
-    });
+    const amounts = normalizeInvoiceAmounts(
+      {
+        amountExclCents: cur.amountExclCents,
+        taxRate: nextRate,
+        taxCents: dto.taxCents,
+        amountInclCents: dto.amountInclCents,
+      },
+      { allowNegative: isRed },
+    );
     const issueDate = dto.issueDate !== undefined ? String(dto.issueDate).trim() : cur.issueDate;
     this.assertDate(issueDate, '开票日期（issueDate）');
     const orderIds = dto.orderIds !== undefined
@@ -478,7 +614,7 @@ export class InvoicesService {
           const [dup] = await tx
             .select({ id: invoices.id })
             .from(invoices)
-            .where(and(eq(invoices.invoiceNo, nextInvoiceNo), eq(invoices.status, 'normal' as InvoiceStatus)));
+            .where(and(eq(invoices.invoiceNo, nextInvoiceNo), ne(invoices.status, 'voided' as InvoiceStatus)));
           if (dup) throw new BadRequestException(invoiceNoConflictMessage(nextInvoiceNo));
         }
         await tx
@@ -512,8 +648,12 @@ export class InvoicesService {
     return warning ? { ...item, warning } : item;
   }
 
-  // ==================== 作废 ====================
-  /** 作废：只置状态并留痕（原因/时间/作废人），不物理删除；作废后不计入统计但记录可查 */
+  // ==================== 作废（当月错票） ====================
+  /**
+   * 作废：只置状态并留痕（原因/时间/作废人），不物理删除；作废后不计入统计但记录可查。
+   * · 已被红冲的原票不可作废（会与红字发票的负数叠加成负净额），需先作废对应红字票；
+   * · 作废红字发票时，若该原票已无有效红字票，自动把原票状态由「已红冲」还原为「正常」。
+   */
   async voidInvoice(id: number, reason: string) {
     const text = (reason ?? '').trim();
     if (!text) throw new BadRequestException('作废原因（reason）必填');
@@ -528,18 +668,165 @@ export class InvoicesService {
           updatedAt: new Date(),
         })
         .where(and(eq(invoices.id, id), eq(invoices.status, 'normal' as InvoiceStatus)))
-        .returning({ id: invoices.id });
+        .returning({ id: invoices.id, redFlushOf: invoices.redFlushOf });
       if (!updated.length) {
         const [cur] = await tx
           .select({ no: invoices.invoiceNo, status: invoices.status, voidedAt: invoices.voidedAt, reason: invoices.voidReason })
           .from(invoices)
           .where(eq(invoices.id, id));
         if (!cur) throw new NotFoundException('发票不存在');
+        if (cur.status === 'red_flushed') {
+          throw new BadRequestException(
+            `发票 ${cur.no} 已被红冲，不可再作废（否则正负叠加会算成负净额）：如需冲回请作废对应的红字发票`,
+          );
+        }
         const when = cur.voidedAt instanceof Date ? cur.voidedAt.toISOString().slice(0, 16).replace('T', ' ') : '';
         throw new BadRequestException(alreadyVoidedMessage(cur.no, when, cur.reason));
       }
+      // 作废的是红字发票 → 原票若无其它有效红字票，状态还原为正常（净额由红字票负数决定，状态仅为可读性）
+      const redOf = updated[0].redFlushOf;
+      if (redOf != null) {
+        const kids = await tx
+          .select({ status: invoices.status })
+          .from(invoices)
+          .where(eq(invoices.redFlushOf, redOf));
+        if (!kids.some((k) => k.status !== 'voided')) {
+          await tx
+            .update(invoices)
+            .set({ status: 'normal', updatedAt: new Date() })
+            .where(and(eq(invoices.id, redOf), eq(invoices.status, 'red_flushed' as InvoiceStatus)));
+        }
+      }
     });
     return this.findOne(id);
+  }
+
+  // ==================== 红冲（跨月错票 → 红字发票） ====================
+  /**
+   * 开具红字发票冲减原票（跨月错票不可作废，只能红冲）：
+   * · 红字票 = 一张**负数金额**发票，票号必填（自带真实票号，不支持占位号），冲红原因必填；
+   * · 金额缺省 = 原票含税（全额红冲）；可传更小的正数做部分红冲；
+   * · 累计红冲不得超过原票金额（超出 400 中文提示）；
+   * · 已作废票、红字票本身不可红冲；
+   * · 红字票沿用原票客户、票种、税率与关联订单（这样订单净额才自动扣减）；
+   * · 生成后原票状态置 red_flushed，并与其红字票互相可见。
+   */
+  async redFlush(id: number, dto: RedFlushDto) {
+    const reason = (dto.reason ?? '').trim();
+    if (!reason) throw new BadRequestException('冲红原因（reason）必填');
+    const invoiceNo = (dto.invoiceNo ?? '').trim();
+    if (!invoiceNo) {
+      throw new BadRequestException('红字发票号（invoiceNo）必填：红字发票必须有自己的真实票号（不支持占位号）');
+    }
+    const issueDate = (dto.issueDate ?? '').trim() || todayYmd();
+    this.assertDate(issueDate, '红冲日期（issueDate）');
+
+    const original = await this.findOne(id);
+    if (original.redFlushOf != null) {
+      throw new BadRequestException(`发票 ${original.invoiceNo} 是红字发票，不可再红冲`);
+    }
+    if (original.status === 'voided') {
+      throw new BadRequestException(`发票 ${original.invoiceNo} 已作废，不可红冲（当月错票直接用「作废」即可）`);
+    }
+    const originalCents = Math.abs(Math.round(original.amountInclCents));
+    const existRedRows = await db
+      .select({ status: invoices.status, cents: invoices.amountInclCents })
+      .from(invoices)
+      .where(eq(invoices.redFlushOf, id));
+    const remainCents = redRemainCents(
+      originalCents,
+      existRedRows.map((r) => ({ status: r.status, amountExclCents: 0, taxCents: 0, amountInclCents: Math.round(Number(r.cents ?? 0)) })),
+    );
+    const flushedCents = originalCents - remainCents;
+
+    const magnitude = dto.amountInclCents == null ? originalCents : Math.round(Number(dto.amountInclCents));
+    if (!Number.isFinite(magnitude) || magnitude <= 0) {
+      throw new BadRequestException(`红冲金额（amountInclCents，正数，单位：分）必须大于 0，实际：${dto.amountInclCents ?? null}`);
+    }
+    if (magnitude > remainCents) {
+      throw new BadRequestException(
+        `红冲金额超过可红冲余额：原票 ${yuanText(originalCents)}，已红冲 ${yuanText(flushedCents)}，`
+        + `本次 ${yuanText(magnitude)}，还可红冲 ${yuanText(remainCents)}`,
+      );
+    }
+
+    const rate = Number(original.taxRate);
+    const solvedExcl = solveExclFromIncl(magnitude, rate);
+    if (solvedExcl === null) {
+      throw new BadRequestException(
+        `按红冲金额 ${yuanText(magnitude)} 与税率 ${Number((rate * 100).toFixed(4))}% 无法拆分不含税与税额：请调整红冲金额`,
+      );
+    }
+    const taxMag = magnitude - solvedExcl;
+    const amounts = normalizeInvoiceAmounts(
+      { amountExclCents: -solvedExcl, taxRate: rate, taxCents: -taxMag, amountInclCents: -magnitude },
+      { allowNegative: true },
+    );
+    const orderIds = original.orderRefs.map((r) => r.orderId);
+
+    const created = await db
+      .transaction(async (tx: Tx) => {
+        const [dup] = await tx
+          .select({ id: invoices.id })
+          .from(invoices)
+          .where(and(eq(invoices.invoiceNo, invoiceNo), ne(invoices.status, 'voided' as InvoiceStatus)));
+        if (dup) throw new BadRequestException(invoiceNoConflictMessage(invoiceNo));
+        const [inv] = await tx
+          .insert(invoices)
+          .values({
+            invoiceNo,
+            invoiceType: original.invoiceType,
+            customerId: original.customerId,
+            taxRate: amounts.taxRate,
+            amountExclCents: amounts.amountExclCents,
+            taxCents: amounts.taxCents,
+            amountInclCents: amounts.amountInclCents,
+            issueDate,
+            status: 'normal',
+            redFlushOf: id,
+            redReason: reason,
+            remark: dto.remark ?? null,
+            operatorId: currentOperatorId(),
+          })
+          .returning();
+        if (orderIds.length) {
+          await tx.insert(invoiceOrders).values(orderIds.map((orderId) => ({ invoiceId: inv.id, orderId })));
+        }
+        await tx
+          .update(invoices)
+          .set({ status: 'red_flushed', updatedAt: new Date() })
+          .where(and(eq(invoices.id, id), eq(invoices.status, 'normal' as InvoiceStatus)));
+        return inv;
+      })
+      .catch((e: unknown) => {
+        if (isUniqueViolation(e)) throw new BadRequestException(invoiceNoConflictMessage(invoiceNo));
+        throw e;
+      });
+
+    const item = await this.findOne(created.id);
+    return {
+      ...item,
+      redFlushOfNo: original.invoiceNo,
+      original: { id, invoiceNo: original.invoiceNo, amountInclCents: originalCents, redFlushedCents: flushedCents + magnitude, redRemainCents: remainCents - magnitude },
+    };
+  }
+
+  // ==================== 开票设置（I16 收敛②，极简复用 app_settings） ====================
+  /** 开票设置：当前只有「默认税率」（未配置时 0） */
+  async getSettings() {
+    const [row] = await db.select().from(appSettings).where(eq(appSettings.key, INVOICE_DEFAULT_TAX_RATE_KEY));
+    return { defaultTaxRate: row ? normalizeDefaultTaxRate(row.value) : 0 };
+  }
+
+  /** 保存开票设置（admin/accounting） */
+  async saveSettings(dto: { defaultTaxRate?: number }) {
+    const rate = normalizeDefaultTaxRate(dto?.defaultTaxRate);
+    const value = String(rate);
+    await db
+      .insert(appSettings)
+      .values({ key: INVOICE_DEFAULT_TAX_RATE_KEY, value })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+    return { defaultTaxRate: rate };
   }
 
   // ==================== 内部校验 ====================
