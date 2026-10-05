@@ -1,4 +1,5 @@
-import { boolean, date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 // ============================================================
 // 主数据（I03，spec §3）——术语对齐 CONTEXT.md
@@ -636,3 +637,74 @@ export const users = pgTable('users', {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+// ============================================================
+// 开票（I16）—— 与收款/核销并行的独立线：发票只记「开票事实」，不参与核销
+// 设计要点：
+//   · 金额一律存整数「分」（amount_*_cents），与 common/money.ts 的定点口径一致；
+//   · 含税金额=不含税+税额、税额=round(不含税×税率) 由服务端强校验（见 invoices/invoice-amount.ts）；
+//   · 发票主表不做冗余汇总：订单「已开票金额」实时聚合 invoice_orders × invoices（status='normal'），避免漂移；
+//   · invoice_no 唯一性只约束「未作废」（部分唯一索引）：当月作废后同号重开是实务允许的，
+//     作废记录本身保留可查（status='voided' 不计入任何统计）。
+// ============================================================
+
+/** 发票类型：增值税专用发票 / 增值税普通发票 / 电子发票 / 其他 */
+export const INVOICE_TYPES = ['vat_special', 'vat_general', 'electronic', 'other'] as const;
+export type InvoiceType = (typeof INVOICE_TYPES)[number];
+export const invoiceTypeEnum = pgEnum('invoice_type', INVOICE_TYPES);
+
+/** 发票状态：正常 / 已作废（不作物理删除，仅置状态留痕） */
+export const INVOICE_STATUSES = ['normal', 'voided'] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+export const invoiceStatusEnum = pgEnum('invoice_status', INVOICE_STATUSES);
+
+/** 发票主表 */
+export const invoices = pgTable(
+  'invoices',
+  {
+    id: serial('id').primaryKey(),
+    invoiceNo: text('invoice_no').notNull(), // 发票号码（未作废范围内唯一）
+    invoiceType: invoiceTypeEnum('invoice_type').notNull(), // 票种
+    customerId: integer('customer_id')
+      .notNull()
+      .references(() => customers.id), // 购方（客户档案）
+    taxRate: numeric('tax_rate', { precision: 6, scale: 4, mode: 'number' }).default(0).notNull(), // 税率（0.13/0.09/0.06/0.01/0）
+    amountExclCents: bigint('amount_excl_cents', { mode: 'number' }).notNull(), // 不含税金额（分）
+    taxCents: bigint('tax_cents', { mode: 'number' }).default(0).notNull(), // 税额（分）
+    amountInclCents: bigint('amount_incl_cents', { mode: 'number' }).notNull(), // 含税金额（分）
+    issueDate: date('issue_date').notNull(), // 开票日期（业务日 YYYY-MM-DD）
+    status: invoiceStatusEnum('status').default('normal').notNull(), // 正常 / 已作废
+    voidReason: text('void_reason'), // 作废原因（必填于作废动作）
+    voidedAt: timestamp('voided_at', { withTimezone: true }), // 作废时间
+    /** 留痕：开票操作人（取登录用户绑定操作人，回退请求头 X-Operator-Id；空=未绑定） */
+    operatorId: integer('operator_id').references(() => operators.id),
+    /** 留痕：作废操作人（与开票人分开记录，作废不覆盖开票留痕） */
+    voidOperatorId: integer('void_operator_id').references(() => operators.id),
+    remark: text('remark'), // 备注
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('invoices_no_normal_uq').on(t.invoiceNo).where(sql`status = 'normal'`)],
+);
+
+/** 发票 × 订单 关联（多对多）：一张发票可挂多张订单，一张订单可被多张发票分批开票；也可都不挂 */
+export const invoiceOrders = pgTable(
+  'invoice_orders',
+  {
+    id: serial('id').primaryKey(),
+    invoiceId: integer('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'cascade' }),
+    orderId: integer('order_id')
+      .notNull()
+      .references(() => orders.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('invoice_orders_inv_order_uq').on(t.invoiceId, t.orderId)],
+);
+
+export type Invoice = typeof invoices.$inferSelect;
+export type NewInvoice = typeof invoices.$inferInsert;
+export type InvoiceOrder = typeof invoiceOrders.$inferSelect;
+export type NewInvoiceOrder = typeof invoiceOrders.$inferInsert;
+

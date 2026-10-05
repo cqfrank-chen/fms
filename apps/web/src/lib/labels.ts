@@ -75,6 +75,29 @@ export const SLIP_MODE_LABEL: Record<string, string> = {
   apply: '预收/预付冲抵',
 }
 
+/** 开票：发票类型（I16，与后端 schema.INVOICE_TYPES 一一对应） */
+export const INVOICE_TYPE_LABEL: Record<string, string> = {
+  vat_special: '增值税专用发票',
+  vat_general: '增值税普通发票',
+  electronic: '电子发票',
+  other: '其他',
+}
+
+/** 开票：发票状态 */
+export const INVOICE_STATUS_LABEL: Record<string, string> = {
+  normal: '正常',
+  voided: '已作废',
+}
+
+/** 常用税率（可选择的其他税率用输入框自填） */
+export const TAX_RATE_OPTIONS = [
+  { value: 0.13, label: '13%（货物）' },
+  { value: 0.09, label: '9%（交通运输等）' },
+  { value: 0.06, label: '6%（现代服务）' },
+  { value: 0.01, label: '1%（小规模优惠）' },
+  { value: 0, label: '0%（免税/出口）' },
+]
+
 /** 月度成本六类 */
 export const COST_CATEGORY_LABEL: Record<string, string> = {
   labor: '人工',

@@ -7,6 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { COST_CATEGORY_LABEL, COST_CATEGORY_ORDER, SLIP_MODE_LABEL } from '../lib/labels'
+import InvoicesPanel from '../components/InvoicesPanel'
 import type {
   CollectionSlip, Customer, MonthlyCost, Payable, PaymentSlip, ProfitView, Receivable,
   SlipMode, StatementRow, Supplier,
@@ -18,13 +19,14 @@ const fmt = (n: number | undefined | null) => (n ?? 0).toLocaleString(undefined,
 const uniqOpts = (arr: Array<{ value: number | string; label: string }>) =>
   [...new Map(arr.map((o) => [String(o.value), o])).values()]
 
-/** 账目页（I09）：应收/应付/收款/付款/对账/利润/月度成本 + 四表导出 */
+/** 账目页（I09 / I16）：应收/应付/收款/付款/开票记录/对账/利润/月度成本 + 四表导出 */
 function AccountingPage() {
   return (
     <Card size="small" styles={{ body: { paddingTop: 4 } }}>
       <Tabs size="small" defaultActiveKey="receivable" destroyOnHidden items={[
         { key: 'receivable', label: '应收记录', children: <ReceivableTab /> },
         { key: 'collect', label: '收款单', children: <CollectTab /> },
+        { key: 'invoice', label: '开票记录', children: <InvoicesPanel /> },
         { key: 'payable', label: '应付记录', children: <PayableTab /> },
         { key: 'pay', label: '付款单', children: <PayTab /> },
         { key: 'statement', label: '对账单', children: <StatementTab /> },

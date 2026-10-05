@@ -4,7 +4,8 @@ import { db } from '../db';
 import { customers, operators, orderLines, orders, outbounds, planSheetLines, planSheets, products, receivables } from '../db/schema';
 import type { OrderStatus } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
-import { toCents } from '../common/money';
+import { fromCents, sumLineCents, toCents } from '../common/money';
+import { InvoicesService } from '../invoices/invoices.service';
 
 export interface OrderLineDto {
   productId: number;
@@ -48,6 +49,8 @@ const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.ge
 
 @Injectable()
 export class OrdersService {
+  constructor(private readonly invoices: InvoicesService) {}
+
   /** 生成单号 SO-YYYYMMDD-NN（当天最大序号+1；count 在删除后会复用旧号，改 max 根治） */
   private async nextOrderNo(now: Date): Promise<string> {
     const prefix = `SO-${ymd(now)}-`;
@@ -241,12 +244,24 @@ export class OrdersService {
       arr.push({ ...line, productName });
       byOrder.set(line.orderId, arr);
     }
-    return rows.map(({ order, customerName, operatorName }) => ({
-      ...order,
-      customerName,
-      operatorName: operatorName ?? null,
-      totalAmount: (byOrder.get(order.id) ?? []).reduce((s, l) => s + l.quantity * l.unitPrice, 0),
-      lines: byOrder.get(order.id) ?? [],
-    }));
+    // 已开票金额实时聚合（不落冗余字段）：与发票统计同一口径（只计未作废、按含税分）
+    const invoicedMap = await this.invoices.invoicedCentsByOrder(orderIds);
+    return rows.map(({ order, customerName, operatorName }) => {
+      const ordLines = byOrder.get(order.id) ?? [];
+      // 订单金额按「分」定点求和（数量×分单价，整数域），替代原 binary64 逐行累加
+      const totalCents = sumLineCents(ordLines.map((l) => ({ quantity: l.quantity, unitPrice: Number(l.unitPrice) })));
+      const invoicedCents = invoicedMap.get(order.id) ?? 0;
+      return {
+        ...order,
+        customerName,
+        operatorName: operatorName ?? null,
+        totalAmount: fromCents(totalCents),
+        totalAmountCents: totalCents,
+        invoicedCents,
+        uninvoicedCents: Math.max(0, totalCents - invoicedCents),
+        overInvoiced: invoicedCents > totalCents,
+        lines: ordLines,
+      };
+    });
   }
 }

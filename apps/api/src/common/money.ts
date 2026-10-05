@@ -40,3 +40,34 @@ export const centsGt = (a: number | string, b: number | string): boolean => toCe
 /** 剩余金额（元，非负）：amount - settled，按分计算 */
 export const remainOf = (amount: number | string, settled: number | string): number =>
   Math.max(0, fromCents(toCents(amount) - toCents(settled)));
+
+/**
+ * 税率定点助手（I16 开票）—— 纯新增，不改动以上既有行为
+ * ------------------------------------------------------------------
+ * 背景：税率是 0.13/0.09/0.06/0.01/0 这类最多 4 位小数的比率，
+ * 直接「分 × 0.13」是 binary64 乘法，结果再四舍五入会在边界值上漂移。
+ * 做法：先把税率放大成整数「万分点」，与整数分相乘得到整数乘积，
+ * 再用整数取余做半进位四舍五入 —— 全程整数运算，无浮点参与取整判定。
+ */
+export const RATE_SCALE = 10000; // 万分点：0.13 → 1300
+
+/** 税率（如 0.13）→ 万分点整数（如 1300）；非有限数按 0 处理 */
+export const rateToBp = (rate: number | string | null | undefined): number => {
+  const n = typeof rate === 'string' ? Number(rate) : (rate ?? 0);
+  return Number.isFinite(n) ? Math.round(n * RATE_SCALE) : 0;
+};
+
+/** 万分点整数 → 税率（如 1300 → 0.13） */
+export const bpToRate = (bp: number): number => Math.round(bp) / RATE_SCALE;
+
+/** 不含税金额（分）× 税率 → 税额（分）：四舍五入到整分（整数域半进位，无浮点取整） */
+export const taxCentsOf = (exclCents: number, rate: number | string | null | undefined): number => {
+  const p = Math.round(exclCents) * rateToBp(rate); // 单位：万分之一分
+  const r = p % RATE_SCALE; // 精确整数取余
+  const q = (p - r) / RATE_SCALE; // 整除（(p-r) 必为 RATE_SCALE 的整数倍，除法无误差）
+  return r * 2 >= RATE_SCALE ? q + 1 : q; // 半进位
+};
+
+/** 含税金额（分）= 不含税 + 税额（整数相加，无尾差） */
+export const inclCentsOf = (exclCents: number, taxCents: number): number =>
+  Math.round(exclCents) + Math.round(taxCents);

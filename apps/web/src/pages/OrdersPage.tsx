@@ -7,6 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
+import { fmtCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 import OrderDetailModal from '../components/OrderDetailModal'
@@ -602,6 +603,22 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       title: '总额(元)', width: 120, align: 'right',
       render: (_: unknown, r: Order) => (
         <Text strong>{r.totalAmount != null ? r.totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</Text>
+      ),
+    },
+    {
+      title: '已开票(元)', width: 110, align: 'right',
+      render: (_: unknown, r: Order) => (
+        r.invoicedCents
+          ? <Text>{fmtCents(r.invoicedCents)}</Text>
+          : <Text type="secondary">—</Text>
+      ),
+    },
+    {
+      title: '未开票(元)', width: 110, align: 'right',
+      render: (_: unknown, r: Order) => (
+        r.uninvoicedCents != null
+          ? <Text strong style={{ color: r.overInvoiced ? '#cf1322' : undefined }}>{fmtCents(r.uninvoicedCents)}</Text>
+          : <Text type="secondary">—</Text>
       ),
     },
     {

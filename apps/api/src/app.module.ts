@@ -9,6 +9,7 @@ import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomersModule } from './customers/customers.module';
+import { InvoicesModule } from './invoices/invoices.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MasterDataModule } from './master-data/master-data.module';
 import { OperatorsModule } from './operators/operators.module';
@@ -35,6 +36,7 @@ import { OperatorInterceptor } from './common/operator.interceptor';
     PlanSheetsModule,
     WarehouseModule,
     AccountingModule,
+    InvoicesModule,
     SchedulingModule,
     MasterDataModule,
     UpdateModule,

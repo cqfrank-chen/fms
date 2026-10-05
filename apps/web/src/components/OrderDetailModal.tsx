@@ -1,6 +1,7 @@
 import { Button, Descriptions, Modal, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { PACK_LABEL, STATUS_LABEL } from '../lib/labels'
+import { fmtCents } from '../lib/money'
 import type { Order, OrderLine, PackagingSpec } from '../lib/types'
 
 /**
@@ -28,6 +29,14 @@ export default function OrderDetailModal({
         <Descriptions.Item label="状态"><Tag color="processing">{STATUS_LABEL[order.status]}</Tag></Descriptions.Item>
         <Descriptions.Item label="交期">{dayjs(order.dueDate).format('YYYY-MM-DD')}</Descriptions.Item>
         <Descriptions.Item label="备注" span={2}>{order.note || '—'}</Descriptions.Item>
+        {/* 开票进度（I16）：已开票金额实时聚合自未作废发票；与收款核销互不影响 */}
+        <Descriptions.Item label="订单金额">{order.totalAmountCents != null ? fmtCents(order.totalAmountCents) : (order.totalAmount ?? '—')} 元</Descriptions.Item>
+        <Descriptions.Item label="已开票（含税）">{fmtCents(order.invoicedCents ?? 0)} 元</Descriptions.Item>
+        <Descriptions.Item label="未开票余额">
+          {order.overInvoiced
+            ? <Tag color="error">已超额开票</Tag>
+            : `${fmtCents(order.uninvoicedCents ?? 0)} 元`}
+        </Descriptions.Item>
       </Descriptions>
       <Table<OrderLine>
         rowKey={(_, i) => String(i)}

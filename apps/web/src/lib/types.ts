@@ -35,7 +35,15 @@ export interface Order {
   status: OrderStatus
   createdAt: string
   updatedAt?: string
-  totalAmount?: number // 后端 attachLines 按行 Σ(数量×单价)
+  totalAmount?: number // 后端 attachLines 按行 Σ(数量×单价)，元
+  /** 订单金额（分，定点求和；开票/收款口径统一用「分」） */
+  totalAmountCents?: number
+  /** 已开票金额（分，含税；实时聚合未作废发票） */
+  invoicedCents?: number
+  /** 未开票余额（分，非负） */
+  uninvoicedCents?: number
+  /** 是否超额开票（累计含税 > 订单金额） */
+  overInvoiced?: boolean
   lines: OrderLine[]
 }
 
@@ -311,4 +319,80 @@ export interface MonthlyCost {
   amount: number
   note?: string | null
   updatedAt?: string
+}
+
+// ---------- 开票域（I16）：与收款/核销并行的独立线 ----------
+
+export type InvoiceType = 'vat_special' | 'vat_general' | 'electronic' | 'other'
+export type InvoiceStatus = 'normal' | 'voided'
+
+export interface InvoiceOrderRef { orderId: number; orderNo: string }
+
+/** 发票（金额一律「分」） */
+export interface Invoice {
+  id: number
+  invoiceNo: string
+  invoiceType: InvoiceType
+  customerId: number
+  customerName?: string
+  taxRate: number
+  amountExclCents: number
+  taxCents: number
+  amountInclCents: number
+  issueDate: string
+  status: InvoiceStatus
+  voidReason?: string | null
+  voidedAt?: string | null
+  operatorId?: number | null
+  operatorName?: string | null
+  voidOperatorId?: number | null
+  voidOperatorName?: string | null
+  remark?: string | null
+  createdAt: string
+  updatedAt?: string
+  orderRefs: InvoiceOrderRef[]
+  orderNos: string[]
+  /** 超额开票提示（不阻断写入） */
+  warning?: string
+}
+
+export interface InvoicePage {
+  items: Invoice[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface InvoiceSummaryRow {
+  count: number
+  amountExclCents: number
+  taxCents: number
+  amountInclCents: number
+}
+
+export interface InvoiceSummary extends InvoiceSummaryRow {
+  from: string | null
+  to: string | null
+  byCustomer: Array<InvoiceSummaryRow & { customerId: number; customerName: string }>
+  byMonth: Array<InvoiceSummaryRow & { month: string }>
+}
+
+/** 单订单开票/收款进度（订单金额 / 已开票 / 未开票 / 已收款 / 未收） */
+export interface OrderInvoiceStatus {
+  orderId: number
+  orderNo: string
+  customerId: number
+  customerName: string
+  orderStatus: OrderStatus
+  orderAmountCents: number
+  invoicedCents: number
+  uninvoicedCents: number
+  overInvoiced: boolean
+  invoiceCount: number
+  voidedCount: number
+  warning?: string
+  receivableCents: number
+  receivedCents: number
+  unreceivedCents: number
+  invoices: Invoice[]
 }
