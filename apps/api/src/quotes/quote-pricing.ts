@@ -1,4 +1,5 @@
 import { digitSignature, normalizeToken } from '../ai/table-parser.service';
+import { sameCatalogProduct } from '../ai/product-model';
 import { normalizeCurrency } from '../common/currency';
 import type { CanonicalCurrency } from '../common/currency';
 
@@ -67,6 +68,8 @@ export interface PriceHit {
   source: string;
   productName: string | null;
   remark: string | null;
+  /** 这次是按哪种方式命中的（productId / 文本 / 基础型号+尺寸 / 通用），供上层留痕 */
+  matchKind: ProductMatch;
 }
 
 /** 今天（本地时区）YYYY-MM-DD */
@@ -86,8 +89,34 @@ export function quoteIsEffective(q: QuoteLike, onDate: string = todayYmd()): boo
   return true;
 }
 
-/** 产品匹配方式：productId 精确 / productName 文本 / anyProduct 完全通用（该报价不限定产品） */
-type ProductMatch = 'productId' | 'productName' | 'anyProduct';
+/**
+ * 产品匹配方式：
+ *   productId    报价挂的是同一个产品档案 id（精确口径）
+ *   productName  产品名文本归一 + 数字指纹都相同
+ *   catalogModel **基础型号 + size 相同**（甲方规则 2026：品牌/描述前缀差异可忽略，size 必须逐字符一致）
+ *   anyProduct   完全通用（该报价既不挂产品也不写产品名）
+ */
+type ProductMatch = 'productId' | 'productName' | 'catalogModel' | 'anyProduct';
+
+/** 命中方式的说明后缀（写进 ruleText，界面/识单备注可追溯「按哪条规则命中」） */
+const MATCH_KIND_NOTE: Partial<Record<ProductMatch, string>> = {
+  catalogModel: '基础型号+尺寸',
+};
+
+/**
+ * 同一档内的**命中方式优先级**：数字越小越优先。
+ * 文本完全相同（productName）比「基础型号+尺寸」（catalogModel）更强 —— 保留老口径的既有结果，
+ * 只有在同档内没有文本/ID 级命中时才用 catalogModel 命中（这正是解锁缺价的新增路径）。
+ */
+const MATCH_RANK: Record<ProductMatch, number> = {
+  productId: 0, productName: 1, catalogModel: 2, anyProduct: 3,
+};
+
+/** 命中档 + 命中方式 → 人读文案（如「客户+产品名文本（基础型号+尺寸）」） */
+export function ruleTextOf(rule: PriceRule, kind: ProductMatch): string {
+  const note = MATCH_KIND_NOTE[kind];
+  return PRICE_RULE_LABEL[rule] + (note ? '（' + note + '）' : '');
+}
 
 /** 报价是否与本条查询的产品对得上；null = 对不上 */
 export function matchQuoteProduct(q: QuoteLike, query: PriceQuery): ProductMatch | null {
@@ -100,6 +129,10 @@ export function matchQuoteProduct(q: QuoteLike, query: PriceQuery): ProductMatch
   const qd = digitSignature(q.productName ?? '');
   const pd = digitSignature(query.productName ?? '');
   if (qn && pn && qn === pn && qd === pd) return 'productName';
+  // ③ 按「基础型号 + size」匹配（甲方规则 2026，**解锁缺价的主路径**）：
+  //    计划单写「1-1-101」、合同写「Victor 乙炔割嘴 1-1-101」→ 品牌/描述前缀差异不影响，命中；
+  //    但 size 必须逐字符一致（0 / 00 / 000 是三档不同尺寸），跨 size **一律不命中**（宁缺勿错）。
+  if (sameCatalogProduct(q.productName, query.productName)) return 'catalogModel';
   // 完全通用价：报价既不限产品也不写产品名 → 任何产品都可用（最低优先级的兜底）
   if (q.productId == null && !qn) return 'anyProduct';
   return null;
@@ -117,7 +150,9 @@ function ruleOf(q: QuoteLike, match: ProductMatch): PriceRule {
  */
 export function pickQuote(quotes: QuoteLike[], query: PriceQuery): PriceHit | null {
   const onDate = query.onDate || todayYmd();
-  const tiers: Record<PriceRule, QuoteLike[]> = { customer_product: [], customer_name: [], generic: [] };
+  const tiers: Record<PriceRule, Array<{ q: QuoteLike; m: ProductMatch }>> = {
+    customer_product: [], customer_name: [], generic: [],
+  };
 
   for (const q of quotes) {
     if (!quoteIsEffective(q, onDate)) continue;
@@ -125,23 +160,29 @@ export function pickQuote(quotes: QuoteLike[], query: PriceQuery): PriceHit | nu
     if (!m) continue;
     // 客户档：只有「本客户」或「通用价」两种归属，不跨客户取价
     if (q.customerId != null && (query.customerId == null || q.customerId !== query.customerId)) continue;
-    tiers[ruleOf(q, m)].push(q);
+    tiers[ruleOf(q, m)].push({ q, m });
   }
 
   for (const rule of ['customer_product', 'customer_name', 'generic'] as PriceRule[]) {
     const pool = tiers[rule];
     if (!pool.length) continue;
     // 同一档内：valid_from 最新（null 视为最早）；再取 id 最大（最近录入）
-    const best = pool.slice().sort((a, b) => {
-      const af = a.validFrom ?? '';
-      const bf = b.validFrom ?? '';
+    const picked = pool.slice().sort((x, y) => {
+      // 先按命中方式强度（文本 > 基础型号+尺寸），再按 valid_from 最新，最后按 id 最大
+      const rx = MATCH_RANK[x.m];
+      const ry = MATCH_RANK[y.m];
+      if (rx !== ry) return rx - ry;
+      const af = x.q.validFrom ?? '';
+      const bf = y.q.validFrom ?? '';
       if (af !== bf) return af < bf ? 1 : -1;
-      return b.id - a.id;
+      return y.q.id - x.q.id;
     })[0];
+    const best = picked.q;
     return {
       quoteId: best.id,
       rule,
-      ruleText: PRICE_RULE_LABEL[rule],
+      ruleText: ruleTextOf(rule, picked.m),
+      matchKind: picked.m,
       unitPriceCents: Math.round(best.unitPriceCents),
       currency: normalizeCurrency(best.currency),
       validFrom: best.validFrom,

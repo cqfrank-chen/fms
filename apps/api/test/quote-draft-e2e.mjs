@@ -592,17 +592,77 @@ async function main() {
   eq('识单补价：00-GPN 行 9.90', gpnParse.body.lines[1].unitPrice, 9.9);
   ok('识单补价：000-GPN 行保持缺价（不串尺寸）', gpnParse.body.lines[2].unitPrice == null, gpnParse.body.lines[2]);
 
-  // 子串容错必须带数字守卫：旧口径会把「0-GPN 0#」子串错配到档案「0-GPN」（差一个号数 = 另一个尺寸）
-  const subCsv = Buffer.from(['产品名称,数量', '0-GPN 0#,5'].join('\r\n'), 'utf8');
+  // ① 同尺寸的写法差异（0-GPN 0# = 型号 GPN 的 size 0 = 档案「0-GPN」）→ 正常命中
+  const sameCsv = Buffer.from(['产品名称,数量', '0-GPN 0#,5'].join('\r\n'), 'utf8');
+  const sameParse = await req('POST', '/ai/orders/parse', { ...uploadBody(sameCsv, 'same.csv'), folderCustomer: '安宝公司' }, token);
+  eq('型号+size 相同：0-GPN 0# → 档案「0-GPN」（size 0，写法差异不影响）', sameParse.body.lines[0].productId, gpns[0].id);
+  eq('型号+size 相同：0-GPN 0# → 取到 0-GPN 的价 8.50', sameParse.body.lines[0].unitPrice, 8.5);
+
+  // ② 尺寸前后不一致（0-GPN 2#：前 0 / 后 2）→ 尺寸有歧义 → **不猜、不错配**，保持未建档
+  const subCsv = Buffer.from(['产品名称,数量', '0-GPN 2#,5'].join('\r\n'), 'utf8');
   const subParse = await req('POST', '/ai/orders/parse', { ...uploadBody(subCsv, 'sub.csv'), folderCustomer: '安宝公司' }, token);
-  ok('数字守卫：子串相似但数字指纹不同（0-GPN 0# vs 0-GPN）→ 不错配，保持未建档（宁缺勿错）',
+  ok('尺寸歧义（0-GPN 2#）→ 不错配、保持未建档（宁缺勿错）',
     subParse.body.lines[0].productId == null
       && subParse.body.lines[0].issues.some((i) => i.message.includes('不在目录中') || i.message.includes('匹配到多个产品')),
     { productId: subParse.body.lines[0].productId, issues: subParse.body.lines[0].issues.map((i) => i.message) });
 
+  // ③ 跨尺寸绝不命中：0-GPN 的价不得被 00-GPN / 1-GPN 取走（取价试算已经覆盖，这里再从识单侧钉一遍）
+  const crossCsv = Buffer.from(['产品名称,数量', '1-GPN,7'].join('\r\n'), 'utf8');
+  const crossParse = await req('POST', '/ai/orders/parse', { ...uploadBody(crossCsv, 'cross.csv'), folderCustomer: '安宝公司' }, token);
+  ok('跨尺寸：1-GPN 没有任何报价 → 保持缺价（不拿 0-GPN/00-GPN 的价顶上）', crossParse.body.lines[0].unitPrice == null, crossParse.body.lines[0].unitPrice);
+
   // SQL 核对：库里确实是三条独立档案（不是一条被合并的档案）
   const gpnSql = await db.query("select id, name from products where name in ('0-GPN','00-GPN','000-GPN') order by name");
   eq('SQL 核对：库中 0-GPN / 00-GPN / 000-GPN 是三条独立档案', gpnSql.rowCount, 3);
+
+  // ================= 本轮：按「基础型号 + 尺寸」改进匹配（解锁缺价） =================
+  console.log('\n【本轮】基础型号 + 尺寸：品牌前缀差异可命中，size 必须逐字符一致');
+  // 产品档案：计划单写法的两个尺寸（同型号 1-101 的两个 size，各自独立档案）
+  const mp1 = (await req('POST', '/products', { name: '1-1-101', type: 'us_acetylene' }, token)).body;
+  const mp2 = (await req('POST', '/products', { name: '2-1-101', type: 'us_acetylene' }, token)).body;
+  ok('建档 1-1-101 / 2-1-101（同型号 1-101 的两个尺寸，各自独立）',
+    !!mp1.id && !!mp2.id && mp1.id !== mp2.id, [mp1.id, mp2.id]);
+
+  // 报价：合同写「Victor 乙炔割嘴 1-1-101」（品牌前缀）与「乙炔割嘴1-101-2」（型号后跟 size）
+  const cq1 = await req('POST', '/quotes', { customerId, productName: 'Victor 乙炔割嘴 1-1-101', unitPrice: 13.20, currency: 'CNY', validFrom: PAST, source: 'contract' }, token);
+  const cq2 = await req('POST', '/quotes', { customerId, productName: '乙炔割嘴1-101-2 82g 货号：4191', unitPrice: 15.00, currency: 'CNY', validFrom: PAST, source: 'contract' }, token);
+  ok('合同写法建价成功（品牌前缀 / 型号后跟 size）', cq1.status === 201 && cq2.status === 201, [cq1.body?.id, cq2.body?.id]);
+
+  // 取价：计划单只写「1-1-101」→ 品牌前缀差异忽略，按「基础型号 + 尺寸」命中
+  const lookM1 = await req('GET', '/quotes/lookup?customerId=' + customerId + '&productName=' + encodeURIComponent('1-1-101'), undefined, token);
+  eq('取价：计划单 1-1-101 命中合同「Victor 乙炔割嘴 1-1-101」13.20', lookM1.body.hit.unitPriceCents, 1320);
+  eq('取价：命中方式 = 基础型号+尺寸', lookM1.body.hit.matchKind, 'catalogModel');
+  ok('取价：命中说明标注「基础型号+尺寸」（可追溯）', lookM1.body.hit.ruleText.includes('基础型号+尺寸'), lookM1.body.hit.ruleText);
+
+  // 绝不跨 size：3-1-101 没有任何报价 → 保持缺价（不拿 1-1-101 / 1-101-2 的价顶上）
+  const lookM3 = await req('GET', '/quotes/lookup?customerId=' + customerId + '&productName=' + encodeURIComponent('3-1-101'), undefined, token);
+  ok('取价：3-1-101 无价 → 保持缺价（绝不跨尺寸命中）', lookM3.body.hit === null, lookM3.body.hit);
+  // 「型号后跟 size」的写法也按同一口径命中：2-1-101 = 型号 1-101 size 2
+  const lookM2 = await req('GET', '/quotes/lookup?customerId=' + customerId + '&productName=' + encodeURIComponent('2-1-101'), undefined, token);
+  eq('取价：2-1-101 命中「乙炔割嘴1-101-2」15.00', lookM2.body.hit.unitPriceCents, 1500);
+
+  // 识单 + 补价（两跳：识单产品匹配 + 报价补价）
+  const msCsv = Buffer.from(['产品名称,数量', '1-1-101,100', '2-1-101,200', '3-1-101,300'].join('\r\n'), 'utf8');
+  const msParse = await req('POST', '/ai/orders/parse', { ...uploadBody(msCsv, '计划单型号尺寸.csv'), folderCustomer: '安宝公司' }, token);
+  eq('识单补价：1-1-101 → 13.20', msParse.body.lines[0].unitPrice, 13.2);
+  eq('识单补价：2-1-101 → 15.00', msParse.body.lines[1].unitPrice, 15);
+  ok('识单补价：3-1-101 保持缺价（不跨尺寸）', msParse.body.lines[2].unitPrice == null, msParse.body.lines[2].unitPrice);
+  eq('识单：按基础型号+尺寸补价的行数 = 2', msParse.body.quoteFilledCount, 2);
+
+  // 识单产品匹配：合同写法「Victor 乙炔割嘴 1-1-101」也能落到档案「1-1-101」（基础型号 + size 相同）
+  const brandCsv = Buffer.from(['产品名称,数量', 'Victor 乙炔割嘴 1-1-101,50'].join('\r\n'), 'utf8');
+  const brandParse = await req('POST', '/ai/orders/parse', { ...uploadBody(brandCsv, '品牌写法.csv'), folderCustomer: '安宝公司' }, token);
+  eq('识单：品牌前缀写法 → 档案「1-1-101」', brandParse.body.lines[0].productId, mp1.id);
+
+  // SQL 核对：迁移只新增 8 个目录锚定列；识单不会自动写这些列（修正脚本另行执行）
+  const colSql = await db.query("select column_name from information_schema.columns where table_name = 'products' and column_name in ('catalog_model','size_spec','series','gas_type','orifice_mm','thickness_range','catalog_anchor','catalog_note')");
+  eq('SQL：products 新增 8 个目录锚定列（迁移只新增）', colSql.rowCount, 8);
+  const untouched = await db.query("select count(*)::int as n from products where name in ('0-GPN','00-GPN','000-GPN') and catalog_model is null and catalog_anchor is null");
+  eq('SQL：目录列为空（知识别不改档案，修正脚本单独跑）', untouched.rows[0].n, 3);
+
+  // SQL 核对：报价按「同型号同尺寸」挂接后，尺寸之间互不串价
+  const qSpread = await db.query("select product_name, unit_price_cents from product_quotes where customer_id = $1 and product_name in ('Victor 乙炔割嘴 1-1-101','乙炔割嘴1-101-2 82g 货号：4191') order by unit_price_cents", [customerId]);
+  eq('SQL：两条合同写法报价各自独立入库（1320 / 1500）', qSpread.rows.map((x) => Number(x.unit_price_cents)), [1320, 1500]);
 
   // ================= 权限 =================
   console.log('\n【权限】报价写操作限 admin / planner');

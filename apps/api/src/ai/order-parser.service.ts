@@ -5,6 +5,7 @@ import { fromCents, lineCents, sumLineCents } from '../common/money';
 import { LlmGatewayService } from './llm-gateway.service';
 import type { LlmMessage } from './llm-gateway.service';
 import { matrixToCompactText, ruleMapMatrix, sameProductDigits } from './table-parser.service';
+import { findProductCandidates } from './product-model';
 import type { HeaderArea, RuleMapResult } from './table-parser.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { describeHit } from '../quotes/quote-pricing';
@@ -388,28 +389,22 @@ export class OrderParserService {
       if (!name) {
         productIssue = { path: '', level: 'error', message: '行缺少产品型号' };
       } else {
-        const exact = allProducts.find((p) => p.name.trim() === name);
-        if (exact) {
-          productId = exact.id;
+        // 产品档案候选（唯一权威选法，见 ai/product-model.ts findProductCandidates）：
+        //   ① 名称完全相同 → ② **基础型号 + size 相同**（甲方规则：品牌前缀差异忽略、size 逐字符一致）
+        //   → ③ 子串容错（必须带数字指纹守卫）。多候选一律**不自动选**，交人工（宁缺勿错）。
+        const found = findProductCandidates(name, allProducts, { sameDigits: sameProductDigits, normName });
+        const pick = found.kind === 'exact' && found.hits.length ? found.hits[0] : (found.hits.length === 1 ? found.hits[0] : null);
+        if (pick) {
+          productId = pick.id;
           match = 'exact';
         } else {
-          const nn = normName(name);
-          // 子串容错（计划单写「1-1-101」、档案写「Victor 乙炔割嘴 1-1-101」）**必须加数字守卫**：
-          // 数字部分（含前导零/位数/号数）逐字符一致才允许命中 —— 否则「1-101」会错配到「1-101 割嘴 00#」这种不同尺寸。
-          const cands = allProducts.filter((p) => nn && sameProductDigits(name, p.name)
-            && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
-          if (cands.length === 1) {
-            productId = cands[0].id;
-            match = 'exact';
-          } else {
-            productIssue = {
-              path: '',
-              level: 'error',
-              message: cands.length > 1
-                ? `「${name}」匹配到多个产品（${cands.slice(0, 3).map((p) => p.name).join('、')}…），请选择`
-                : `产品「${name}」不在目录中（请先到设置建档或改选）`,
-            };
-          }
+          productIssue = {
+            path: '',
+            level: 'error',
+            message: found.hits.length > 1
+              ? `「${name}」匹配到多个产品（${found.hits.slice(0, 3).map((p) => p.name).join('、')}…），请选择`
+              : `产品「${name}」不在目录中（请先到设置建档或改选）`,
+          };
         }
       }
       return { name, productId, match, productIssue };

@@ -185,11 +185,33 @@ describe('④ 甲方更正：0-GPN 与 00-GPN 是同一型号的不同尺寸 —
     expect(pickQuote(quotes, { productName: '割嘴 1-1-101', customerId: 7, onDate: ON })!.quoteId).toBe(1);
   });
 
-  it('描述/品牌前缀差异（数字部分一致）仍然命中 —— 型号对照候选确认后即可解锁', () => {
+  it('品牌前缀差异现在按「基础型号+尺寸」命中（本轮解锁缺价的主路径）', () => {
     const quotes = [gpn(1, 'Victor 乙炔割嘴 1-1-101', 1320)];
     expect(pickQuote(quotes, { productName: 'Victor 乙炔割嘴 1-1-101', customerId: 7, onDate: ON })!.quoteId).toBe(1);
-    // 但「没有品牌前缀的写法」在服务端仍**不算命中**（取价是精确口径，不做子串匹配）：
-    expect(pickQuote(quotes, { productName: '1-1-101', customerId: 7, onDate: ON })).toBeNull();
+    // 计划单只写「1-1-101」（无品牌/描述前缀）：文本不同，但**基础型号+size 相同** → 命中
+    const hit = pickQuote(quotes, { productName: '1-1-101', customerId: 7, onDate: ON })!;
+    expect(hit.quoteId).toBe(1);
+    expect(hit.matchKind).toBe('catalogModel');
+    expect(hit.ruleText).toContain('基础型号+尺寸');
+  });
+
+  it('但「基础型号+尺寸」命中**绝不跨 size**：2-1-101 的价不会被 1-1-101 取走', () => {
+    const quotes = [gpn(1, 'Victor 乙炔割嘴 1-1-101', 1320)];
+    expect(pickQuote(quotes, { productName: '2-1-101', customerId: 7, onDate: ON })).toBeNull();
+    // 合同写「乙炔割嘴1-101-2」= 型号 1-101 size 2 → 与计划单 2-1-101 同尺寸 → 命中
+    const quotes2 = [gpn(2, '乙炔割嘴1-101-2 82g 货号：4191', 1500)];
+    const hit2 = pickQuote(quotes2, { productName: '2-1-101', customerId: 7, onDate: ON })!;
+    expect(hit2.quoteId).toBe(2);
+    expect(hit2.matchKind).toBe('catalogModel');
+  });
+
+  it('同档内文本命中优先于「基础型号+尺寸」命中（老口径结果不被改写）', () => {
+    const quotes = [
+      gpn(1, '1-101 割嘴 00#', 900, 7), // 同客户 + 文本完全相同
+      q({ id: 2, customerId: 7, productId: 33, productName: '1-101 割嘴 00# 特价', unitPriceCents: 1320 }), // 同客户 + 基础型号尺寸命中
+    ];
+    // 产品 id 不完全相同 → 不会走 productId 档；同档（客户+产品名文本）里文本完全相同的第 1 条优先
+    expect(pickQuote(quotes, { productId: 999, productName: '1-101 割嘴 00#', customerId: 7, onDate: ON })!.quoteId).toBe(1);
   });
 
   it('按 product_id 命中不受数字指纹影响（id 本来就是精确口径）', () => {

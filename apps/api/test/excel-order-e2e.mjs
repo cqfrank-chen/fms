@@ -248,6 +248,31 @@ async function main() {
   await runImportFlow(token, db, 'CSV(UTF-8)', buildCsv('utf8'), '订单-utf8.csv', EXPECTED.csv);
   await runImportFlow(token, db, 'CSV(GBK)', buildCsv('gbk'), '订单-gbk.csv', EXPECTED.csv);
 
+  // ---------- 2b) 本轮：按「基础型号 + 尺寸」匹配与补价（识单 + 取价） ----------
+  console.log('\n【本轮】基础型号 + 尺寸：Excel/CSV 订单里的写法差异也能命中，size 必须逐字符一致');
+  await req('POST', '/products', { name: '1-1-101', type: 'us_acetylene' }, token);
+  // 档案可能已存在（同一实例里前面的用例也会建档）→ 一律以「名称精确命中的那条」为准
+  const msProd = (await req('GET', '/products', undefined, token)).body.find((p) => p.name === '1-1-101');
+  const msQuote = await req('POST', '/quotes', {
+    customerId, productName: 'Victor 乙炔割嘴 1-1-101', unitPrice: 13.20, currency: 'CNY', validFrom: '2020-01-01', source: 'contract',
+  }, token);
+  ok('建档 1-1-101 + 合同写法报价「Victor 乙炔割嘴 1-1-101」', !!msProd.id && msQuote.status === 201, [msProd?.id, msQuote.body?.id]);
+
+  // 计划单写法（无品牌前缀、无单价）→ 识单按「基础型号+尺寸」落到档案，并按合同写法补价
+  const msCsv = Buffer.from(['产品名称,数量', '1-1-101,100', '2-1-101,200'].join('\r\n'), 'utf8');
+  const msParse = await req('POST', '/ai/orders/parse', { ...uploadBody(msCsv, '计划单型号尺寸.csv'), folderCustomer: '杭州测试客户' }, token);
+  eq('识单：1-1-101 → 档案「1-1-101」（基础型号+尺寸）', msParse.body.lines[0].productId, msProd.id);
+  eq('识单补价：品牌前缀差异被忽略，1-1-101 → 13.20', msParse.body.lines[0].unitPrice, 13.2);
+  eq('识单补价行数 = 1', msParse.body.quoteFilledCount, 1);
+  ok('识单：2-1-101（另一个 size）保持缺价，不跨尺寸补价', msParse.body.lines[1].unitPrice == null, msParse.body.lines[1].unitPrice);
+
+  // 合同写法直接出现在表里（Excel 族常见）→ 也应落到同一档案
+  const brandCsv = Buffer.from(['产品名称,数量', 'Victor 乙炔割嘴 1-1-101,50'].join('\r\n'), 'utf8');
+  const brandParse = await req('POST', '/ai/orders/parse', { ...uploadBody(brandCsv, '品牌写法.csv'), folderCustomer: '杭州测试客户' }, token);
+  eq('识单：品牌写法 → 档案「1-1-101」', brandParse.body.lines[0].productId, msProd.id);
+  eq('识单补价：品牌写法 → 13.20（与档案名不同也命中）', brandParse.body.lines[0].unitPrice, 13.2);
+  eq('识单补价：品牌写法行数 = 1', brandParse.body.quoteFilledCount, 1);
+
   // ---------- 3) 边界与分支 ----------
   console.log('\n【分支与边界】');
 

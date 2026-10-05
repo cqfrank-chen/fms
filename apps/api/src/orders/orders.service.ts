@@ -17,6 +17,7 @@ import { QuotesService } from '../quotes/quotes.service';
 import { describeHit } from '../quotes/quote-pricing';
 import { normName } from '../ai/order-parser.service';
 import { sameProductDigits } from '../ai/table-parser.service';
+import { findProductCandidates } from '../ai/product-model';
 import { computeLinePending, computeOrderPending, PENDING_CODES, pendingText } from './pending-items';
 import { quoteFillTargets, resolveQuoteFills } from './draft-quote-fill';
 import type { DraftQuoteFill } from './draft-quote-fill';
@@ -546,14 +547,11 @@ export class OrdersService {
     const name = (nameRaw ?? '').trim();
     if (name) {
       const all = await db.select({ id: products.id, name: products.name }).from(products);
-      const exact = all.find((p) => p.name.trim() === name);
-      if (exact) return { id: exact.id, filed: true, name: exact.name };
-      const nn = normName(name);
-      // 子串容错（只允许描述/品牌前缀差异）+ **数字守卫**：数字部分（含前导零/位数/号数）必须逐字符一致，
-      // 否则「1-101」会错落到「1-101 割嘴 00#」这种不同尺寸的档案上（价格/工艺都错）。甲方更正：不同尺寸各自建档。
-      const cands = all.filter((p) => nn && sameProductDigits(name, p.name)
-        && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
-      if (cands.length === 1) return { id: cands[0].id, filed: true, name: cands[0].name };
+      // 与识单同一套候选口径（ai/product-model.ts）：名称完全相同 → **基础型号+size 相同** → 子串容错（带数字守卫）。
+      // 「基础型号 + size」必须逐字符一致，否则「1-101」会错落到「1-101 割嘴 00#」（不同尺寸各自建档，价格/工艺都错）。
+      const found = findProductCandidates(name, all, { sameDigits: sameProductDigits, normName });
+      const pick = found.kind === 'exact' && found.hits.length ? found.hits[0] : (found.hits.length === 1 ? found.hits[0] : null);
+      if (pick) return { id: pick.id, filed: true, name: pick.name };
     }
     return { id: await ensurePendingProduct(), filed: false, name: name || null };
   }

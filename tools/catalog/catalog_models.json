@@ -1,0 +1,2089 @@
+{
+  "source": "D:/Dsh/project/product_catalog/Product_Model_Catalogue_photos_only.html",
+  "parsedAt": "2026-10-05",
+  "seriesCount": 6,
+  "modelCount": 37,
+  "sizeCount": 286,
+  "legend": {
+    "size": "catalogue size setting",
+    "orifice": "cutting orifice (mm)",
+    "thickness": "cutting thickness range (mm)"
+  },
+  "series": [
+    {
+      "code": "01",
+      "series": "AMERICAN STYLE CUTTING TIP",
+      "pages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expectedModels": 20,
+      "models": [
+        {
+          "model": "1-101",
+          "gasType": "ACETYLENE",
+          "gasLabel": "1-101 FOR ACE",
+          "alt": "1-101",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 2,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.7",
+              "thickness": "1-3"
+            },
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.5",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.8",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "2.1",
+              "thickness": "60-80"
+            },
+            {
+              "size": "5",
+              "orifice": "2.5",
+              "thickness": "80-125"
+            },
+            {
+              "size": "6",
+              "orifice": "3.1",
+              "thickness": "125-200"
+            },
+            {
+              "size": "7",
+              "orifice": "3.6",
+              "thickness": "200-250"
+            },
+            {
+              "size": "8",
+              "orifice": "4.1",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "1-118",
+          "gasType": "ACETYLENE",
+          "gasLabel": "1-118 FOR ACE",
+          "alt": "1-118",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 2,
+          "sizes": [
+            {
+              "size": "0",
+              "orifice": "1.2",
+              "thickness": "1.8x5"
+            },
+            {
+              "size": "2",
+              "orifice": "1.5",
+              "thickness": "2.4x5"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "2.5x5"
+            },
+            {
+              "size": "6",
+              "orifice": "2.1",
+              "thickness": "2.8x10"
+            },
+            {
+              "size": "8",
+              "orifice": "2.4",
+              "thickness": "3.2x10"
+            }
+          ]
+        },
+        {
+          "model": "3-101",
+          "gasType": "ACETYLENE",
+          "gasLabel": "3-101 FOR ACE",
+          "alt": "3-101",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 2,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.7",
+              "thickness": "1-3"
+            },
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.5",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.8",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "2.1",
+              "thickness": "60-80"
+            },
+            {
+              "size": "5",
+              "orifice": "2.5",
+              "thickness": "80-125"
+            }
+          ]
+        },
+        {
+          "model": "3GPN",
+          "gasType": "LPG",
+          "gasLabel": "3GPN FOR L.P.G",
+          "alt": "3GPN",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 3,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.5",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.8",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "2.1",
+              "thickness": "60-80"
+            },
+            {
+              "size": "5",
+              "orifice": "2.5",
+              "thickness": "80-125"
+            }
+          ]
+        },
+        {
+          "model": "138",
+          "gasType": "ACETYLENE",
+          "gasLabel": "138 FOR ACE",
+          "alt": "138",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 3,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "1-3"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "3-6"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "6-10"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "10-20"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "20-40"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "40-60"
+            },
+            {
+              "size": "5",
+              "orifice": "2.1",
+              "thickness": "60-100"
+            },
+            {
+              "size": "6",
+              "orifice": "2.4",
+              "thickness": "100-150"
+            }
+          ]
+        },
+        {
+          "model": "144",
+          "gasType": "ACETYLENE",
+          "gasLabel": "144 FOR ACE",
+          "alt": "144",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 3,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "60-100"
+            },
+            {
+              "size": "5",
+              "orifice": "2.0",
+              "thickness": "100-150"
+            },
+            {
+              "size": "6",
+              "orifice": "2.4",
+              "thickness": "150-200"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "200-250"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "164",
+          "gasType": "ACETYLENE",
+          "gasLabel": "164 FOR ACE",
+          "alt": "164",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 4,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "60-100"
+            },
+            {
+              "size": "5",
+              "orifice": "2.0",
+              "thickness": "100-150"
+            },
+            {
+              "size": "6",
+              "orifice": "2.4",
+              "thickness": "150-200"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "200-250"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "229",
+          "gasType": "LPG",
+          "gasLabel": "229 FOR L.P.G",
+          "alt": "229",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 4,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.6",
+              "thickness": "1-3"
+            },
+            {
+              "size": "0",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "2",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "3",
+              "orifice": "1.4",
+              "thickness": "15-25"
+            },
+            {
+              "size": "4",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "5",
+              "orifice": "1.9",
+              "thickness": "50-100"
+            },
+            {
+              "size": "6",
+              "orifice": "2.5",
+              "thickness": "100-150"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "150-200"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "200-250"
+            }
+          ]
+        },
+        {
+          "model": "261",
+          "gasType": "LPG",
+          "gasLabel": "261 FOR L.P.G",
+          "alt": "261",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 4,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.6",
+              "thickness": "1-3"
+            },
+            {
+              "size": "0",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "2",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "3",
+              "orifice": "1.4",
+              "thickness": "15-25"
+            },
+            {
+              "size": "4",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "5",
+              "orifice": "1.9",
+              "thickness": "50-100"
+            },
+            {
+              "size": "6",
+              "orifice": "2.5",
+              "thickness": "100-150"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "150-200"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "200-250"
+            }
+          ]
+        },
+        {
+          "model": "275",
+          "gasType": "LPG",
+          "gasLabel": "275 FOR L.P.G",
+          "alt": "275",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 5,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.6",
+              "thickness": "1-3"
+            },
+            {
+              "size": "0",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "2",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "3",
+              "orifice": "1.4",
+              "thickness": "15-25"
+            },
+            {
+              "size": "4",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "5",
+              "orifice": "1.9",
+              "thickness": "50-100"
+            },
+            {
+              "size": "6",
+              "orifice": "2.5",
+              "thickness": "100-150"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "150-200"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "200-250"
+            }
+          ]
+        },
+        {
+          "model": "6290",
+          "gasType": "ACETYLENE",
+          "gasLabel": "6290 FOR ACE",
+          "alt": "6290",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 5,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.8",
+              "thickness": "1-5"
+            },
+            {
+              "size": "00",
+              "orifice": "0.9",
+              "thickness": "5-10"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "10-15"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "15-25"
+            },
+            {
+              "size": "2",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "3",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "4",
+              "orifice": "2.4",
+              "thickness": "100-175"
+            },
+            {
+              "size": "5",
+              "orifice": "2.8",
+              "thickness": "175-250"
+            },
+            {
+              "size": "6",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "6290AC",
+          "gasType": "ACETYLENE",
+          "gasLabel": "6290AC FOR ACE",
+          "alt": "6290AC",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 5,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.8",
+              "thickness": "1-5"
+            },
+            {
+              "size": "00",
+              "orifice": "0.9",
+              "thickness": "5-10"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "10-15"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "15-25"
+            },
+            {
+              "size": "2",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "3",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "4",
+              "orifice": "2.4",
+              "thickness": "100-175"
+            },
+            {
+              "size": "5",
+              "orifice": "2.8",
+              "thickness": "175-250"
+            },
+            {
+              "size": "6",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "6290NFF",
+          "gasType": "LPG",
+          "gasLabel": "6290NFF FOR L.P.G",
+          "alt": "6290NFF",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 6,
+          "sizes": [
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "10-15"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "15-25"
+            },
+            {
+              "size": "2",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "3",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "4",
+              "orifice": "2.4",
+              "thickness": "100-175"
+            },
+            {
+              "size": "5",
+              "orifice": "2.8",
+              "thickness": "175-250"
+            },
+            {
+              "size": "6",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "6290NX",
+          "gasType": "LPG",
+          "gasLabel": "6290NX FOR L.P.G",
+          "alt": "6290NX",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 6,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.8",
+              "thickness": "1-5"
+            },
+            {
+              "size": "00",
+              "orifice": "0.9",
+              "thickness": "5-10"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "10-15"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "15-25"
+            },
+            {
+              "size": "2",
+              "orifice": "1.6",
+              "thickness": "25-50"
+            },
+            {
+              "size": "3",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "4",
+              "orifice": "2.4",
+              "thickness": "100-175"
+            },
+            {
+              "size": "5",
+              "orifice": "2.8",
+              "thickness": "175-250"
+            },
+            {
+              "size": "6",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "GPN",
+          "gasType": "LPG",
+          "gasLabel": "GPN FOR L.P.G",
+          "alt": "GPN",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 6,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.7",
+              "thickness": "1-3"
+            },
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "6-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.5",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.8",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "2.1",
+              "thickness": "60-80"
+            },
+            {
+              "size": "5",
+              "orifice": "2.5",
+              "thickness": "80-125"
+            },
+            {
+              "size": "6",
+              "orifice": "3.1",
+              "thickness": "125-200"
+            },
+            {
+              "size": "7",
+              "orifice": "3.6",
+              "thickness": "200-250"
+            },
+            {
+              "size": "8",
+              "orifice": "4.1",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "HPN",
+          "gasType": "LPG",
+          "gasLabel": "HPN FOR L.P.G",
+          "alt": "HPN",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 7,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "10-20"
+            },
+            {
+              "size": "2",
+              "orifice": "1.2",
+              "thickness": "20-40"
+            },
+            {
+              "size": "3",
+              "orifice": "1.4",
+              "thickness": "40-60"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "60-80"
+            },
+            {
+              "size": "5",
+              "orifice": "2.0",
+              "thickness": "80-125"
+            },
+            {
+              "size": "6",
+              "orifice": "2.4",
+              "thickness": "125-200"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "200-250"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            },
+            {
+              "size": "10",
+              "orifice": "4.0",
+              "thickness": "300-380"
+            },
+            {
+              "size": "12",
+              "orifice": "4.5",
+              "thickness": "380-450"
+            }
+          ]
+        },
+        {
+          "model": "MC12",
+          "gasType": "ACETYLENE",
+          "gasLabel": "MC12 FOR ACE",
+          "alt": "MC12",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 7,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-5"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "5-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "15-30"
+            },
+            {
+              "size": "3",
+              "orifice": "1.7",
+              "thickness": "30-50"
+            },
+            {
+              "size": "4",
+              "orifice": "2.1",
+              "thickness": "50-100"
+            },
+            {
+              "size": "5",
+              "orifice": "2.4",
+              "thickness": "100-150"
+            }
+          ]
+        },
+        {
+          "model": "MC40",
+          "gasType": "LPG",
+          "gasLabel": "MC40 FOR L.P.G",
+          "alt": "MC40",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 7,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-5"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "5-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "15-30"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "30-50"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "50-100"
+            }
+          ]
+        },
+        {
+          "model": "SC12",
+          "gasType": "ACETYLENE",
+          "gasLabel": "SC12 FOR ACE",
+          "alt": "SC12",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 8,
+          "sizes": [
+            {
+              "size": "000",
+              "orifice": "0.7",
+              "thickness": "1-3"
+            },
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-5"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "5-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "15-30"
+            },
+            {
+              "size": "3",
+              "orifice": "1.7",
+              "thickness": "30-50"
+            },
+            {
+              "size": "4",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "5",
+              "orifice": "2.3",
+              "thickness": "100-200"
+            },
+            {
+              "size": "6",
+              "orifice": "2.6",
+              "thickness": "200-300"
+            },
+            {
+              "size": "7",
+              "orifice": "3.0",
+              "thickness": "300-350"
+            }
+          ]
+        },
+        {
+          "model": "SC50",
+          "gasType": "LPG",
+          "gasLabel": "SC50 FOR L.P.G",
+          "alt": "SC50",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 8,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "3-5"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "5-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.5",
+              "thickness": "15-30"
+            },
+            {
+              "size": "3",
+              "orifice": "1.8",
+              "thickness": "30-50"
+            },
+            {
+              "size": "4",
+              "orifice": "2.1",
+              "thickness": "50-100"
+            },
+            {
+              "size": "5",
+              "orifice": "2.4",
+              "thickness": "100-200"
+            },
+            {
+              "size": "6",
+              "orifice": "2.8",
+              "thickness": "200-300"
+            },
+            {
+              "size": "7",
+              "orifice": "3.2",
+              "thickness": "300-350"
+            },
+            {
+              "size": "8",
+              "orifice": "3.6",
+              "thickness": "350-450"
+            },
+            {
+              "size": "9",
+              "orifice": "4.4",
+              "thickness": "450-500"
+            }
+          ]
+        }
+      ],
+      "sizeCount": 178
+    },
+    {
+      "code": "02",
+      "series": "JAPANESE STYLE CUTTING TIP",
+      "pages": [
+        8,
+        9,
+        10
+      ],
+      "expectedModels": 9,
+      "models": [
+        {
+          "model": "102",
+          "gasType": "ACETYLENE",
+          "gasLabel": "102 FOR ACE",
+          "alt": "102",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 9,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "0-5"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "5-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "15-30"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "30-40"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "40-50"
+            },
+            {
+              "size": "5",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "6",
+              "orifice": "2.4",
+              "thickness": "100-150"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "150-200"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "106",
+          "gasType": "LPG",
+          "gasLabel": "106 FOR L.P.G",
+          "alt": "106",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 9,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.8",
+              "thickness": "0-5"
+            },
+            {
+              "size": "0",
+              "orifice": "1.0",
+              "thickness": "5-10"
+            },
+            {
+              "size": "1",
+              "orifice": "1.2",
+              "thickness": "10-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.4",
+              "thickness": "15-30"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "30-40"
+            },
+            {
+              "size": "4",
+              "orifice": "1.8",
+              "thickness": "40-50"
+            },
+            {
+              "size": "5",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "6",
+              "orifice": "2.4",
+              "thickness": "100-150"
+            },
+            {
+              "size": "7",
+              "orifice": "2.8",
+              "thickness": "150-200"
+            },
+            {
+              "size": "8",
+              "orifice": "3.2",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "106D7",
+          "gasType": "LPG",
+          "gasLabel": "106D7 FOR L.P.G",
+          "alt": "106D7",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 9,
+          "sizes": [
+            {
+              "size": "00",
+              "orifice": "0.6",
+              "thickness": "5-10"
+            },
+            {
+              "size": "0",
+              "orifice": "0.8",
+              "thickness": "10-20"
+            },
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "20-40"
+            },
+            {
+              "size": "2",
+              "orifice": "1.25",
+              "thickness": "40-60"
+            },
+            {
+              "size": "3",
+              "orifice": "1.5",
+              "thickness": "60-100"
+            },
+            {
+              "size": "4",
+              "orifice": "1.75",
+              "thickness": "100-150"
+            },
+            {
+              "size": "5",
+              "orifice": "2.0",
+              "thickness": "150-180"
+            },
+            {
+              "size": "6",
+              "orifice": "2.3",
+              "thickness": "180-220"
+            }
+          ]
+        },
+        {
+          "model": "A(ACE)",
+          "gasType": "ACETYLENE",
+          "gasLabel": "A(ACE) FOR ACE",
+          "alt": "A(ACE)",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 10,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "1-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.3",
+              "thickness": "15-50"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "50-100"
+            }
+          ],
+          "aliases": [
+            "A_AC",
+            "A-AC"
+          ]
+        },
+        {
+          "model": "A(LPG)",
+          "gasType": "LPG",
+          "gasLabel": "A(LPG) FOR L.P.G",
+          "alt": "A(LPG)",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 10,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "1.0",
+              "thickness": "1-15"
+            },
+            {
+              "size": "2",
+              "orifice": "1.3",
+              "thickness": "15-50"
+            },
+            {
+              "size": "3",
+              "orifice": "1.6",
+              "thickness": "50-100"
+            }
+          ],
+          "aliases": [
+            "A_LPG",
+            "A-LPG"
+          ]
+        },
+        {
+          "model": "M(ACE)",
+          "gasType": "ACETYLENE",
+          "gasLabel": "M(ACE) FOR ACE",
+          "alt": "M(ACE)",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 10,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "0.7",
+              "thickness": "1-5"
+            },
+            {
+              "size": "2",
+              "orifice": "0.9",
+              "thickness": "5-15"
+            },
+            {
+              "size": "3",
+              "orifice": "1.1",
+              "thickness": "15-30"
+            }
+          ],
+          "aliases": [
+            "M_AC",
+            "M-AC"
+          ]
+        },
+        {
+          "model": "M(LPG)",
+          "gasType": "LPG",
+          "gasLabel": "M(LPG) FOR L.P.G",
+          "alt": "M(LPG)",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 11,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "0.7",
+              "thickness": "1-5"
+            },
+            {
+              "size": "2",
+              "orifice": "0.9",
+              "thickness": "5-15"
+            },
+            {
+              "size": "3",
+              "orifice": "1.1",
+              "thickness": "15-30"
+            }
+          ],
+          "aliases": [
+            "M_LPG",
+            "M-LPG"
+          ]
+        },
+        {
+          "model": "ST8-A",
+          "gasType": "ACETYLENE",
+          "gasLabel": "ST8-A FOR ACE",
+          "alt": "ST8-A",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 11,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "0.7",
+              "thickness": "1-5"
+            },
+            {
+              "size": "2",
+              "orifice": "0.9",
+              "thickness": "5-10"
+            },
+            {
+              "size": "3",
+              "orifice": "1.1",
+              "thickness": "10-30"
+            },
+            {
+              "size": "4",
+              "orifice": "1.3",
+              "thickness": "30-50"
+            }
+          ]
+        },
+        {
+          "model": "ST8-P",
+          "gasType": "LPG",
+          "gasLabel": "ST8-P FOR L.P.G",
+          "alt": "ST8-P",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 11,
+          "sizes": [
+            {
+              "size": "1",
+              "orifice": "0.7",
+              "thickness": "1-5"
+            },
+            {
+              "size": "2",
+              "orifice": "0.9",
+              "thickness": "5-10"
+            },
+            {
+              "size": "3",
+              "orifice": "1.1",
+              "thickness": "10-30"
+            },
+            {
+              "size": "4",
+              "orifice": "1.3",
+              "thickness": "30-50"
+            }
+          ]
+        }
+      ],
+      "sizeCount": 48
+    },
+    {
+      "code": "03",
+      "series": "BRITISH STYLE CUTTING TIP",
+      "pages": [
+        11
+      ],
+      "expectedModels": 2,
+      "models": [
+        {
+          "model": "ANME",
+          "gasType": "ACETYLENE",
+          "gasLabel": "ANME FOR ACE",
+          "alt": "ANME",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 12,
+          "sizes": [
+            {
+              "size": "1/32",
+              "orifice": "0.8",
+              "thickness": "3-10"
+            },
+            {
+              "size": "3/64",
+              "orifice": "1.2",
+              "thickness": "10-25"
+            },
+            {
+              "size": "1/16",
+              "orifice": "1.6",
+              "thickness": "25-75"
+            },
+            {
+              "size": "5/64",
+              "orifice": "2.0",
+              "thickness": "75-125"
+            },
+            {
+              "size": "3/32",
+              "orifice": "2.4",
+              "thickness": "125-175"
+            },
+            {
+              "size": "7/64",
+              "orifice": "2.8",
+              "thickness": "175-225"
+            },
+            {
+              "size": "1/8",
+              "orifice": "3.2",
+              "thickness": "225-300"
+            }
+          ]
+        },
+        {
+          "model": "PNME",
+          "gasType": "LPG",
+          "gasLabel": "PNME FOR L.P.G",
+          "alt": "PNME",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 12,
+          "sizes": [
+            {
+              "size": "1/64",
+              "orifice": "0.6",
+              "thickness": "1-3"
+            },
+            {
+              "size": "1/32",
+              "orifice": "0.8",
+              "thickness": "3-10"
+            },
+            {
+              "size": "3/64",
+              "orifice": "1.2",
+              "thickness": "10-25"
+            },
+            {
+              "size": "1/16",
+              "orifice": "1.6",
+              "thickness": "25-75"
+            },
+            {
+              "size": "5/64",
+              "orifice": "2.0",
+              "thickness": "75-125"
+            },
+            {
+              "size": "3/32",
+              "orifice": "2.4",
+              "thickness": "125-175"
+            },
+            {
+              "size": "7/64",
+              "orifice": "2.8",
+              "thickness": "175-225"
+            },
+            {
+              "size": "1/8",
+              "orifice": "3.2",
+              "thickness": "225-300"
+            }
+          ]
+        }
+      ],
+      "sizeCount": 15
+    },
+    {
+      "code": "04",
+      "series": "FRENCH STYLE CUTTING TIP",
+      "pages": [
+        12
+      ],
+      "expectedModels": 2,
+      "models": [
+        {
+          "model": "G1-A",
+          "gasType": "ACETYLENE",
+          "gasLabel": "G1-A FOR ACE",
+          "alt": "G1-A",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 13,
+          "sizes": [
+            {
+              "size": "7/10",
+              "orifice": "0.7",
+              "thickness": "3-10"
+            },
+            {
+              "size": "10/10",
+              "orifice": "1.0",
+              "thickness": "10-25"
+            },
+            {
+              "size": "12/10",
+              "orifice": "1.2",
+              "thickness": "25-50"
+            },
+            {
+              "size": "16/10",
+              "orifice": "1.6",
+              "thickness": "50-80"
+            },
+            {
+              "size": "20/10",
+              "orifice": "2.0",
+              "thickness": "80-120"
+            },
+            {
+              "size": "25/10",
+              "orifice": "2.5",
+              "thickness": "120-200"
+            },
+            {
+              "size": "30/10",
+              "orifice": "3.0",
+              "thickness": "200-300"
+            }
+          ]
+        },
+        {
+          "model": "G1-P",
+          "gasType": "LPG",
+          "gasLabel": "G1-P FOR L.P.G",
+          "alt": "G1-P",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 13,
+          "sizes": [
+            {
+              "size": "7/10",
+              "orifice": "0.7",
+              "thickness": "3-10"
+            },
+            {
+              "size": "10/10",
+              "orifice": "1.0",
+              "thickness": "10-25"
+            },
+            {
+              "size": "12/10",
+              "orifice": "1.2",
+              "thickness": "25-50"
+            },
+            {
+              "size": "16/10",
+              "orifice": "1.6",
+              "thickness": "50-80"
+            },
+            {
+              "size": "20/10",
+              "orifice": "2.0",
+              "thickness": "80-120"
+            },
+            {
+              "size": "25/10",
+              "orifice": "2.5",
+              "thickness": "120-200"
+            },
+            {
+              "size": "30/10",
+              "orifice": "3.0",
+              "thickness": "200-300"
+            }
+          ]
+        }
+      ],
+      "sizeCount": 14
+    },
+    {
+      "code": "05",
+      "series": "AUSTRALIAN STYLE CUTTING TIP",
+      "pages": [
+        13
+      ],
+      "expectedModels": 2,
+      "models": [
+        {
+          "model": "41",
+          "gasType": "ACETYLENE",
+          "gasLabel": "41 FOR ACE",
+          "alt": "41",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 14,
+          "sizes": [
+            {
+              "size": "6",
+              "orifice": "0.6",
+              "thickness": "1-6"
+            },
+            {
+              "size": "8",
+              "orifice": "0.8",
+              "thickness": "6-10"
+            },
+            {
+              "size": "12",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "15",
+              "orifice": "1.5",
+              "thickness": "25-75"
+            },
+            {
+              "size": "20",
+              "orifice": "2.0",
+              "thickness": "100-125"
+            },
+            {
+              "size": "24",
+              "orifice": "2.4",
+              "thickness": "150-200"
+            },
+            {
+              "size": "32",
+              "orifice": "3.2",
+              "thickness": "225-300"
+            },
+            {
+              "size": "48",
+              "orifice": "4.8",
+              "thickness": "300-400"
+            }
+          ]
+        },
+        {
+          "model": "44",
+          "gasType": "LPG",
+          "gasLabel": "44 FOR L.P.G",
+          "alt": "44",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 14,
+          "sizes": [
+            {
+              "size": "6",
+              "orifice": "0.6",
+              "thickness": "3-6"
+            },
+            {
+              "size": "8",
+              "orifice": "0.8",
+              "thickness": "6-10"
+            },
+            {
+              "size": "12",
+              "orifice": "1.2",
+              "thickness": "10-20"
+            },
+            {
+              "size": "15",
+              "orifice": "1.5",
+              "thickness": "25-75"
+            },
+            {
+              "size": "20",
+              "orifice": "2.0",
+              "thickness": "100-125"
+            },
+            {
+              "size": "24",
+              "orifice": "2.4",
+              "thickness": "150-200"
+            },
+            {
+              "size": "32",
+              "orifice": "3.2",
+              "thickness": "225-300"
+            }
+          ]
+        }
+      ],
+      "sizeCount": 15
+    },
+    {
+      "code": "06",
+      "series": "BRAZILIAN STYLE CUTTING TIP",
+      "pages": [
+        14
+      ],
+      "expectedModels": 2,
+      "models": [
+        {
+          "model": "1502",
+          "gasType": "ACETYLENE",
+          "gasLabel": "1502 FOR ACE",
+          "alt": "1502",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 15,
+          "sizes": [
+            {
+              "size": "2",
+              "orifice": "0.8",
+              "thickness": "3-6"
+            },
+            {
+              "size": "3",
+              "orifice": "0.9",
+              "thickness": "6-10"
+            },
+            {
+              "size": "4",
+              "orifice": "1.0",
+              "thickness": "10-15"
+            },
+            {
+              "size": "6",
+              "orifice": "1.5",
+              "thickness": "15-25"
+            },
+            {
+              "size": "8",
+              "orifice": "2.0",
+              "thickness": "25-125"
+            },
+            {
+              "size": "10",
+              "orifice": "2.4",
+              "thickness": "125-250"
+            },
+            {
+              "size": "12",
+              "orifice": "3.0",
+              "thickness": "250-300"
+            }
+          ]
+        },
+        {
+          "model": "1503",
+          "gasType": "LPG",
+          "gasLabel": "1503 FOR L.P.G",
+          "alt": "1503",
+          "thirdCol": "",
+          "colHeaders": [
+            "size",
+            "orifice(mm)",
+            "thickness(mm)"
+          ],
+          "page": 15,
+          "sizes": [
+            {
+              "size": "2",
+              "orifice": "0.6",
+              "thickness": "3-6"
+            },
+            {
+              "size": "3",
+              "orifice": "0.8",
+              "thickness": "6-10"
+            },
+            {
+              "size": "4",
+              "orifice": "1.0",
+              "thickness": "10-25"
+            },
+            {
+              "size": "6",
+              "orifice": "1.5",
+              "thickness": "25-50"
+            },
+            {
+              "size": "8",
+              "orifice": "2.0",
+              "thickness": "50-100"
+            },
+            {
+              "size": "10",
+              "orifice": "2.5",
+              "thickness": "100-150"
+            },
+            {
+              "size": "12",
+              "orifice": "3.0",
+              "thickness": "150-200"
+            },
+            {
+              "size": "14",
+              "orifice": "3.6",
+              "thickness": "200-250"
+            },
+            {
+              "size": "16",
+              "orifice": "4.0",
+              "thickness": "250-350"
+            }
+          ]
+        }
+      ],
+      "sizeCount": 16
+    }
+  ]
+}

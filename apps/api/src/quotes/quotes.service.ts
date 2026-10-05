@@ -9,6 +9,7 @@ import { currentOperatorId } from '../common/operator-context';
 import {
   mapHeaderFields, normalizeToken, parseDateCell, parseNumberCell, productIdentityKey, sameProductDigits, TableParserService,
 } from '../ai/table-parser.service';
+import { findProductCandidates } from '../ai/product-model';
 import { currencyToOrderEnum, describeHit, pickQuote, todayYmd } from './quote-pricing';
 import type { PriceHit, PriceQuery, QuoteLike } from './quote-pricing';
 
@@ -488,12 +489,12 @@ export class QuotesService {
       let productId: number | null = null;
       const pname = String(data.productName ?? '').trim();
       if (pname) {
-        const exact = allProducts.find((p) => p.name.trim() === pname);
-        const nn = normName(pname);
-        // 数字守卫兜底：产品名文本对上还不够，数字部分（含前导零/位数/号数）必须逐字符一致，
-        // 避免把 0-GPN 的报价挂到 00-GPN 的档案上（不同尺寸 = 不同产品）。
-        const hit = exact ?? allProducts.find((p) => nn && normName(p.name) === nn && sameProductDigits(pname, p.name));
-        if (hit) productId = hit.id;
+        // 与识单同一套候选口径（ai/product-model.ts）：名称完全相同 → **基础型号 + size 相同**。
+        // 报价导入不做子串容错（沿用既有口径），但允许按「基础型号+size」挂接 ——
+        // 数字部分（含前导零/位数/号数）逐字符一致才算命中，绝不把 0-GPN 的报价挂到 00-GPN 的档案上。
+        const found = findProductCandidates(pname, allProducts, { substring: false, sameDigits: sameProductDigits, normName });
+        const pick = found.kind === 'exact' && found.hits.length ? found.hits[0] : (found.hits.length === 1 ? found.hits[0] : null);
+        if (pick) productId = pick.id;
       }
       data.productId = productId;
 
