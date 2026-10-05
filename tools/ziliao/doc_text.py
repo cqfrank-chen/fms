@@ -214,6 +214,31 @@ def _piece_table(word_doc: bytes, table: bytes):
     return pieces
 
 
+def extract_doc_raw(path: str) -> str:
+    """原始正文（**不做任何控制符归一**）：保留 \x07（单元格标记）、\x0d（段落标记）、\x01（图片）
+    等控制符，供 doc_table.py 切分 Word 表格使用；普通取文本请用 extract_text()。"""
+    with open(path, "rb") as f:
+        data = f.read()
+    cfb = CFB(data)
+    word_doc = cfb.read_stream("WordDocument")
+    tname = _fib_table_name(word_doc)
+    try:
+        table = cfb.read_stream(tname)
+    except CFBError:
+        table = cfb.read_stream("1Table" if tname == "0Table" else "0Table")
+    parts = []
+    for (cp0, cp1, off, comp) in _piece_table(word_doc, table):
+        n = cp1 - cp0
+        if n <= 0:
+            continue
+        if comp:
+            raw = word_doc[off:off + n]
+            parts.append("".join(chr(CP1252_EXT.get(b, b)) for b in raw))
+        else:
+            parts.append(word_doc[off:off + n * 2].decode("utf-16-le", "replace"))
+    return "".join(parts)
+
+
 def extract_doc_text(path: str) -> dict:
     with open(path, "rb") as f:
         data = f.read()

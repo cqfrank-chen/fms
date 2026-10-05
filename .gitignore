@@ -21,3 +21,10 @@ backups/
 
 # 自动更新代理的运行文件（状态/请求/日志/下载包）
 updates/
+
+# Python 字节码缓存（tools/ziliao 的脚本是标准库脚本，会产生 __pycache__）
+__pycache__/
+*.pyc
+
+# 一次性分析/复测的中间产物（不随仓库走）
+.scratch/
