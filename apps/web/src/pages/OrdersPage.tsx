@@ -785,11 +785,13 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const columns: ColumnsType<Order> = useMemo(() => [
     { title: '订单号', dataIndex: 'orderNo', width: 126, fixed: 'left', ellipsis: { showTitle: false }, render: (v: string) => <Tooltip title={v}><Text strong>{v}</Text></Tooltip> },
     {
-      title: '客户', dataIndex: 'customerName', width: 90, ellipsis: { showTitle: false },
-      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : '—'),
+      // I18：PO 号紧贴订单号并纳入**左侧固定区**（左固定列必须从最左连续排列）——
+      // 横向滚动核对开票/对账时，订单号与客户 PO 号始终同屏可见，不会一个滚走一个留下
+      title: 'PO号', dataIndex: 'poNo', width: 80, fixed: 'left', ellipsis: { showTitle: false },
+      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">—</Text>),
     },
     {
-      title: 'PO号', dataIndex: 'poNo', width: 80, ellipsis: { showTitle: false },
+      title: '客户', dataIndex: 'customerName', width: 90, ellipsis: { showTitle: false },
       render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : '—'),
     },
     // 开票三列（I16 交互简化）：价格 / 已开票 / 开票状态 —— 未开票余额仍在「详情」与开票弹窗中可见
