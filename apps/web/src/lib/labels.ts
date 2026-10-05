@@ -28,6 +28,28 @@ export const STATUS_LABEL: Record<string, string> = {
   voided: '已作废',
 }
 
+/**
+ * 待补项编码（与后端 apps/api/src/orders/pending-items.ts 的 PENDING_CODES 一一对应）
+ * 界面按 code 精确定位「缺什么」并做醒目提示（列表摘要 / 展开明细的待补标记）；
+ * message 是后端给的中文诊断，界面只负责展示，**不**在前端重写文案。
+ */
+export const PENDING_CODE = {
+  /** 客户未建档（customer_id 指向占位档案） */
+  CUSTOMER_NOT_FILED: 'customer_not_filed',
+  /** 缺交期（due_date 是哨兵日，界面显示「待定」） */
+  DUE_DATE_MISSING: 'due_date_missing',
+  /** 整单没有产品行 */
+  NO_PRODUCT_LINES: 'no_product_lines',
+  /** 行级待补汇总（单头可见，明细在行上） */
+  LINE_PENDING: 'line_pending',
+  /** 行级：缺单价 */
+  PRICE_MISSING: 'price_missing',
+  /** 行级：缺数量 */
+  QUANTITY_MISSING: 'quantity_missing',
+  /** 行级：产品未建档（product_id 指向占位产品） */
+  PRODUCT_NOT_FILED: 'product_not_filed',
+} as const
+
 /** 包装类型（复合勾选） */
 export const PACK_LABEL: Record<string, string> = {
   box: '包装盒',

@@ -3,12 +3,13 @@ import {
   Alert, Button, Card, DatePicker, Form, Input, InputNumber,
   Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message,
 } from 'antd'
+import { DownOutlined, RightOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
-import { CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
+import { CURRENCY_LABEL, CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PENDING_CODE, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
 import { optionLabel, optionsPath, PLACEHOLDER_HINT, useShowPlaceholders } from '../lib/placeholders'
-import { fmtCents } from '../lib/money'
+import { fmtCents, toCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 import OrderDetailModal from '../components/OrderDetailModal'
@@ -534,6 +535,173 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
   )
 }
 
+// =====================================================================================
+// 产品行展示（布局重做）：列表只给「紧凑摘要」，明细收进 AntD 展开行
+// -------------------------------------------------------------------------------------
+// 旧版把一单的全部 order_lines 平铺在同一个单元格里：多产品时该格被撑成多行、
+// 行高参差，且其它列被挤压换行，极难读。
+// 新版：
+//   · 折叠态 = 「N 个产品」+ 首个产品名 × 数量 + 「等 M 项」（悬停看其余产品）+ 行级待补汇总；
+//   · 展开态 = 该单产品明细小表格（产品名 / 数量 / 单价 / 金额 / 待补标记），默认收起；
+//   · 待补语义沿用后端 PENDING_CODE：缺价/缺数量 的格子用醒目的红色「待补」占位，
+//     而不是显示 0（0 是「原始单据没识别到」的落库占位，直接显示会误导）。
+// =====================================================================================
+
+/** 行级待补：按 code 取中文诊断（无此项 → undefined） */
+function linePendingMsg(line: OrderLine, code: string): string | undefined {
+  return (line.pendingItems ?? []).find((x) => x.code === code)?.message
+}
+
+/** 数量展示（千分位；缺数量时另标「待补」） */
+function fmtQty(n: number): string {
+  return Number.isFinite(n) ? n.toLocaleString('zh-CN') : '—'
+}
+
+/** 产品行显示名：已建档取目录名，未建档回落到识别原文 */
+function lineName(line: OrderLine): string {
+  return line.productName || line.productNameText || `产品#${line.productId}`
+}
+
+/** 币种展示（甲方裁定统一归一为 CNY：历史 RMB 行按 CNY 展示） */
+function lineCurrency(line: OrderLine): string {
+  return CURRENCY_LABEL[line.currency] ?? line.currency
+}
+
+/** 行金额（分）：数量或单价待补时返回 null（不可计价，界面显示 —） */
+function lineAmountCents(line: OrderLine): number | null {
+  if (linePendingMsg(line, PENDING_CODE.QUANTITY_MISSING) || linePendingMsg(line, PENDING_CODE.PRICE_MISSING)) return null
+  return toCents(line.quantity * line.unitPrice)
+}
+
+/** 待补小标签（悬停出中文诊断；无待补机制的行不显示） */
+function PendingTag({ items }: { items: OrderLine['pendingItems'] }) {
+  if (!Array.isArray(items)) return <Text type="secondary">—</Text>
+  if (!items.length) return <Tag color="success" style={{ marginInlineEnd: 0 }}>已补全</Tag>
+  return (
+    <Tooltip title={<div style={{ maxWidth: 460 }}>{items.map((x, i) => <div key={i}>· {x.message}</div>)}</div>}>
+      <Tag color="error" style={{ marginInlineEnd: 0, cursor: 'help' }}>待补 {items.length} 项</Tag>
+    </Tooltip>
+  )
+}
+
+/** 折叠态摘要：N 个产品 + 首个产品（名 × 数量）+ 等 M 项 + 行级待补汇总；单行不换行、超长省略 */
+function OrderLinesSummary({ order }: { order: Order }) {
+  const lines = order.lines ?? []
+  if (!lines.length) return <Text type="secondary">无产品行</Text>
+  const first = lines[0]
+  const rest = lines.slice(1)
+  const firstName = lineName(first)
+  const qtyMissing = !!linePendingMsg(first, PENDING_CODE.QUANTITY_MISSING)
+  const firstText = `${firstName} × ${qtyMissing ? '待补' : fmtQty(first.quantity)}`
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
+      <Tag color="blue" style={{ marginInlineEnd: 0 }}>{lines.length} 个产品</Tag>
+      <Tooltip title={firstText}>
+        <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{firstText}</span>
+      </Tooltip>
+      {rest.length > 0 && (
+        <Tooltip title={<div style={{ maxWidth: 460 }}>{rest.map((l, i) => <div key={i}>· {lineName(l)} × {fmtQty(l.quantity)}</div>)}</div>}>
+          <Text type="secondary" style={{ fontSize: 12, cursor: 'help' }}>等 {rest.length} 项</Text>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+
+/** 展开态：该订单的产品明细小表格（产品名 / 数量 / 单价 / 金额 / 待补标记） */
+function OrderLinesDetail({ order }: { order: Order }) {
+  const lines = order.lines ?? []
+  const priceable = lines.filter((l) => lineAmountCents(l) != null)
+  const totalCents = priceable.reduce((sum, l) => sum + (lineAmountCents(l) ?? 0), 0)
+  const pendingLines = lines.filter((l) => (l.pendingItems?.length ?? 0) > 0).length
+  const columns: ColumnsType<OrderLine> = [
+    {
+      title: '产品名', dataIndex: 'productName',
+      render: (_: unknown, l: OrderLine) => {
+        const name = lineName(l)
+        const unfiled = linePendingMsg(l, PENDING_CODE.PRODUCT_NOT_FILED)
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <Tooltip title={name}>
+              <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+            </Tooltip>
+            {unfiled && <Tooltip title={unfiled}><Tag color="error" style={{ marginInlineEnd: 0, cursor: 'help' }}>未建档</Tag></Tooltip>}
+            {l.engraving && <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>✒{l.engraving}</Text>}
+          </div>
+        )
+      },
+    },
+    {
+      title: '数量', width: 110, align: 'right',
+      render: (_: unknown, l: OrderLine) => {
+        const miss = linePendingMsg(l, PENDING_CODE.QUANTITY_MISSING)
+        return miss
+          ? <Tooltip title={miss}><Text type="danger" strong style={{ cursor: 'help' }}>待补</Text></Tooltip>
+          : <Text>{fmtQty(l.quantity)}</Text>
+      },
+    },
+    {
+      title: '单价', width: 150, align: 'right',
+      render: (_: unknown, l: OrderLine) => {
+        const miss = linePendingMsg(l, PENDING_CODE.PRICE_MISSING)
+        if (miss) return <Tooltip title={miss}><Text type="danger" strong style={{ cursor: 'help' }}>待补</Text></Tooltip>
+        return (
+          <Space size={4}>
+            <Text>{l.unitPrice.toFixed(2)}</Text>
+            {lineCurrency(l) !== 'CNY' && <Text type="secondary" style={{ fontSize: 12 }}>{lineCurrency(l)}</Text>}
+            {l.priceSource === 'quote' && (
+              <Tooltip title="单价由报价记录自动补全（来源可追溯）"><Tag color="cyan" style={{ marginInlineEnd: 0, cursor: 'help' }}>报价</Tag></Tooltip>
+            )}
+          </Space>
+        )
+      },
+    },
+    {
+      title: '金额', width: 150, align: 'right',
+      render: (_: unknown, l: OrderLine) => {
+        const cents = lineAmountCents(l)
+        if (cents == null) {
+          return <Tooltip title="该行数量或单价尚未补全，暂不参与计价"><Text type="secondary" style={{ cursor: 'help' }}>—</Text></Tooltip>
+        }
+        return <Text strong>{fmtCents(cents)}</Text>
+      },
+    },
+    {
+      title: '待补标记', width: 130,
+      render: (_: unknown, l: OrderLine) => <PendingTag items={l.pendingItems} />,
+    },
+  ]
+  return (
+    <div style={{ padding: '4px 8px 8px' }}>
+      <Table<OrderLine>
+        rowKey={(l, i) => String(l.id ?? `idx-${i}`)}
+        size="small"
+        pagination={false}
+        columns={columns}
+        dataSource={lines}
+        locale={{ emptyText: '该订单暂无产品行' }}
+        summary={lines.length ? () => (
+          <Table.Summary.Row>
+            <Table.Summary.Cell index={0} colSpan={3}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                合计：共 {lines.length} 行{priceable.length < lines.length ? `（${lines.length - priceable.length} 行因待补未计价）` : ''}
+              </Text>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={1} align="right">
+              <Text strong>{fmtCents(totalCents)}</Text>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={2}>
+              {pendingLines > 0
+                ? <Text type="danger" style={{ fontSize: 12 }}>{pendingLines} 行待补</Text>
+                : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>}
+            </Table.Summary.Cell>
+          </Table.Summary.Row>
+        ) : undefined}
+      />
+    </div>
+  )
+}
+
 /** 订单列表 / 归档（archived=已完成）；draft 行提供 编辑/确认（I05 驳回重做闭环） */
 function OrderListTable({ archived, refreshTick, onEdit }: {
   archived: boolean
@@ -615,12 +783,18 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   }
 
   const columns: ColumnsType<Order> = useMemo(() => [
-    { title: '订单号', dataIndex: 'orderNo', width: 170, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '客户', dataIndex: 'customerName', width: 160 },
-    { title: 'PO号', dataIndex: 'poNo', width: 110, render: (v?: string | null) => v || '—' },
+    { title: '订单号', dataIndex: 'orderNo', width: 126, fixed: 'left', ellipsis: { showTitle: false }, render: (v: string) => <Tooltip title={v}><Text strong>{v}</Text></Tooltip> },
+    {
+      title: '客户', dataIndex: 'customerName', width: 90, ellipsis: { showTitle: false },
+      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : '—'),
+    },
+    {
+      title: 'PO号', dataIndex: 'poNo', width: 80, ellipsis: { showTitle: false },
+      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : '—'),
+    },
     // 开票三列（I16 交互简化）：价格 / 已开票 / 开票状态 —— 未开票余额仍在「详情」与开票弹窗中可见
     {
-      title: '价格(元)', width: 120, align: 'right',
+      title: '价格(元)', width: 88, align: 'right',
       render: (_: unknown, r: Order) => (
         <Text strong>{r.totalAmountCents != null
           ? fmtCents(r.totalAmountCents)
@@ -628,7 +802,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       ),
     },
     {
-      title: '已开票(元)', width: 110, align: 'right',
+      title: '已开票(元)', width: 84, align: 'right',
       render: (_: unknown, r: Order) => (
         r.invoicedCents
           ? <Text>{fmtCents(r.invoicedCents)}</Text>
@@ -636,25 +810,19 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       ),
     },
     {
-      title: '开票状态', width: 100,
+      title: '开票状态', width: 78,
       render: (_: unknown, r: Order) => {
         const state = r.invoiceState ?? (r.invoicedCents ? 'partial' : 'none')
         return <Tag color={INVOICE_STATE_COLOR[state]}>{INVOICE_STATE_LABEL[state] ?? state}</Tag>
       },
     },
     {
-      title: '产品行', render: (_: unknown, r: Order) => (
-        <Space direction="vertical" size={2}>
-          {r.lines?.map((l: OrderLine, i: number) => (
-            <div key={i} style={{ fontSize: 12 }}>
-              {l.productName} × {l.quantity}{l.engraving ? ` ✒${l.engraving}` : ''}
-            </div>
-          ))}
-        </Space>
-      ),
+      // 折叠态只给摘要（详见 OrderLinesSummary）：多产品不再把单元格撑成多行
+      title: '产品摘要', key: 'products', width: 218,
+      render: (_: unknown, r: Order) => <OrderLinesSummary order={r} />,
     },
     {
-      title: '交期', dataIndex: 'dueDate', width: 110,
+      title: '交期', dataIndex: 'dueDate', width: 92,
       // 交期待定（I17）：库里的 due_date 是**哨兵日 2099-12-31**（orders.due_date 是 NOT NULL），
       // 界面只认 due_date_tbd=true → 显示「待定」，绝不把哨兵日当成真实交期展示/预填。
       render: (v: string, r: Order) => (r.dueDateTbd
@@ -667,7 +835,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     },
     {
       // I17 待补列：识单落草稿的单据在此一眼看出还缺什么（中文诊断，悬停看全部）
-      title: '待补', key: 'pending', width: 130,
+      title: '待补', key: 'pending', width: 86,
       render: (_: unknown, r: Order) => {
         const items = r.pendingItems
         if (!Array.isArray(items)) return <Text type="secondary">—</Text>
@@ -680,15 +848,26 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       },
     },
     {
-      title: '状态', dataIndex: 'status', width: 90,
+      title: '状态', dataIndex: 'status', width: 62,
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
-    { title: '录单人', dataIndex: 'operatorName', width: 100, render: (v?: string | null) => v || <Text type="secondary">未绑定</Text> },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD HH:mm')}</Text> : '—') },
     {
-      title: '操作', width: 360,
+      title: '录单人', dataIndex: 'operatorName', width: 62, ellipsis: { showTitle: false },
+      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">未绑定</Text>),
+    },
+    {
+      // 只显示到日：1920 一屏要放下 13 列 + 展开列，秒/分钟放进 Tooltip（悬停看完整时间）
+      title: '更新时间', dataIndex: 'updatedAt', width: 88, ellipsis: { showTitle: false },
+      render: (v?: string) => (v
+        ? <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}><Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD')}</Text></Tooltip>
+        : '—'),
+    },
+    {
+      // 右侧固定：横向滚动时「操作」始终可见（宽表在窄屏下必然要滚动，绝不能把按钮滚出视野）
+      // 448 = 7 个按钮（含「补全（N）」）单行不换行的实测宽度，保证各订单行行高一致
+      title: '操作', width: 448, fixed: 'right',
       render: (_, r) => (
-        <Space size={4}>
+        <Space size={4} wrap>
           {r.status === 'draft' && (
             <>
               {!!r.pendingItems?.length && (
@@ -766,7 +945,27 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
           暂无已完成订单 —— 订单全部完成后自动进入归档
         </div>
       )}
-      <Table<Order> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
+      <Table<Order>
+        rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
+        // 列宽固定 + 横向滚动：窄屏不再把各列挤成换行；订单号/操作 两侧固定，滚动时仍可见
+        scroll={{ x: 1642 }}
+        expandable={{
+          // 展开行 = 该单产品明细小表格（默认全部收起）
+          expandedRowRender: (r) => <OrderLinesDetail order={r} />,
+          rowExpandable: (r) => (r.lines?.length ?? 0) > 0,
+          columnWidth: 36,
+          expandIcon: ({ expanded, onExpand, record }) => (
+            <Tooltip title={expanded ? '收起产品明细' : `展开产品明细（${record.lines?.length ?? 0} 行）`}>
+              <Button
+                type="text" size="small" style={{ padding: 0, width: 22, height: 22 }}
+                aria-label={expanded ? '收起产品明细' : '展开产品明细'}
+                onClick={(e) => onExpand(record, e)}
+              >
+                {expanded ? <DownOutlined style={{ fontSize: 11 }} /> : <RightOutlined style={{ fontSize: 11 }} />}
+              </Button>
+            </Tooltip>
+          ),
+        }}
         pagination={{ pageSize: 10, showSizeChanger: false }} />
       <OrderDetailModal order={detail} open={!!detail} onClose={() => setDetail(null)} />
       {/* I17 补全面板：列出待补项，支持「一键从报价记录取价」 */}
