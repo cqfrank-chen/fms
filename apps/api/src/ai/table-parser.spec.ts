@@ -1,3 +1,4 @@
+import * as XLSX from '@e965/xlsx';
 import * as ExcelJS from 'exceljs';
 import * as iconv from 'iconv-lite';
 import {
@@ -6,22 +7,59 @@ import {
   decodeTextBuffer,
   detectDelimiter,
   detectTableFileKind,
+  detectUploadKind,
   excelSerialToDate,
+  looksLikeText,
   mapHeader,
   matrixToCompactText,
   normalizeMatrix,
   parseCsvText,
   parseDateCell,
   parseNumberCell,
+  readXlsMatrix,
   readXlsxMatrix,
   ruleMapMatrix,
+  sheetCellToString,
+  sheetToMatrix,
+  sniffMagicKind,
   TableParserService,
 } from './table-parser.service';
 
 /**
- * 表格解析单元测试（新增）：xlsx / csv 读取 + 表头规则映射 + 数值日期归一。
+ * 表格解析单元测试：xls(BIFF8) / xlsx / csv 读取 + 表头规则映射 + 数值日期归一。
  * 全部为纯函数或内存文件，不依赖数据库与网络。
+ * .xls 样例用所选解析库（@e965/xlsx）以 bookType:'biff8' 现场写出，保证可复现。
  */
+
+// ============ .xls（BIFF8）样例构造：与运行环境时区无关 ============
+
+/** 用 @e965/xlsx 写一份真实的 .xls（BIFF8 / OLE2），字节头应为 d0cf11e0a1b11ae1 */
+function writeXls(aoa: unknown[][], sheetName = '订单明细', opts: { dateCells?: string[]; merges?: string[] } = {}): Buffer {
+  const ws = XLSX.utils.aoa_to_sheet(aoa as never);
+  // 日期单元格：用 Excel 序列号 + 日期数字格式（避免依赖本机时区）
+  for (const addr of opts.dateCells ?? []) (ws as Record<string, { z?: string }>)[addr].z = 'yyyy-mm-dd';
+  if (opts.merges?.length) {
+    (ws as { '!merges'?: XLSX.Range[] })['!merges'] = opts.merges.map((r) => XLSX.utils.decode_range(r));
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  return Buffer.from(XLSX.write(wb, { bookType: 'biff8', type: 'buffer', cellDates: true }) as ArrayBuffer);
+}
+
+/** 多工作表 .xls（第一张为封面空表，第二张才是订单） */
+function writeXlsMultiSheet(): Buffer {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['']]), '封面');
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([['客户简称', '品名', '数量', '单价'], ['杭州测试客户', 'ANM 3', 2000, 4.2]] as never),
+    '订单明细',
+  );
+  return Buffer.from(XLSX.write(wb, { bookType: 'biff8', type: 'buffer', cellDates: true }) as ArrayBuffer);
+}
+
+/** Excel 序列号：46295 → 2026-09-30 */
+const XLS_DATE_SERIAL = 46295;
 
 const CSV_UTF8 = [
   '客户名称,产品,数量,单价,交期,备注',
@@ -252,9 +290,25 @@ describe('TableParserService.parseUpload（上传入口分支）', () => {
     expect(r.rows[1][0]).toBe('杭州测试客户');
   });
 
-  it('.xls → 明确中文提示「请另存为 .xlsx 或 .csv 后重试」', async () => {
-    await expect(svc.parseUpload({ buffer: Buffer.from('d0cf11e0', 'hex'), fileName: '旧订单.xls' }))
-      .rejects.toThrow('请用 Excel 另存为 .xlsx 或 .csv 后重试');
+  it('.xls（BIFF8）→ 走同一管线返回矩阵（不再拒绝）', async () => {
+    const buf = writeXls([['客户简称', '品名', '数量', '单价'], ['杭州测试客户', 'ANM 3', 2000, 4.2]]);
+    const r = await svc.parseUpload({ buffer: buf, fileName: '旧订单.xls' });
+    expect(r.kind).toBe('xls');
+    expect(r.rows.length).toBe(2);
+    expect(r.rows[0][0]).toBe('客户简称');
+    expect(r.rows[1]).toEqual(['杭州测试客户', 'ANM 3', '2000', '4.2']);
+  });
+
+  it('扩展名写错也能救：.xls 内容命名为 .xlsx → 仍按 BIFF8 解析', async () => {
+    const buf = writeXls([['客户', '产品', '数量', '单价'], ['杭州测试客户', 'ANM 3', 10, 1.5]]);
+    const r = await svc.parseUpload({ buffer: buf, fileName: '误命名.xlsx' });
+    expect(r.kind).toBe('xls');
+    expect(r.rows[1][0]).toBe('杭州测试客户');
+  });
+
+  it('损坏的 .xls（只有 OLE2 头）→ 中文提示，不抛库原始英文错误', async () => {
+    await expect(svc.parseUpload({ buffer: Buffer.from('d0cf11e0a1b11ae1', 'hex'), fileName: '旧订单.xls' }))
+      .rejects.toThrow('无法读取该 .xls 文件');
   });
 
   it('.pdf → 明确中文提示（不静默失败）', async () => {
@@ -262,8 +316,152 @@ describe('TableParserService.parseUpload（上传入口分支）', () => {
       .rejects.toThrow('PDF 暂不支持直接解析');
   });
 
-  it('不支持的扩展名 → 中文提示支持范围', async () => {
+  it('不支持的扩展名 → 中文提示支持范围（含 .xls）', async () => {
     await expect(svc.parseUpload({ buffer: Buffer.from('x'), fileName: '订单.txt' }))
-      .rejects.toThrow('仅支持 .xlsx / .csv');
+      .rejects.toThrow('仅支持 .xls / .xlsx / .csv');
+  });
+});
+
+describe('文件格式判定（magic bytes 优先，扩展名写错也能救）', () => {
+  it('OLE2 头 → xls，PK 头 → xlsx（即使扩展名互相写错）', async () => {
+    const xlsBuf = writeXls([['客户', '产品', '数量', '单价'], ['杭州测试客户', 'ANM 3', 10, 1.5]]);
+    expect(xlsBuf.subarray(0, 8).toString('hex')).toBe('d0cf11e0a1b11ae1'); // 真实 OLE2 复合文档头
+    expect(sniffMagicKind(xlsBuf)).toBe('xls');
+    expect(detectUploadKind(xlsBuf, '订单.xlsx')).toBe('xls'); // 扩展名谎报 .xlsx → 仍按 xls 解析
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('S');
+    ws.addRow(['客户', '产品', '数量', '单价']);
+    ws.addRow(['杭州测试客户', 'ANM 3', 10, 1.5]);
+    const xlsxBuf = Buffer.from(await wb.xlsx.writeBuffer());
+    expect(sniffMagicKind(xlsxBuf)).toBe('xlsx');
+    expect(detectUploadKind(xlsxBuf, '订单.xls')).toBe('xlsx'); // 扩展名谎报 .xls → 仍按 xlsx 解析
+  });
+
+  it('PDF / 图片 / 文本 / 未知二进制各有判定', () => {
+    expect(sniffMagicKind(Buffer.from('%PDF-1.4'))).toBe('pdf');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    expect(sniffMagicKind(png)).toBe('image');
+    expect(sniffMagicKind(Buffer.from('客户,产品\nA,B', 'utf8'))).toBe('text');
+    expect(sniffMagicKind(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0x00, 0x01]))).toBe('binary');
+    // 以 BM 开头的文本表格不能被误判成 BMP 图片
+    expect(sniffMagicKind(Buffer.from('BM号,客户名称\nBM-01,杭州测试客户', 'utf8'))).toBe('text');
+    // 文本内容 + .xls 扩展名（Excel 另存的 CSV 被改名）→ 按 CSV 管线兜底
+    expect(detectUploadKind(Buffer.from('客户,产品\n杭州测试客户,ANM 3', 'utf8'), '订单.xls')).toBe('csv');
+    // 扩展名与 MIME 都不认识 → 仍给中文可识别范围之外
+    expect(detectUploadKind(Buffer.from('随手记的笔记'), '订单.txt')).toBe('unsupported');
+    expect(looksLikeText(Buffer.from('a,b\r\n1,2'))).toBe(true);
+    expect(looksLikeText(Buffer.from([0x00, 0x01, 0x02]))).toBe(false);
+  });
+
+  it('无扩展名的 .xls 内容也能判定为 xls（magic bytes 兜底扩展名）', () => {
+    const buf = writeXls([['客户', '产品'], ['杭州测试客户', 'ANM 3']]);
+    expect(detectUploadKind(buf, '')).toBe('xls');
+  });
+});
+
+describe('.xls（BIFF8）读取细节', () => {
+  it('中文表头别名（客户简称/品名/交货日期）+ 多行明细 → 与 xlsx 同构的 ParsedOrder', () => {
+    const buf = writeXls(
+      [
+        ['客户简称', '客户PO号', '品名', '数量', '单价', '交货日期', '包装要求'],
+        ['杭州测试客户', 'PO-XLS-01', 'ANM 3', 2000, 4.2, XLS_DATE_SERIAL, '纸箱'],
+        ['', '', 'PNM 1/32', 500, 3.8, '', ''],
+      ],
+      '订单明细',
+      { dateCells: ['F2'] },
+    );
+    const rows = normalizeMatrix(readXlsMatrix(buf));
+    const r = ruleMapMatrix(rows);
+    expect(r.mapping.sufficient).toBe(true);
+    expect(r.dataRowCount).toBe(2);
+    expect(r.parsed.customerName).toBe('杭州测试客户');
+    expect(r.parsed.poNo).toBe('PO-XLS-01');
+    expect(r.parsed.dueDate).toBe('2026-09-30'); // 日期单元格（序列号 46295 + 日期格式）
+    expect(r.parsed.lines.map((l) => l.productName)).toEqual(['ANM 3', 'PNM 1/32']);
+    expect(r.parsed.lines[0].quantity).toBe(2000);
+    expect(r.parsed.lines[0].unitPrice).toBe(4.2);
+    expect(r.parsed.lines[1].quantity).toBe(500);
+    expect(r.parsed.lines[1].unitPrice).toBe(3.8);
+    expect(r.parsed.confidence).toBe('high');
+  });
+
+  it('日期单元格（cellDates）归一为 YYYY-MM-DD', () => {
+    const buf = writeXls([['交期'], [XLS_DATE_SERIAL], ['2026/10/1'], ['2026年10月2日']], 'S', { dateCells: ['A2'] });
+    const rows = readXlsMatrix(buf);
+    expect(rows[1][0]).toBe('2026-09-30'); // Date 单元格 → UTC 口径归一
+    expect(parseDateCell(rows[2][0])).toBe('2026-10-01');
+    expect(parseDateCell(rows[3][0])).toBe('2026-10-02');
+  });
+
+  it('数值精度：整数不带小数点、小数不产生浮点尾差、千分位不被格式化污染', () => {
+    const buf = writeXls([['数量', '单价'], [2000, 4.2], [3, 0.1], [1234567, 1234567.89]]);
+    const rows = readXlsMatrix(buf);
+    expect(rows[1]).toEqual(['2000', '4.2']);
+    expect(rows[2]).toEqual(['3', '0.1']);
+    expect(rows[3]).toEqual(['1234567', '1234567.89']);
+    const r = ruleMapMatrix(normalizeMatrix(rows));
+    expect(r.parsed.lines[1].quantity).toBe(3);
+    expect(r.parsed.lines[1].unitPrice).toBe(0.1); // 3 × 0.1 元 = 30 分（定点，无 0.30000000000000004）
+    expect(r.parsed.lines[2].quantity).toBe(1234567);
+    expect(r.parsed.lines[2].unitPrice).toBe(1234567.89);
+  });
+
+  it('全空行被跳过（表头前/数据中/尾部）', () => {
+    const buf = writeXls([
+      ['', '', ''],
+      ['客户', '产品', '数量', '单价'],
+      ['杭州测试客户', 'ANM 3', 10, 1.5],
+      ['', '', '', ''],
+      ['', 'PNM 1/32', 5, 2],
+      ['', '', '', ''],
+    ]);
+    const rows = readXlsMatrix(buf);
+    expect(rows.length).toBe(3); // 表头 1 行 + 数据 2 行：抬头空行与两处空行都不进矩阵
+    const r = ruleMapMatrix(normalizeMatrix(rows));
+    expect(r.dataRowCount).toBe(2);
+    expect(r.parsed.lines.map((l) => l.productName)).toEqual(['ANM 3', 'PNM 1/32']);
+  });
+
+  it('合并单元格取左上值（SheetJS 只在左上角存值，需补齐到整个合并区）', () => {
+    const buf = writeXls(
+      [
+        ['客户名称', '产品', '数量', '单价'],
+        ['杭州测试客户', 'ANM 3', 2000, 4.2],
+        ['', 'PNM 1/32', 500, 3.8],
+      ],
+      'M',
+      { merges: ['A2:A3'] },
+    );
+    const rows = readXlsMatrix(buf);
+    expect(rows[2][0]).toBe('杭州测试客户'); // 合并区非锚点行也拿到左上值
+    const r = ruleMapMatrix(normalizeMatrix(rows));
+    expect(r.dataRowCount).toBe(2);
+    expect(r.parsed.customerName).toBe('杭州测试客户');
+    expect(r.parsed.lines[1].productName).toBe('PNM 1/32');
+  });
+
+  it('多工作表取第一个非空表（封面空表不影响识别）', () => {
+    const rows = readXlsMatrix(writeXlsMultiSheet());
+    expect(rows[0].slice(0, 2)).toEqual(['客户简称', '品名']);
+    expect(rows[1][0]).toBe('杭州测试客户');
+  });
+
+  it('全空工作簿 → 中文报错；损坏文件 → 中文报错', () => {
+    expect(() => readXlsMatrix(writeXls([['']]))).toThrow('所有工作表都是空的');
+    expect(() => readXlsMatrix(Buffer.from('d0cf11e0a1b11ae1', 'hex'))).toThrow('无法读取该 .xls 文件');
+  });
+
+  it('sheetCellToString：日期/数字/布尔/错误值/空单元格', () => {
+    expect(sheetCellToString({ t: 'd', v: new Date(Date.UTC(2026, 8, 30)) } as never)).toBe('2026-09-30');
+    expect(sheetCellToString({ t: 'n', v: 4.2 } as never)).toBe('4.2');
+    expect(sheetCellToString({ t: 'b', v: true } as never)).toBe('TRUE');
+    expect(sheetCellToString({ t: 'e', v: 15, w: '#REF!' } as never)).toBe('');
+    expect(sheetCellToString(undefined)).toBe('');
+  });
+
+  it('sheetToMatrix：跳过全空行、保留列结构', () => {
+    const ws = XLSX.utils.aoa_to_sheet([['a', 'b'], ['', ''], ['c', '']] as never);
+    expect(sheetToMatrix(ws)).toEqual([['a', 'b'], ['c', '']]);
   });
 });

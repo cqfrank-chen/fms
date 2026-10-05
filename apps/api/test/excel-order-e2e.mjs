@@ -3,8 +3,10 @@
  * ---------------------------------------------------------------------------
  * 覆盖：
  *   1) 多行订单 .xlsx 上传 → 解析明细（客户/产品/数量/单价/金额(分)）→ 生成草稿订单 → 库里核对
- *   2) CSV（UTF-8）与 CSV（GBK）各跑一遍（同一套断言）
- *   3) 边界：.xls 明确中文提示、未登录 401、workshop 角色 403、图片走 vision 分支、
+ *   2) 多行订单 .xls（BIFF8/OLE2，含合并单元格与日期序列号单元格）跑同一套断言
+ *   3) CSV（UTF-8）与 CSV（GBK）各跑一遍（同一套断言）
+ *   4) 边界：损坏 .xls 中文提示、.xls 内容误命名成 .xlsx 仍按 BIFF8 解析、.pdf 明确中文提示、
+ *      未登录 401、workshop 角色 403、图片走 vision 分支、
  *      表头缺客户列 → LLM 兜底通道（未配 key 时回退规则映射并给中文提示）
  *
  * 前置：一个连到**空库**的 API 实例（会自动建表 + 种子 admin/Fms@2026），例如：
@@ -14,6 +16,7 @@
  * 环境变量：E2E_BASE（默认 http://127.0.0.1:3100/api）、E2E_PG_*（默认 localhost:15432）
  */
 import assert from 'node:assert/strict';
+import * as XLSX from '@e965/xlsx';
 import ExcelJS from 'exceljs';
 import iconv from 'iconv-lite';
 import pg from 'pg';
@@ -87,6 +90,29 @@ async function buildXlsx() {
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+/** YYYY-MM-DD → Excel 1900 日期系统序列号（写成日期单元格用；与运行时区无关） */
+function excelSerial(iso) {
+  return Math.round((Date.parse(iso + 'T00:00:00Z') - Date.parse('1899-12-30T00:00:00Z')) / 86400000);
+}
+
+/**
+ * 造多行订单 .xls（BIFF8 / OLE2 复合文档）：表头用别名（客户简称 / 品名 / 交货日期）验证容错，
+ * 客户名跨 3 行合并（取左上值），交期用「日期序列号 + 日期格式」单元格（验证 cellDates 归一）。
+ */
+function buildXls() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['客户简称', '客户PO号', '品名', '数量', '单价', '交货日期', '包装要求'],
+    ['杭州测试客户', 'PO-XLS-01', 'ANM 3', '2,000', '¥4.20', excelSerial(FUTURE), '纸箱'],
+    ['', '', 'PNM 1/32', 500, 3.8, '', ''],
+    ['', '', '6290', '1,200', '5.50', '', '纸箱包装'],
+  ]);
+  ws['F2'].z = 'yyyy-mm-dd'; // 日期单元格（序列号 + 日期数字格式）
+  ws['!merges'] = [XLSX.utils.decode_range('A2:A4')]; // 合并单元格：只在左上角存值
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '订单明细');
+  return Buffer.from(XLSX.write(wb, { bookType: 'biff8', type: 'buffer', cellDates: true }));
+}
+
 const CSV_LINES = [
   '客户,客户PO号,产品,数量,单价,交期,备注',
   '杭州测试客户,PO-CSV-01,ANM 3,2000,4.20,' + FUTURE + ',加急',
@@ -102,6 +128,14 @@ function buildCsv(encoding) {
 const EXPECTED = {
   xlsx: {
     poNo: 'PO-2026-0901',
+    lines: [
+      { product: 'ANM 3', qty: 2000, unitPrice: 4.2, cents: 840000 },
+      { product: 'PNM 1/32', qty: 500, unitPrice: 3.8, cents: 190000 },
+      { product: '6290', qty: 1200, unitPrice: 5.5, cents: 660000 },
+    ],
+  },
+  xls: {
+    poNo: 'PO-XLS-01',
     lines: [
       { product: 'ANM 3', qty: 2000, unitPrice: 4.2, cents: 840000 },
       { product: 'PNM 1/32', qty: 500, unitPrice: 3.8, cents: 190000 },
@@ -208,6 +242,7 @@ async function main() {
 
   // ---------- 1) Excel 端到端 ----------
   await runImportFlow(token, db, 'Excel(.xlsx) 多行订单', await buildXlsx(), '订单-多行.xlsx', EXPECTED.xlsx);
+  await runImportFlow(token, db, 'Excel(.xls BIFF8) 多行订单', buildXls(), '订单-多行.xls', EXPECTED.xls);
 
   // ---------- 2) CSV UTF-8 / GBK ----------
   await runImportFlow(token, db, 'CSV(UTF-8)', buildCsv('utf8'), '订单-utf8.csv', EXPECTED.csv);
@@ -216,10 +251,17 @@ async function main() {
   // ---------- 3) 边界与分支 ----------
   console.log('\n【分支与边界】');
 
-  // .xls → 明确中文提示
-  const xls = await req('POST', '/ai/orders/parse', uploadBody(Buffer.from('d0cf11e0a1b11ae1', 'hex'), '旧版订单.xls'), token);
-  eq('.xls 返回 400', xls.status, 400);
-  ok('.xls 中文提示「请另存为 .xlsx 或 .csv」', String(xls.body.message).includes('请用 Excel 另存为 .xlsx 或 .csv 后重试'), xls.body.message);
+  // .xls → 已支持（不再给「请另存为」提示）；只有损坏文件才报错，且为中文提示
+  const brokenXls = await req('POST', '/ai/orders/parse', uploadBody(Buffer.from('d0cf11e0a1b11ae1', 'hex'), '损坏订单.xls'), token);
+  eq('损坏 .xls 返回 400', brokenXls.status, 400);
+  ok('损坏 .xls 中文提示（非库原始英文错误）', String(brokenXls.body.message).includes('无法读取该 .xls 文件'), brokenXls.body.message);
+
+  // 扩展名写错：BIFF8 内容命名为 .xlsx → 仍按 magic bytes 正确解析（不再解析失败）
+  const misnamed = await req('POST', '/ai/orders/parse', uploadBody(buildXls(), '误命名.xlsx'), token);
+  ok('扩名谎报 .xlsx 的 .xls 内容仍能解析（2xx）', misnamed.status >= 200 && misnamed.status < 300, misnamed.status);
+  eq('扩名谎报 → 仍走表头规则映射', misnamed.body.parseSource, 'table-rule');
+  eq('扩名谎报 → 明细行数正确', misnamed.body.lines.length, 3);
+  eq('扩名谎报 → 客户命中档案', misnamed.body.customerName, '杭州测试客户');
 
   // .pdf → 明确中文提示（原有 PDF 场景不静默失败）
   const pdf = await req('POST', '/ai/orders/parse', uploadBody(Buffer.from('%PDF-1.4 test'), '订单.pdf'), token);

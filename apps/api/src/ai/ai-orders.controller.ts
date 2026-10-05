@@ -5,7 +5,7 @@ import { db } from '../db';
 import { aiParseDrafts } from '../db/schema';
 import { Roles } from '../auth/decorators';
 import { OrderParserService } from './order-parser.service';
-import { TableParserService, detectTableFileKind } from './table-parser.service';
+import { TableParserService, detectUploadKind } from './table-parser.service';
 
 /** 文件体积上限（与 main.ts 的 12mb JSON 上限留出余量） */
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -25,7 +25,7 @@ class ParseOrderDto {
   @IsString()
   file?: string;
 
-  /** 原始文件名（用于扩展名判定与 .xls 提示；浏览器上传时必带） */
+  /** 原始文件名（带扩展名，浏览器上传时必带；类型判定仍以文件 magic bytes 为准） */
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -71,10 +71,11 @@ export class AiOrdersController {
   @Post('parse')
   async parse(@Body() dto: ParseOrderDto) {
     try {
-      // 文件分支：图片 → 既有 vision 通道；xlsx/csv → 表格解析管线（.xls 给明确中文提示）
+      // 文件分支：图片 → 既有 vision 通道；xls/xlsx/csv → 表格解析管线（PDF 给明确中文提示）
+      // 类型判定以 magic bytes 为准（扩展名写错也能正确分流），扩展名/MIME 仅兜底
       if (dto.file) {
         const up = decodeUpload(dto.file, dto.fileName);
-        const kind = detectTableFileKind(up.name, up.mime);
+        const kind = detectUploadKind(up.buffer, up.name, up.mime);
         if (kind === 'image') {
           const dataUrl = up.mime ? `data:${up.mime};base64,${up.buffer.toString('base64')}` : `data:image/png;base64,${up.buffer.toString('base64')}`;
           return await this.parser.parseAndResolve({ image: dataUrl, text: dto.text, stub: dto.stub as never });

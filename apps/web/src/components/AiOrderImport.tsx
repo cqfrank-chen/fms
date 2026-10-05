@@ -240,25 +240,21 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
   }
 
   /**
-   * 上传入口（拖拽/点选共用）：图片 / Excel(.xlsx) / CSV 三种走向。
+   * 上传入口（拖拽/点选共用）：图片 / Excel(.xls、.xlsx) / CSV 三种走向。
    * - 图片 → dataURL 走既有 vision 识别（不受本次改动影响）
-   * - xlsx/csv → dataURL 走表格解析管线（规则映射优先，命中不足再走 LLM）
-   * - .xls/.pdf → 前端即时中文提示（后端同样拦截，双保险）
+   * - xls/xlsx/csv → dataURL 走表格解析管线（规则映射优先，命中不足再走 LLM）
+   * - .pdf → 前端即时中文提示（后端同样拦截，双保险）
    * 文件转 dataURL 直送（不经 multipart，与既有图片路径同一约定）
    */
   function pickFile(file: File) {
     const name = file.name.toLowerCase()
-    if (name.endsWith('.xls') && !name.endsWith('.xlsx')) {
-      message.error('暂不支持旧版 .xls 格式：请用 Excel 另存为 .xlsx 或 .csv 后重试')
-      return
-    }
     if (name.endsWith('.pdf')) {
-      message.error('PDF 暂不支持直接解析：请把订单页截图成图片上传，或另存为 .xlsx / .csv 后重试')
+      message.error('PDF 暂不支持直接解析：请把订单页截图成图片上传，或另存为 .xls / .xlsx / .csv 后重试')
       return
     }
     const isImage = file.type.startsWith('image/') || IMG_EXT_RE.test(name)
-    if (!isImage && !/\.(xlsx|csv|tsv)$/.test(name)) {
-      message.error('仅支持 Excel(.xlsx) / CSV 表格或订单图片，请重新选择文件')
+    if (!isImage && !/\.(xls|xlsx|csv|tsv)$/.test(name)) {
+      message.error('仅支持 Excel(.xls/.xlsx) / CSV 表格或订单图片，请重新选择文件')
       return
     }
     if (file.size > MAX_FILE) { message.error('文件超过 8MB，请精简后重试（大表可另存为 .csv）'); return }
@@ -273,7 +269,7 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
   }
 
   const uploadProps: UploadProps = {
-    accept: 'image/*,.xlsx,.csv,.tsv',
+    accept: 'image/*,.xls,.xlsx,.csv,.tsv',
     multiple: false,
     showUploadList: false,
     beforeUpload: (file) => {
@@ -398,7 +394,7 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
         <Space wrap size={10} style={{ marginBottom: 8 }}>
           <Text strong style={{ color: '#0958d9' }}>📄 AI 导入订单</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            支持 Excel(.xlsx) / CSV（UTF-8、GBK 自动识别）与订单图片；识别后可在表格预览里逐项修正
+            支持 Excel(.xls/.xlsx) / CSV（UTF-8、GBK 自动识别）与订单图片；识别后可在表格预览里逐项修正
           </Text>
           <Button size="small" loading={busy} onClick={() => setTextOpen(true)}>粘贴订单文本</Button>
         </Space>
@@ -406,7 +402,7 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
           <p className="ant-upload-drag-icon" style={{ marginBottom: 4 }}><InboxOutlined /></p>
           <p className="ant-upload-text" style={{ fontSize: 14 }}>点击选择或把 Excel / CSV / 订单图片拖到这里识别</p>
           <p className="ant-upload-hint" style={{ fontSize: 12 }}>
-            .xlsx、.csv（含中文 GBK 编码）、.png/.jpg 等；旧版 .xls 请先用 Excel 另存为 .xlsx 或 .csv；单文件 ≤ 8MB。
+            .xls（Excel 97-2003）、.xlsx、.csv（含中文 GBK 编码）、.png/.jpg 等；格式按文件内容自动判定，扩展名写错也能识别；单文件 ≤ 8MB。
             识别结果恒为草稿，需人工核对后「生成草稿订单」或填入新建订单表单。
           </p>
         </Upload.Dragger>

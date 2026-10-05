@@ -1,10 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
+import * as XLSX from '@e965/xlsx';
 import * as ExcelJS from 'exceljs';
 import { AiOrdersController, decodeUpload } from './ai-orders.controller';
 import { TableParserService } from './table-parser.service';
 
 /**
- * 上传分支测试（不连数据库/网络）：图片 → 既有 vision 通道；xlsx/csv → 表格管线；.xls/.pdf → 明确中文提示。
+ * 上传分支测试（不连数据库/网络）：图片 → 既有 vision 通道；xls/xlsx/csv → 表格管线；.pdf → 明确中文提示。
  * db 用空实现占位（本用例只覆盖 parse 分支，不触库）。
  */
 jest.mock('../db', () => ({ db: {} }));
@@ -54,11 +55,26 @@ describe('AiOrdersController.parse · 上传类型分支', () => {
     expect(arg.table.rows.length).toBe(2);
   });
 
-  it('.xls → 400 中文提示「请另存为 .xlsx 或 .csv 后重试」', async () => {
+  it('.xls（BIFF8）→ 表格管线（不再拒绝，与 xlsx 同一条路）', async () => {
     const { ctl, parser } = makeController();
-    await expect(ctl.parse({ file: dataUrl('application/vnd.ms-excel', Buffer.from('d0cf11e0', 'hex')), fileName: '老订单.xls' }))
-      .rejects.toThrow('请用 Excel 另存为 .xlsx 或 .csv 后重试');
-    expect(parser.parseAndResolve).not.toHaveBeenCalled(); // 未进识别管线，不浪费 AI 调用
+    const ws = XLSX.utils.aoa_to_sheet([['客户', '产品', '数量', '单价'], ['杭州测试客户', 'ANM 3', 10, 2.5]] as never);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '订单明细');
+    const buf = Buffer.from(XLSX.write(wb, { bookType: 'biff8', type: 'buffer', cellDates: true }) as ArrayBuffer);
+
+    await ctl.parse({ file: dataUrl('application/vnd.ms-excel', buf), fileName: '老订单.xls' });
+    const arg = parser.parseAndResolve.mock.calls[0][0];
+    expect(arg.image).toBeUndefined();
+    expect(arg.table.source).toBe('excel');
+    expect(arg.table.rows[0]).toEqual(['客户', '产品', '数量', '单价']);
+    expect(arg.table.rows[1][0]).toBe('杭州测试客户');
+  });
+
+  it('损坏的 .xls → 400 中文提示（不抛库原始英文错误、不浪费 AI 调用）', async () => {
+    const { ctl, parser } = makeController();
+    await expect(ctl.parse({ file: dataUrl('application/vnd.ms-excel', Buffer.from('d0cf11e0a1b11ae1', 'hex')), fileName: '老订单.xls' }))
+      .rejects.toThrow('无法读取该 .xls 文件');
+    expect(parser.parseAndResolve).not.toHaveBeenCalled();
   });
 
   it('.pdf → 400 中文提示', async () => {

@@ -1,15 +1,19 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import * as XLSX from '@e965/xlsx';
 import * as ExcelJS from 'exceljs';
 import * as iconv from 'iconv-lite';
 import type { ParsedOrder, ParsedOrderLine } from './order-parser.service';
 
 /**
- * 表格订单解析（新增）：xlsx / csv → 二维矩阵 → 表头规则映射 → 紧凑文本（LLM 兜底映射用）。
+ * 表格订单解析：xls(BIFF8/OLE2) / xlsx / csv → 二维矩阵 → 表头规则映射 → 紧凑文本（LLM 兜底映射用）。
  *
  * 设计取向与既有「确定性为骨」一致：
  * - 规则映射（关键词命中表头）命中齐全时**完全不调用 LLM**，结果可复现、离线可用；
  * - 命中率不足（缺客户/产品/数量/单价任一列，或没有数据行）才把表格前 N 行转紧凑文本，
  *   交给既有 LLM 网关做语义映射，并要求返回与图片识别同构的 JSON（见 order-parser.service）。
+ *
+ * .xls 支持（本轮新增）：用 @e965/xlsx（SheetJS 维护中的 fork）读 BIFF8，**复用同一套矩阵/表头映射/金额分口径**，
+ * 不另起管线；格式判定以 magic bytes 为准（扩展名写错也能救），exceljs 仍只负责 .xlsx。
  *
  * 说明：本文件刻意不使用模板字符串（便于本仓库批量生成/审查），字符串拼接统一用 + 与 join。
  */
@@ -36,6 +40,74 @@ export function detectTableFileKind(fileName?: string, mimeType?: string): Table
   if (mime === 'application/pdf') return 'pdf';
   if (mime.startsWith('image/')) return 'image';
   return 'unsupported';
+}
+
+// ============ 文件格式判定：magic bytes 优先（扩展名写错也能救） ============
+
+/** OLE2/CFB 复合文档头（.xls = BIFF8 装在 CFB 容器里），8 字节 */
+export const OLE2_MAGIC = Buffer.from('d0cf11e0a1b11ae1', 'hex');
+/** ZIP 头（.xlsx 本质是 zip 包）：PK\x03\x04 / 空档 PK\x05\x06 / 分卷 PK\x07\x08 */
+const ZIP_MAGICS = [Buffer.from('504b0304', 'hex'), Buffer.from('504b0506', 'hex'), Buffer.from('504b0708', 'hex')];
+/** 图片头：PNG / JPEG / GIF / WEBP */
+const IMAGE_MAGICS: Buffer[] = [
+  Buffer.from('89504e470d0a1a0a', 'hex'),
+  Buffer.from('ffd8ff', 'hex'),
+  Buffer.from('47494638', 'hex'), // GIF8
+  Buffer.from('52494646', 'hex'), // RIFF（配合 8-11 字节 WEBP 再判）
+];
+
+/** BMP 头更弱（仅 'BM' 两字节），单独加「保留位为 0 + 数据偏移合理」的完整性校验，
+ *  避免把以 BM 开头的文本表格（如「BM号,客户…」）误判成图片。 */
+function isBmp(buf: Buffer): boolean {
+  return buf.length >= 14 && buf[0] === 0x42 && buf[1] === 0x4d && buf.readUInt16LE(6) === 0 && buf.readUInt16LE(8) === 0
+    && buf.readUInt32LE(10) >= 26 && buf.readUInt32LE(10) <= 4096;
+}
+
+/**
+ * 内容嗅探（只看文件头，不依赖扩展名/MIME）：
+ * 'xls'（OLE2）· 'xlsx'（zip）· 'pdf' · 'image' · 'text'（可读文本，如 CSV/TSV）· 'binary'（其余二进制）。
+ */
+export function sniffMagicKind(buf: Buffer): 'xls' | 'xlsx' | 'pdf' | 'image' | 'text' | 'binary' {
+  if (!buf || !buf.length) return 'binary';
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(OLE2_MAGIC)) return 'xls';
+  if (ZIP_MAGICS.some((m) => buf.length >= 4 && buf.subarray(0, 4).equals(m))) return 'xlsx';
+  if (buf.length >= 4 && buf.subarray(0, 4).toString('latin1') === '%PDF') return 'pdf';
+  for (const m of IMAGE_MAGICS) {
+    if (buf.length >= m.length && buf.subarray(0, m.length).equals(m)) {
+      // RIFF 仅当 8-11 字节是 WEBP 时才算图片（避免把 wav/avi 误判为图片）
+      if (m.toString('latin1') === 'RIFF') {
+        if (buf.length >= 12 && buf.subarray(8, 12).toString('latin1') === 'WEBP') return 'image';
+        continue;
+      }
+      return 'image';
+    }
+  }
+  if (isBmp(buf)) return 'image';
+  return looksLikeText(buf) ? 'text' : 'binary';
+}
+
+/** 文本判定：前 512 字节无 NUL 且不含控制字符（制表/换行/回车除外）→ 视为可读文本 */
+export function looksLikeText(buf: Buffer): boolean {
+  const n = Math.min(buf.length, 512);
+  for (let i = 0; i < n; i++) {
+    const b = buf[i];
+    if (b === 0) return false;
+    if (b < 0x09 || (b > 0x0d && b < 0x20)) return false;
+  }
+  return true;
+}
+
+/**
+ * 上传文件 → 类型判定：**magic bytes 优先**（避免「.xls 被改名成 .xlsx」这类扩展名谎报导致解析失败）；
+ * 内容不可判别（截断/加密/纯文本）时再按扩展名与 MIME 兜底：
+ * 扩展名声称 Excel 但内容是文本（Excel 另存的 CSV 被改名等）→ 按 CSV 管线处理。
+ */
+export function detectUploadKind(buffer: Buffer, fileName?: string, mimeType?: string): TableFileKind {
+  const magic = sniffMagicKind(buffer);
+  if (magic === 'xls' || magic === 'xlsx' || magic === 'pdf' || magic === 'image') return magic;
+  const byName = detectTableFileKind(fileName, mimeType);
+  if (magic === 'text' && (byName === 'xls' || byName === 'xlsx')) return 'csv';
+  return byName;
 }
 
 // ============ CSV：解码（GBK / UTF-8 自动识别） ============
@@ -142,12 +214,17 @@ export function excelSerialToDate(serial: number): string {
   return fmtDate(new Date(ms));
 }
 
-/** 读取 .xlsx 第一个工作表为二维字符串矩阵；无工作表/空表 → 中文报错 */
+/** 读取 .xlsx 第一个**非空**工作表为二维字符串矩阵（合并单元格由 exceljs 自动回填左上值）；无工作表/全空 → 中文报错 */
 export async function readXlsxMatrix(buf: Buffer): Promise<string[][]> {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf as unknown as ExcelJS.Buffer);
-  const ws = wb.worksheets[0];
-  if (!ws) throw new BadRequestException('Excel 中没有可读的工作表，请检查文件');
+  try {
+    await wb.xlsx.load(buf as unknown as ExcelJS.Buffer);
+  } catch (e) {
+    throw new BadRequestException('无法读取该 .xlsx 文件（' + (e as Error).message + '）：请确认文件未损坏，或另存为 .csv 后重试');
+  }
+  if (!wb.worksheets.length) throw new BadRequestException('Excel 中没有可读的工作表，请检查文件');
+  // 多工作表：取第一个非空表（客户常把说明页/封面页放在最前面）
+  const ws = wb.worksheets.find((w) => w.actualRowCount > 0) ?? wb.worksheets[0];
   const rows: string[][] = [];
   ws.eachRow({ includeEmpty: false }, (row) => {
     const values = row.values as unknown[]; // 1-based（[0] 为空位）
@@ -156,6 +233,88 @@ export async function readXlsxMatrix(buf: Buffer): Promise<string[][]> {
     rows.push(cells);
   });
   if (!rows.length) throw new BadRequestException('Excel 第一个工作表是空的，没有可识别的订单内容');
+  return rows;
+}
+
+// ============ .xls（BIFF8 / OLE2 复合文档）：@e965/xlsx（SheetJS fork） ============
+
+/** SheetJS 日期（UTC 口径，见 ParsingOptions.UTC 默认 true）→ YYYY-MM-DD
+ *  注意：这里必须用 UTC 取数——SheetJS 把单元格日期还原成 UTC 时刻，
+ *  用本地 getter 会在西半球时区（UTC-x）上整体退一天。 */
+export function fmtDateUtc(d: Date): string {
+  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+}
+
+/** SheetJS 单元格 → 字符串（日期归一 YYYY-MM-DD；数字保持数值原样，不套格式/千分位；错误值留空） */
+export function sheetCellToString(cell: XLSX.CellObject | undefined): string {
+  if (!cell) return '';
+  const v = (cell as { v?: unknown }).v;
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) return fmtDateUtc(v);
+  if ((cell as { t?: string }).t === 'e') return ''; // #N/A / #REF! 等错误值：留空待人工补填
+  if (typeof v === 'number') return String(v); // 数值精度：不做 toFixed/格式化，避免「0.1+0.2」类尾差与千分位污染
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  return String(v).trim();
+}
+
+/** 工作表是否有内容（含合并区域锚点）——用于「多工作表取第一个非空表」 */
+export function sheetHasData(ws: XLSX.WorkSheet | undefined): boolean {
+  if (!ws) return false;
+  const ref = (ws as { '!ref'?: string })['!ref'];
+  if (!ref) return false;
+  const range = XLSX.utils.decode_range(ref);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      if (sheetCellToString(ws[XLSX.utils.encode_cell({ r, c })] as XLSX.CellObject)) return true;
+    }
+  }
+  return false;
+}
+
+/** 工作表 → 二维矩阵：跳过全空行、合并单元格补齐左上值（SheetJS 只在左上角存值） */
+export function sheetToMatrix(ws: XLSX.WorkSheet): string[][] {
+  const ref = (ws as { '!ref'?: string })['!ref'];
+  if (!ref) return [];
+  const range = XLSX.utils.decode_range(ref);
+  const cells: string[][] = [];
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const row: string[] = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      row.push(sheetCellToString(ws[XLSX.utils.encode_cell({ r, c })] as XLSX.CellObject));
+    }
+    cells.push(row);
+  }
+  // 合并单元格：把左上角的值补齐到整个合并区域（跨行合并的客户名/包装要求不再只落在第一行）
+  const merges = ((ws as { '!merges'?: XLSX.Range[] })['!merges'] ?? []) as XLSX.Range[];
+  for (const m of merges) {
+    const anchorRow = cells[m.s.r - range.s.r];
+    const anchor = anchorRow ? (anchorRow[m.s.c - range.s.c] ?? '') : '';
+    for (let r = m.s.r; r <= m.e.r; r++) {
+      const row = cells[r - range.s.r];
+      if (!row) continue;
+      for (let c = m.s.c; c <= m.e.c; c++) row[c - range.s.c] = anchor;
+    }
+  }
+  return cells.filter((r) => r.some((c) => c !== '')); // 跳过全空行
+}
+
+/**
+ * 读取 .xls（BIFF8 / OLE2）第一个非空工作表为二维字符串矩阵。
+ * cellDates:true → 日期单元格还原为 Date（再按 UTC 归一到 YYYY-MM-DD）；数字单元格保持数值。
+ */
+export function readXlsMatrix(buf: Buffer): string[][] {
+  let wb: XLSX.WorkBook;
+  try {
+    wb = XLSX.read(buf, { type: 'buffer', cellDates: true, cellNF: false, cellText: false });
+  } catch (e) {
+    throw new BadRequestException('无法读取该 .xls 文件（' + (e as Error).message + '）：请确认是 Excel 97-2003 工作簿且未损坏，或另存为 .xlsx / .csv 后重试');
+  }
+  const names = wb.SheetNames ?? [];
+  if (!names.length) throw new BadRequestException('Excel 中没有可读的工作表，请检查文件');
+  const picked = names.find((n) => sheetHasData(wb.Sheets[n]));
+  if (!picked) throw new BadRequestException('Excel 所有工作表都是空的，没有可识别的订单内容');
+  const rows = sheetToMatrix(wb.Sheets[picked]);
+  if (!rows.length) throw new BadRequestException('Excel 中没有可识别的订单数据行，请检查文件内容');
   return rows;
 }
 
@@ -183,15 +342,15 @@ export const TABLE_FIELDS = [
 ] as const;
 export type TableField = (typeof TABLE_FIELDS)[number];
 
-/** 表头关键词（大小写不敏感、去空格后 includes 匹配；先命中者先占列） */
+/** 表头关键词（大小写不敏感、全角半角归一后 includes 匹配；命中「最长关键词」者占列） */
 const HEADER_KEYWORDS: Record<TableField, string[]> = {
-  customer: ['客户名称', '客户名', '客户', 'customer', 'buyer', '需方'],
-  poNo: ['客户po', 'po号', 'pono', 'po no', '订单号', '采购订单号', 'orderno', 'order no', 'p/o', 'po'],
-  productName: ['产品名称', '品名', '型号', '产品', 'product', 'item', 'description', '规格'],
-  quantity: ['数量', '订购数量', 'qty', 'quantity', 'pcs'],
-  unitPrice: ['单价', '价格', 'unitprice', 'unit price', 'price'],
-  currency: ['币种', '货币', 'currency'],
-  dueDate: ['交期', '交货日期', '交货期', '交货时间', '出货日期', 'delivery', 'duedate', 'due date', 'eta'],
+  customer: ['客户名称', '客户简称', '客户全称', '客户名', '客户公司', '客户', 'customer', 'buyer', '客户单位', '需方'],
+  poNo: ['客户po', '客户订单号', 'po号', 'pono', 'po no', '订单号', '订单编号', '采购订单号', '合同号', 'orderno', 'order no', 'p/o', 'po'],
+  productName: ['产品名称', '产品型号', '物料名称', '品名', '型号', '产品', 'product', 'item', 'description', '规格'],
+  quantity: ['订购数量', '订货数量', '数量', 'qty', 'quantity', 'pcs'],
+  unitPrice: ['含税单价', '单价', '价格', '出厂价', 'unitprice', 'unit price', 'price'],
+  currency: ['币种', '币别', '货币', 'currency'],
+  dueDate: ['交货日期', '交货时间', '交货期', '出货日期', '发货日期', '交期', 'delivery', 'duedate', 'due date', 'eta'],
   note: ['备注', '说明', 'remark', 'note', 'comment'],
   engraving: ['刻字', '印刷', 'engraving', 'logo'],
   packaging: ['包装要求', '包装', 'packing', 'packaging'],
@@ -200,7 +359,13 @@ const HEADER_KEYWORDS: Record<TableField, string[]> = {
 /** 规则映射「齐全」所需的四个关键列（缺任一 → 需要 LLM 兜底映射） */
 export const REQUIRED_TABLE_FIELDS: TableField[] = ['customer', 'productName', 'quantity', 'unitPrice'];
 
-const normHeader = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, '').replace(/[（）()：:*]/g, '');
+/** 表头归一：全角→半角、大小写、去空白、去括号/冒号/星号/顿号等噪声（前后空格与「单价（元）」类写法都能命中） */
+const normHeader = (s: string) =>
+  (s ?? '')
+    .replace(/[\uff01-\uff5e]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)) // 全角 → 半角
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[（）()：:*，,。、.．\-_/／【】\[\]「」'’“”"]/g, '');
 
 export interface TableMapping {
   /** 命中表头所在行下标；-1 = 未识别出表头 */
@@ -411,8 +576,8 @@ export class TableParserService {
   private readonly logger = new Logger(TableParserService.name);
 
   /**
-   * 上传文件 → 规范化矩阵。
-   * .xls 给出明确中文提示（exceljs 只支持 xlsx；xls 是二进制 BIFF 格式，纯 JS 解析不划算）。
+   * 上传文件 → 规范化矩阵。xls / xlsx / csv 三条读入分支，之后**共用**同一套规范化 + 表头规则映射。
+   * 类型判定以 magic bytes 为准（OLE2 → .xls；PK → .xlsx），扩展名/MIME 仅作兜底。
    */
   async parseUpload(input: { buffer: Buffer; fileName?: string; mimeType?: string }): Promise<{
     kind: TableFileKind;
@@ -420,23 +585,21 @@ export class TableParserService {
     encoding?: string;
     delimiter?: string;
   }> {
-    const kind = detectTableFileKind(input.fileName, input.mimeType);
-    if (kind === 'xls') {
-      throw new BadRequestException('暂不支持旧版 .xls 格式：请用 Excel 另存为 .xlsx 或 .csv 后重试');
-    }
+    const kind = detectUploadKind(input.buffer, input.fileName, input.mimeType);
     if (kind === 'pdf') {
-      throw new BadRequestException('PDF 暂不支持直接解析：请把订单页截图成图片上传，或另存为 .xlsx / .csv 后重试');
+      throw new BadRequestException('PDF 暂不支持直接解析：请把订单页截图成图片上传，或另存为 .xls / .xlsx / .csv 后重试');
     }
     if (kind === 'image') {
       throw new BadRequestException('图片请走图片识别通道（当前为表格解析入口）');
     }
     if (kind === 'unsupported') {
-      throw new BadRequestException('无法识别的文件类型（' + (input.fileName ?? '未命名') + '）：表格仅支持 .xlsx / .csv');
+      throw new BadRequestException('无法识别的文件类型（' + (input.fileName ?? '未命名') + '）：表格仅支持 .xls / .xlsx / .csv');
     }
-    if (kind === 'xlsx') {
-      const rows = normalizeMatrix(await readXlsxMatrix(input.buffer));
-      if (!rows.length) throw new BadRequestException('Excel 第一个工作表没有可识别的数据行');
-      this.logger.log('xlsx 解析完成：' + rows.length + ' 行 × ' + rows[0].length + ' 列（含表头）');
+    if (kind === 'xls' || kind === 'xlsx') {
+      const raw = kind === 'xls' ? readXlsMatrix(input.buffer) : await readXlsxMatrix(input.buffer);
+      const rows = normalizeMatrix(raw);
+      if (!rows.length) throw new BadRequestException('Excel 第一个非空工作表没有可识别的数据行');
+      this.logger.log(kind + ' 解析完成：' + rows.length + ' 行 × ' + rows[0].length + ' 列（含表头）');
       return { kind, rows };
     }
     // csv
