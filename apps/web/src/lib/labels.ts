@@ -89,6 +89,23 @@ export const INVOICE_STATUS_LABEL: Record<string, string> = {
   voided: '已作废',
 }
 
+/** 开票：订单开票状态三态（简化交互：未开票 / 部分开票 / 已开完） */
+export const INVOICE_STATE_LABEL: Record<string, string> = {
+  none: '未开票',
+  partial: '部分开票',
+  done: '已开完',
+}
+
+/** 开票状态标签配色（AntD Tag color） */
+export const INVOICE_STATE_COLOR: Record<string, string> = {
+  none: 'default',
+  partial: 'orange',
+  done: 'success',
+}
+
+/** 占位票号前缀（后端缺省自动生成「待补号-YYYYMMDD-NN」，可随后补录） */
+export const INVOICE_PLACEHOLDER_PREFIX = '待补号-'
+
 /** 常用税率（可选择的其他税率用输入框自填） */
 export const TAX_RATE_OPTIONS = [
   { value: 0.13, label: '13%（货物）' },

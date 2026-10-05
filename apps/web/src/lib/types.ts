@@ -44,6 +44,8 @@ export interface Order {
   uninvoicedCents?: number
   /** 是否超额开票（累计含税 > 订单金额） */
   overInvoiced?: boolean
+  /** 开票状态三态（简化交互主展示）：none 未开票 / partial 部分开票 / done 已开完 */
+  invoiceState?: InvoiceState
   lines: OrderLine[]
 }
 
@@ -325,6 +327,8 @@ export interface MonthlyCost {
 
 export type InvoiceType = 'vat_special' | 'vat_general' | 'electronic' | 'other'
 export type InvoiceStatus = 'normal' | 'voided'
+/** 订单开票状态：未开票 / 部分开票 / 已开完 */
+export type InvoiceState = 'none' | 'partial' | 'done'
 
 export interface InvoiceOrderRef { orderId: number; orderNo: string }
 
@@ -388,6 +392,7 @@ export interface OrderInvoiceStatus {
   invoicedCents: number
   uninvoicedCents: number
   overInvoiced: boolean
+  invoiceState: InvoiceState
   invoiceCount: number
   voidedCount: number
   warning?: string

@@ -1,6 +1,6 @@
 import { Button, Descriptions, Modal, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
-import { PACK_LABEL, STATUS_LABEL } from '../lib/labels'
+import { INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PACK_LABEL, STATUS_LABEL } from '../lib/labels'
 import { fmtCents } from '../lib/money'
 import type { Order, OrderLine, PackagingSpec } from '../lib/types'
 
@@ -36,6 +36,12 @@ export default function OrderDetailModal({
           {order.overInvoiced
             ? <Tag color="error">已超额开票</Tag>
             : `${fmtCents(order.uninvoicedCents ?? 0)} 元`}
+        </Descriptions.Item>
+        <Descriptions.Item label="开票状态">
+          <Tag color={INVOICE_STATE_COLOR[order.invoiceState ?? 'none']}>
+            {INVOICE_STATE_LABEL[order.invoiceState ?? 'none']}
+          </Tag>
+          {order.overInvoiced && <Tag color="error">超额</Tag>}
         </Descriptions.Item>
       </Descriptions>
       <Table<OrderLine>

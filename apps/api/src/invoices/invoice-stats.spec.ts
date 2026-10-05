@@ -1,4 +1,4 @@
-import { buildOrderInvoiceView, partialInvoiceNote, summarizeInvoices } from './invoice-stats';
+import { buildOrderInvoiceView, orderInvoiceState, partialInvoiceNote, summarizeInvoices } from './invoice-stats';
 
 const inv = (status: string, excl: number, tax: number) => ({
   status, amountExclCents: excl, taxCents: tax, amountInclCents: excl + tax,
@@ -58,5 +58,33 @@ describe('开票统计（I16）：作废不计入、部分开票累计', () => {
     expect(v.uninvoicedCents).toBe(0);
     expect(v.invoiceCount).toBe(0);
     expect(partialInvoiceNote(v)).toBeUndefined();
+  });
+});
+
+describe('订单开票状态三态（I16 交互简化）：未开票 / 部分开票 / 已开完', () => {
+  it('已开票 = 0 → 未开票', () => {
+    expect(orderInvoiceState(100000, 0)).toBe('none');
+    expect(orderInvoiceState(0, 0)).toBe('none');
+  });
+
+  it('0 < 已开票 < 价格 → 部分开票（差 1 分也算部分）', () => {
+    expect(orderInvoiceState(100000, 1)).toBe('partial');
+    expect(orderInvoiceState(100000, 99999)).toBe('partial');
+  });
+
+  it('已开票 = 价格 → 已开完', () => {
+    expect(orderInvoiceState(100000, 100000)).toBe('done');
+  });
+
+  it('已开票 > 价格（超额）→ 仍为已开完且不报错', () => {
+    expect(orderInvoiceState(100000, 123000)).toBe('done');
+    expect(() => orderInvoiceState(100000, 123000)).not.toThrow();
+  });
+
+  it('视图内联状态与函数口径一致（含作废票不计入）', () => {
+    expect(buildOrderInvoiceView(100000, []).invoiceState).toBe('none');
+    expect(buildOrderInvoiceView(100000, [inv('normal', 88495, 11505)]).invoiceState).toBe('done');
+    expect(buildOrderInvoiceView(100000, [inv('normal', 44248, 5752)]).invoiceState).toBe('partial');
+    expect(buildOrderInvoiceView(100000, [inv('voided', 88495, 11505)]).invoiceState).toBe('none');
   });
 });

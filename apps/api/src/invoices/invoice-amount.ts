@@ -12,13 +12,13 @@ import { RATE_SCALE, bpToRate, fromCents, inclCentsOf, rateToBp, taxCentsOf } fr
  */
 
 export interface InvoiceAmountInput {
-  /** 不含税金额（分，必填，整数） */
+  /** 不含税金额（分，整数）；与 amountInclCents 至少给一个 */
   amountExclCents?: unknown;
-  /** 税率（0 ~ 1，最多 4 位小数，如 0.13；缺省按 0） */
+  /** 税率（0 ~ 1，最多 4 位小数，如 0.13；缺省按 0 = 不含税金额与含税金额相同、税额 0） */
   taxRate?: unknown;
   /** 税额（分，选填；填了就必须与 不含税×税率 的定点结果完全一致） */
   taxCents?: unknown;
-  /** 含税金额（分，选填；填了就必须等于 不含税+税额） */
+  /** 含税金额（分，整数）；简化交互主路径：只给这一个，服务端反解不含税与税额 */
   amountInclCents?: unknown;
 }
 
@@ -55,16 +55,36 @@ export const yuanText = (cents: number): string => `${fromCents(cents).toFixed(2
 export const rateText = (rate: number): string => `${Number((rate * 100).toFixed(4))}%`;
 
 /**
+ * 由「含税金额 + 税率」反解「不含税金额」：解 excl 使 taxCentsOf(excl, rate) === incl − excl。
+ * 初值 excl ≈ incl × SCALE / (SCALE + bp)，再在 ±2 分内做整数试探（避免浮点直接反解产生分位偏差）。
+ * 无解返回 null（该含税金额在给定税率下不存在合法的分位拆分）。
+ */
+export const solveExclFromIncl = (incl: number, rate: number): number | null => {
+  const d = RATE_SCALE + rateToBp(rate);
+  const num = Math.round(incl) * RATE_SCALE;
+  const base = Math.floor(num / d);
+  const rem = num - base * d;
+  const guess = rem * 2 >= d ? base + 1 : base;
+  for (let off = 0; off <= 2; off += 1) {
+    const candidates = off === 0 ? [guess] : [guess - off, guess + off];
+    for (const cand of candidates) {
+      if (cand < 0) continue;
+      if (taxCentsOf(cand, rate) === Math.round(incl) - cand) return cand;
+    }
+  }
+  return null;
+};
+
+/**
  * 校验并归一化开票金额。
- * 税额/含税金额未提供时按恒等式自动计算（前端可只填不含税金额与税率）。
+ * · 简化入参（推荐）：只给 amountInclCents（含税，单位分），税率缺省 0 → 不含税 = 含税、税额 = 0；
+ * · 完整入参（兼容既有调用）：给 amountExclCents（± taxCents/amountInclCents），按三金额恒等式强校验。
  */
 export function normalizeInvoiceAmounts(input: InvoiceAmountInput): NormalizedInvoiceAmounts {
-  if (isAbsent(input.amountExclCents)) {
-    throw new BadRequestException('不含税金额（amountExclCents，单位：分）必填');
-  }
-  const excl = intField(numField(input.amountExclCents, 'amountExclCents', '不含税金额'), 'amountExclCents', '不含税金额');
-  if (excl < 0) {
-    throw new BadRequestException(`不含税金额（amountExclCents）不能为负，实际：${excl} 分`);
+  const noExcl = isAbsent(input.amountExclCents);
+  const noIncl = isAbsent(input.amountInclCents);
+  if (noExcl && noIncl) {
+    throw new BadRequestException('开票金额必填：请提供不含税金额（amountExclCents）或含税金额（amountInclCents），单位：分');
   }
 
   const rawRate = isAbsent(input.taxRate) ? 0 : numField(input.taxRate, 'taxRate', '税率');
@@ -73,6 +93,41 @@ export function normalizeInvoiceAmounts(input: InvoiceAmountInput): NormalizedIn
     throw new BadRequestException(`税率（taxRate）须在 0 ~ 1 之间（最多 4 位小数，如 0.13），实际：${rawRate}`);
   }
   const rate = bpToRate(bp);
+
+  // 不含税金额：显式给 → 直接用；只给含税 → 反解（含税 − 税额 或 按税率定点反解）
+  let excl: number;
+  if (!noExcl) {
+    excl = intField(numField(input.amountExclCents, 'amountExclCents', '不含税金额'), 'amountExclCents', '不含税金额');
+    if (excl < 0) {
+      throw new BadRequestException(`不含税金额（amountExclCents）不能为负，实际：${excl} 分`);
+    }
+  } else {
+    const incl = intField(numField(input.amountInclCents, 'amountInclCents', '含税金额'), 'amountInclCents', '含税金额');
+    if (incl < 0) {
+      throw new BadRequestException(`含税金额（amountInclCents）不能为负，实际：${incl} 分`);
+    }
+    if (incl <= 0) {
+      throw new BadRequestException(`含税金额必须大于 0：实际 ${yuanText(incl)}`);
+    }
+    if (!isAbsent(input.taxCents)) {
+      const tax = intField(numField(input.taxCents, 'taxCents', '税额'), 'taxCents', '税额');
+      if (tax < 0) {
+        throw new BadRequestException(`税额（taxCents）不能为负，实际：${tax} 分`);
+      }
+      if (tax > incl) {
+        throw new BadRequestException(`含税金额（amountInclCents）${yuanText(incl)} 小于税额（taxCents）${yuanText(tax)}，无法反解不含税金额`);
+      }
+      excl = incl - tax;
+    } else {
+      const solved = solveExclFromIncl(incl, rate);
+      if (solved === null) {
+        throw new BadRequestException(
+          `按含税金额 ${yuanText(incl)} 与税率 ${rateText(rate)} 无法反解出不含税金额与税额（三金额恒等式无整数分解）：请显式提供 amountExclCents 与 taxCents`,
+        );
+      }
+      excl = solved;
+    }
+  }
 
   // 恒等式 1：税额 = round(不含税 × 税率)
   const expectTax = taxCentsOf(excl, rate);

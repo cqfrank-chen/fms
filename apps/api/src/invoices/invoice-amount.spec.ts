@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { RATE_SCALE, bpToRate, rateToBp, taxCentsOf } from '../common/money';
-import { normalizeInvoiceAmounts } from './invoice-amount';
+import { normalizeInvoiceAmounts, solveExclFromIncl } from './invoice-amount';
 import {
-  alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage,
+  alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage, invoiceNoImmutableMessage,
   orderCustomerMismatchMessage, ordersMissingMessage, voidedImmutableMessage,
 } from './invoice-messages';
 
@@ -78,11 +78,47 @@ describe('开票金额三兄弟校验（I16）', () => {
     );
   });
 
-  it('非整数分 / 非法税率 / 缺不含税金额均拒绝', () => {
+  it('非整数分 / 非法税率 / 缺金额均拒绝', () => {
     expectReject(() => normalizeInvoiceAmounts({ amountExclCents: 100.5, taxRate: 0.13 }), ['不含税金额', '整数']);
     expectReject(() => normalizeInvoiceAmounts({ amountExclCents: 10000, taxRate: 'abc' }), ['税率', '必须是数字']);
     expectReject(() => normalizeInvoiceAmounts({ amountExclCents: 10000, taxRate: 13 }), ['税率', '须在 0 ~ 1 之间']);
     expectReject(() => normalizeInvoiceAmounts({ taxRate: 0.13 }), ['不含税金额', '必填']);
+  });
+});
+
+describe('开票金额简化入参（I16 交互简化）：只给含税金额', () => {
+  it('只给含税金额、不给税率 → 税率默认 0、不含税 = 含税、税额 = 0', () => {
+    const r = normalizeInvoiceAmounts({ amountInclCents: 100000 });
+    expect(r).toEqual({ amountExclCents: 100000, taxRate: 0, taxCents: 0, amountInclCents: 100000 });
+  });
+
+  it('只给含税金额 + 13% → 反解不含税 100.00 元、税额 13.00 元（恒等式成立）', () => {
+    const r = normalizeInvoiceAmounts({ amountInclCents: 11300, taxRate: 0.13 });
+    expect(r).toEqual({ amountExclCents: 10000, taxRate: 0.13, taxCents: 1300, amountInclCents: 11300 });
+    expect(r.amountExclCents + r.taxCents).toBe(r.amountInclCents);
+  });
+
+  it('反解在 ±2 分内收敛：含税 9% 与 6% 抽样自洽', () => {
+    for (const [incl, rate] of [[10900, 0.09], [10600, 0.06], [10100, 0.01], [12345, 0.13]] as Array<[number, number]>) {
+      const excl = solveExclFromIncl(incl, rate);
+      expect(excl).not.toBeNull();
+      expect(taxCentsOf(excl as number, rate) + (excl as number)).toBe(incl);
+    }
+  });
+
+  it('只给含税 + 税额 → 反解不含税（含税 − 税额）并复核恒等式', () => {
+    const r = normalizeInvoiceAmounts({ amountInclCents: 11300, taxCents: 1300, taxRate: 0.13 });
+    expect(r.amountExclCents).toBe(10000);
+    expect(r.amountInclCents).toBe(11300);
+  });
+
+  it('无整数分解时明确拒绝：含税 1 分 + 100% 税率', () => {
+    expectReject(() => normalizeInvoiceAmounts({ amountInclCents: 1, taxRate: 1 }), ['无法反解', '含税金额', 'amountExclCents']);
+  });
+
+  it('含税金额为 0 或负数仍拒绝', () => {
+    expectReject(() => normalizeInvoiceAmounts({ amountInclCents: 0 }), ['含税金额', '必须大于 0']);
+    expectReject(() => normalizeInvoiceAmounts({ amountInclCents: -100 }), ['含税金额', '不能为负']);
   });
 });
 
@@ -95,6 +131,7 @@ describe('开票中文提示文案（I16）', () => {
 
   it('金额不可改 / 已作废不可改 / 重复作废提示', () => {
     expect(amountImmutableMessage('不含税金额（amountExclCents）')).toContain('请先作废');
+    expect(invoiceNoImmutableMessage('INV-004')).toContain('不可修改');
     expect(voidedImmutableMessage('INV-002')).toContain('已作废，不可修改');
     expect(alreadyVoidedMessage('INV-003', '2026-03-01 10:20', '开错客户')).toContain('已作废（2026-03-01 10:20，原因：开错客户）');
   });

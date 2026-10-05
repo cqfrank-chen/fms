@@ -36,6 +36,22 @@ export function summarizeInvoices(rows: InvoiceAmountRow[]): InvoiceTotals {
   return t;
 }
 
+/**
+ * 订单开票状态（简化交互的三态）：未开票 / 部分开票 / 已开完。
+ * 规则（金额一律按「分」整数比较，避免浮点误差）：
+ *   已开票 = 0            → none（未开票）
+ *   0 < 已开票 < 订单金额  → partial（部分开票）
+ *   已开票 ≥ 订单金额      → done（已开完；超额开票同样算已开完，不报错）
+ */
+export type OrderInvoiceState = 'none' | 'partial' | 'done';
+
+export function orderInvoiceState(orderAmountCents: number, invoicedCents: number): OrderInvoiceState {
+  const amount = Math.round(orderAmountCents ?? 0);
+  const invoiced = Math.round(invoicedCents ?? 0);
+  if (invoiced <= 0) return 'none';
+  return invoiced >= amount ? 'done' : 'partial';
+}
+
 export interface OrderInvoiceView {
   /** 订单金额（分，按订单行 Σ 数量×单价 精确定点计算） */
   orderAmountCents: number;
@@ -45,6 +61,8 @@ export interface OrderInvoiceView {
   uninvoicedCents: number;
   /** 是否超额开票（累计含税 > 订单金额） */
   overInvoiced: boolean;
+  /** 开票状态三态：none 未开票 / partial 部分开票 / done 已开完 */
+  invoiceState: OrderInvoiceState;
   /** 有效发票张数（未作废） */
   invoiceCount: number;
   /** 已作废发票张数 */
@@ -68,6 +86,7 @@ export function buildOrderInvoiceView(orderAmountCents: number, rows: InvoiceAmo
     invoicedCents,
     uninvoicedCents: Math.max(0, amount - invoicedCents),
     overInvoiced: over,
+    invoiceState: orderInvoiceState(amount, invoicedCents),
     invoiceCount: normal.length,
     voidedCount: rows.length - normal.length,
     warning: over

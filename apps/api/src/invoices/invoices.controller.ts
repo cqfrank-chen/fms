@@ -58,24 +58,29 @@ class SummaryInvoicesDto {
   to?: string;
 }
 
+/** 新建开票：简化路径只需 customerId + amountInclCents（含税，分），其余全部可选 */
 class CreateInvoiceDto implements CreateInvoiceBody {
-  @IsString({ message: '发票号码（invoiceNo）必填' })
-  @IsNotEmpty({ message: '发票号码（invoiceNo）必填' })
-  invoiceNo: string;
+  @IsOptional()
+  @IsString({ message: '发票号码（invoiceNo）须为字符串' })
+  invoiceNo?: string;
 
+  @IsOptional()
   @IsIn(INVOICE_TYPES, {
     message: '发票类型（invoiceType）非法：须为 vat_special（增值税专用发票）/ vat_general（增值税普通发票）/ electronic（电子发票）/ other（其他）',
   })
-  invoiceType: InvoiceType;
+  invoiceType?: InvoiceType;
 
-  @IsInt({ message: '客户（customerId）必填' })
-  customerId: number;
+  @IsOptional()
+  @IsInt({ message: '客户（customerId）须为整数；不传则由关联订单反推（未挂单时必填）' })
+  customerId?: number;
 
+  @IsOptional()
   @IsInt({ message: '不含税金额（amountExclCents，单位：分）必须是整数' })
-  amountExclCents: number;
+  amountExclCents?: number;
 
-  @IsNumber({}, { message: '税率（taxRate）必填且须为数字（如 0.13；0 表示免税）' })
-  taxRate: number;
+  @IsOptional()
+  @IsNumber({}, { message: '税率（taxRate）须为数字（如 0.13；0 表示免税）' })
+  taxRate?: number;
 
   @IsOptional()
   @IsInt({ message: '税额（taxCents，单位：分）必须是整数' })
@@ -100,6 +105,10 @@ class CreateInvoiceDto implements CreateInvoiceBody {
 }
 
 class UpdateInvoiceDto implements UpdateInvoiceBody {
+  @IsOptional()
+  @IsString({ message: '发票号码（invoiceNo）须为字符串' })
+  invoiceNo?: string;
+
   @IsOptional()
   @IsString()
   remark?: string;

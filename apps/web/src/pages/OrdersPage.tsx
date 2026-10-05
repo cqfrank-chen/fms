@@ -6,12 +6,13 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
-import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
+import { INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
 import { fmtCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 import OrderDetailModal from '../components/OrderDetailModal'
 import AiOrderImport from '../components/AiOrderImport'
+import InvoiceFormModal from '../components/InvoiceFormModal'
 import type { AiFillPayload, AiResolveResult } from '../components/AiOrderImport'
 
 const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_LABEL).map(([value, label]) => ({ value, label }))
@@ -541,6 +542,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [kw, setKw] = useState('')
   const [detail, setDetail] = useState<Order | null>(null)
+  /** 快捷开票目标订单（带入剩余未开票金额；I16 交互简化） */
+  const [invoiceFor, setInvoiceFor] = useState<Order | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [cancelingId, setCancelingId] = useState<number | null>(null)
@@ -599,10 +602,13 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     { title: '订单号', dataIndex: 'orderNo', width: 170, render: (v: string) => <Text strong>{v}</Text> },
     { title: '客户', dataIndex: 'customerName', width: 160 },
     { title: 'PO号', dataIndex: 'poNo', width: 110, render: (v?: string | null) => v || '—' },
+    // 开票三列（I16 交互简化）：价格 / 已开票 / 开票状态 —— 未开票余额仍在「详情」与开票弹窗中可见
     {
-      title: '总额(元)', width: 120, align: 'right',
+      title: '价格(元)', width: 120, align: 'right',
       render: (_: unknown, r: Order) => (
-        <Text strong>{r.totalAmount != null ? r.totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</Text>
+        <Text strong>{r.totalAmountCents != null
+          ? fmtCents(r.totalAmountCents)
+          : (r.totalAmount != null ? r.totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—')}</Text>
       ),
     },
     {
@@ -610,16 +616,15 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       render: (_: unknown, r: Order) => (
         r.invoicedCents
           ? <Text>{fmtCents(r.invoicedCents)}</Text>
-          : <Text type="secondary">—</Text>
+          : <Text type="secondary">0.00</Text>
       ),
     },
     {
-      title: '未开票(元)', width: 110, align: 'right',
-      render: (_: unknown, r: Order) => (
-        r.uninvoicedCents != null
-          ? <Text strong style={{ color: r.overInvoiced ? '#cf1322' : undefined }}>{fmtCents(r.uninvoicedCents)}</Text>
-          : <Text type="secondary">—</Text>
-      ),
+      title: '开票状态', width: 100,
+      render: (_: unknown, r: Order) => {
+        const state = r.invoiceState ?? (r.invoicedCents ? 'partial' : 'none')
+        return <Tag color={INVOICE_STATE_COLOR[state]}>{INVOICE_STATE_LABEL[state] ?? state}</Tag>
+      },
     },
     {
       title: '产品行', render: (_: unknown, r: Order) => (
@@ -640,7 +645,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     { title: '录单人', dataIndex: 'operatorName', width: 100, render: (v?: string | null) => v || <Text type="secondary">未绑定</Text> },
     { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => (v ? <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD HH:mm')}</Text> : '—') },
     {
-      title: '操作', width: 300,
+      title: '操作', width: 360,
       render: (_, r) => (
         <Space size={4}>
           {r.status === 'draft' && (
@@ -667,11 +672,20 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
               <Button danger size="small" loading={cancelingId === r.id}>取消订单</Button>
             </Popconfirm>
           )}
+          {/* 快捷开票（I16）：带入该订单剩余未开票金额，点确定即结清 */}
+          <Button
+            size="small" type="primary" ghost
+            disabled={r.invoiceState === 'done'}
+            title={r.invoiceState === 'done' ? '该订单已开完票（如需继续开票请在账务页操作）' : '按剩余未开票金额开票'}
+            onClick={() => setInvoiceFor(r)}
+          >
+            开发票
+          </Button>
           <Button size="small" onClick={() => setDetail(r)}>详情</Button>
         </Space>
       ),
     },
-  ], [confirmingId, deletingId, cancelingId])
+  ], [confirmingId, deletingId, cancelingId, setInvoiceFor])
 
   const filterBar = !archived && (
     <Space wrap style={{ marginBottom: 12 }}>
@@ -696,6 +710,20 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       <Table<Order> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
         pagination={{ pageSize: 10, showSizeChanger: false }} />
       <OrderDetailModal order={detail} open={!!detail} onClose={() => setDetail(null)} />
+      {/* 快捷开票：关联订单已带入且锁定，开票金额默认 = 价格 − 已开票，点「确定开票」即结清 */}
+      <InvoiceFormModal
+        open={!!invoiceFor}
+        edit={null}
+        customers={customers}
+        orders={rows}
+        prefill={invoiceFor ? {
+          orderIds: [invoiceFor.id],
+          customerId: invoiceFor.customerId,
+          amountInclCents: Math.max(0, invoiceFor.uninvoicedCents ?? 0),
+          lockOrders: true,
+        } : null}
+        onClose={(reload) => { setInvoiceFor(null); if (reload) fetchRows() }}
+      />
     </Card>
   )
 }

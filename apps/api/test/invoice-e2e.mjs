@@ -331,11 +331,12 @@ async function main() {
   eq('税率越界（13 当 13%）→ 400', badRate.status, 400);
   ok('税率中文提示', String(badRate.body.message).includes('0 ~ 1'), badRate.body.message);
 
+  // 票号可选（I16 交互简化）：缺省自动生成占位票号「待补号-YYYYMMDD-NN」，可随后补录真实票号
   const noNo = await req('POST', '/invoices', {
     invoiceNo: '', invoiceType: 'other', customerId: STATE.customerId, ...amountsOf(10000, 0.13),
   }, token);
-  eq('票号缺失 → 400', noNo.status, 400);
-  ok('票号中文提示', JSON.stringify(noNo.body.message).includes('发票号码'), noNo.body.message);
+  eq('票号缺省 → 201（自动生成占位票号）', noNo.status, 201);
+  ok('占位票号前缀正确（待补号-）', String(noNo.body.invoiceNo).startsWith('待补号-'), noNo.body.invoiceNo);
 
   // ---------- 6) 编辑 ----------
   console.log('\n【编辑】非金额字段可改 / 金额关键字段拒绝');
@@ -520,5 +521,6 @@ function today() {
 
 main().catch((e) => {
   console.error('自测脚本异常中断：', e);
-  process.exitCode = 1;
+  // 异常时立即退出：避免 pg 连接挂住事件循环导致脚本“假死”不返回
+  process.exit(1);
 });

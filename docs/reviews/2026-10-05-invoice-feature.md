@@ -3,6 +3,9 @@
 日期：2026-10-05 ｜ 范围：`apps/api`（NestJS 11 + Drizzle + PostgreSQL）、`apps/web`（React 19 + AntD 6）
 约束遵守：只本地 commit、不 push、不碰云端；迁移只新增；金额全走 `common/money.ts` 定点助手；写接口全部留痕 `operator_id`；未改动既有收款/核销/成本逻辑。
 
+> **追加（同日）**：客户要求「不要做的太复杂，只需要价格、已经开票价格、是否开完票」——
+> 已按「只简化交互层、不删除既有能力、后端契约与既有测试保持可用」完成简化，详见文末 **第五步**。
+
 ---
 
 ## 第一步：现有做账模块 Review（未改代码，仅新增开票线）
@@ -215,7 +218,129 @@ http://127.0.0.1/api/health → {"status":"ok","db":"up",...} [HTTP 200]
 3. **红字发票缺失**：只有「作废」，无跨月红冲（负数发票）。建议后续新增 `invoice_type='red'`（或 `is_red` 标记）并在统计中抵减。
 4. **开票 ↔ 收款未自动勾稽**：仅同屏展示，无「按发票核销」的应收关联；如需开票-回款配对分析需再加视图。
 5. **未采集发票代码**（`invoice_code`）与税控 20 位票号校验；如需对接税控可加列 + 校验。
-6. **前端未做「按订单剩余未开票金额一键带出」**（多订单合并开票已支持多选）。
+6. **前端「按订单剩余未开票金额一键带出」已在第五步补齐**（订单行「开发票」按钮；多订单合并开票支持多选）。
 7. **开票权限固定为 admin/accounting**；若计划员也需开票需扩 `@Roles`。
 8. **既有缺口未在本票处理**（避免超范围改动）：收付款冲销缺原因/冲销人留痕、无部分冲销/退款、编号并发撞号重试、营收按业务日而非 created_at、月结账期口径、导出未含发票 —— 建议单独立票。
 9. **前端 lint 有 38 条既有风格告警**（`set-state-in-effect` 等），本次未引入新错误也未顺带整改。
+
+---
+
+## 第五步：开票交互大幅简化（追加任务，2026-10-05）
+
+客户原话：「不要做的太复杂，只需要，价格和已经开票价格，和是否开完票」。
+原则：**只简化交互层，不删除既有能力**（后端契约兼容、既有 141 项 e2e 与 161 项 Excel e2e 保持全绿）。
+
+### 1. 订单视角的三列
+
+| 列 | 含义 | 展示 |
+| --- | --- | --- |
+| **价格(元)** | 订单总额 | 既有字段（`totalAmountCents`，定点求和） |
+| **已开票(元)** | 该订单已开票金额合计（只算未作废发票，实时聚合） | 无开票显示 `0.00` |
+| **开票状态** | 未开票 / 部分开票 / 已开完 | AntD Tag（灰 / 橙 / 绿） |
+
+状态规则（`apps/api/src/invoices/invoice-stats.ts#orderInvoiceState`，全部按「分」整数比较）：
+
+- 已开票 = 0 → `none`（未开票）
+- 0 < 已开票 < 价格 → `partial`（部分开票）
+- 已开票 ≥ 价格 → `done`（已开完；**超额开票仍判为已开完且不报错**）
+
+订单列表 / 详情 / 订单开票进度接口（`/api/invoices/order-status`）均返回该状态；后端 `GET /api/orders` 每行新增 `invoiceState` 字段（`none|partial|done`）。
+未开票余额未删除：仍保留在订单详情弹窗、开票进度接口与账务页「订单对账」中。
+
+### 2. 新建开票：只让用户填一个金额
+
+弹窗（`apps/web/src/components/InvoiceFormModal.tsx`，账务页与订单页共用）主字段：
+
+- **关联订单**（多选；从订单行「开发票」按钮带入时锁定不可改）
+- **开票金额（含税，元）** —— 唯一必填金额
+- **开票日期**（默认今天）
+- **发票号（可选）**
+- **备注（可选）**
+
+**税率默认 0%**：不含税 = 含税、税额 = 0，用户完全不用管税。
+**「高级」（默认收起，能力不删除）**：票种、税率（13/9/6/1/0%）、客户（不挂单时必选，挂单时自动带入）、金额拆分（不含税/税额只读）、占位票号补录提示。
+统计卡、按客户/按月小计、订单对账、明细列（票种/税率/不含税/税额/经办人）全部收进账务页的「高级：统计与明细」折叠区（默认收起，可用开关展开明细列）。
+作废弹窗默认原因「作废重开」，原因输入框收进「高级：作废原因」。
+
+**后端兼容（服务端自动补齐，既有入参方式仍可用）**：
+- `amountInclCents` 单传即可：`taxRate` 缺省 0 → `amountExclCents = amountInclCents`、`taxCents = 0`，再走既有三金额恒等校验；
+- 给了税率（如 13%）而只给含税金额时，服务端用定点整数算法**反解**不含税（`solveExclFromIncl`，初值 `incl×10000/(10000+bp)` + ±2 分整数试探），无整数分解时明确 400；
+- 只给含税 + 税额时，不含税 = 含税 − 税额，再校验恒等式；
+- 完整入参（`amountExclCents ± taxCents/amountInclCents`）行为不变（既有 141 项 e2e 全绿）；
+- `customerId` 变为可选：缺省由关联订单反推（多单必须同客户，未挂单时必须显式指定）；
+- `invoiceNo` 变为可选：缺省自动生成占位票号 **`待补号-YYYYMMDD-NN`**（同前缀最大序号 +1，事务内取号）；占位号可在编辑时**补录**真实票号，真实票号仍不可改（换号须作废重开）。
+
+### 3. 快捷开票（一键开完）
+
+订单行新增「**开发票**」按钮（已开完时置灰并提示）：
+
+1. 打开弹窗并**自动带出该订单剩余未开票金额**（价格 − 已开票）；
+2. 关联订单已带入且锁定，税率默认 0%、票种默认 `vat_general`、日期默认今天；
+3. 点「确定开票」即结清 —— 成功后订单状态立即变为 **已开完**、未开票余额 0。
+
+### 4. 本次改动的文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/api/src/invoices/invoice-stats.ts` | 新增 `orderInvoiceState()` 三态函数；`OrderInvoiceView` 增 `invoiceState` |
+| `apps/api/src/invoices/invoice-amount.ts` | 新增 `solveExclFromIncl()`；`normalizeInvoiceAmounts` 支持「只给含税」简化入参（税率默认 0 / 反解 / 含税+税额 反解） |
+| `apps/api/src/invoices/invoices.service.ts` | 新建：票号可选（占位号生成 `nextPlaceholderNo`）、票种默认、客户可由订单反推（`customerIdFromOrders`）、编辑允许补录占位票号；`orderStatus` 返回 `invoiceState`；DTO 字段全部改可选 |
+| `apps/api/src/invoices/invoices.controller.ts` | CreateInvoiceDto：`invoiceNo/invoiceType/customerId/amountExclCents/taxRate` 改可选；UpdateInvoiceDto 增 `invoiceNo` |
+| `apps/api/src/invoices/invoice-messages.ts` | 新增 `invoiceNoImmutableMessage()` |
+| `apps/api/src/orders/orders.service.ts` | 订单列表/详情新增 `invoiceState` |
+| `apps/api/src/invoices/invoice-amount.spec.ts` / `invoice-stats.spec.ts` | 新增 11 项单测（简化入参、反解、三态、边界） |
+| `apps/api/test/invoice-simple-e2e.mjs` | **新增**简化交互 e2e（64 项） |
+| `apps/api/test/invoice-e2e.mjs` | 仅「票号缺失」用例按新契约改写（缺省→201+占位号，断言数不变 141）；catch 改为 `process.exit(1)` 避免异常时假死 |
+| `apps/web/src/lib/money.ts` | 新增 `splitInclCents()`（与后端反解同算法） |
+| `apps/web/src/lib/labels.ts` | 新增 `INVOICE_STATE_LABEL/INVOICE_STATE_COLOR/INVOICE_PLACEHOLDER_PREFIX` |
+| `apps/web/src/lib/types.ts` | 增 `InvoiceState`；`Order.invoiceState`、`OrderInvoiceStatus.invoiceState` |
+| `apps/web/src/components/InvoiceFormModal.tsx` | **新增**简化开票弹窗（含「高级」折叠） |
+| `apps/web/src/components/InvoicesPanel.tsx` | 重写为「主路径三件事 + 高级折叠区」；作废原因默认值；占位票号标记 |
+| `apps/web/src/pages/OrdersPage.tsx` | 订单列表改为 价格/已开票/开票状态 三列；新增「开发票」按钮与弹窗；移除「未开票(元)」列（余额仍在详情/对账中） |
+| `apps/web/src/components/OrderDetailModal.tsx` | 增「开票状态」标签 |
+
+### 5. 真实命令与输出
+
+```
+apps/api > npm test
+Test Suites: 8 passed, 8 total
+Tests:       109 passed, 109 total     （开票两个 suite 共 30 项，其中新增 11 项简化相关）
+
+apps/api > npm run build                    → exit 0
+apps/web > npm run build                    → ✓ built in 329ms（dist/assets/index-OYCTu42V.js 1,508.86 kB）
+
+apps/api > node test/invoice-simple-e2e.mjs（空库 API :3100 + PG :15432）
+  【1. 订单三状态】未开票 none → 部分开票 partial（300.00/1000.00）→ 已开完 done（+700.00）
+                   超额开票 201 且状态仍为 done、未开票余额 0、返回 warning（超出 50.00 元）
+  【2. 简化开票】只传 invoiceNo + amountInclCents + issueDate + orderIds → 201
+                   返回 amountExclCents == amountInclCents == 12345、taxCents == 0、taxRate == 0
+                   SQL 核对：不含税 12345 / 税额 0 / 含税 12345 / 税率 0；全库恒等式违规行数 0
+                   不传票号 → 自动占位号「待补号-20261005-01」；补录 SIM-REAL-9 成功，再改 → 400 中文提示
+                   （兼容）完整入参 [10000,1300,11300] 正常；只给含税 11300 + 13% → 反解 [10000,1300]
+  【3. 快捷开完】O2 先开 200.00（partial，剩余 30000 分）→ 按剩余金额开票 → done、未开票 0、无 warning
+  【4. 鉴权】未登录 401；workshop 403；workshop 仍可读订单（含 invoiceState）
+  【5. 汇总】张数/含税/不含税/税额 与 SQL 一致；作废接口仍可用（作废后 O2 回落到 partial）
+  ================ 结果 ================
+  通过 64 项，失败 0 项
+
+apps/api > node test/invoice-e2e.mjs（回归，空库）
+  通过 141 项，失败 0 项
+apps/api > node test/excel-order-e2e.mjs（回归，空库）
+  通过 161 项，失败 0 项
+
+仓库根 > docker compose up -d --build
+  fms-app / fms-nginx Up，fms-postgres healthy
+  docker logs fms-app | grep ERROR → 0 ；docker logs fms-nginx | grep ERROR → 0
+  http://127.0.0.1/api/health → 200
+  生产库冒烟：GET /api/orders 每行含 invoiceState（无发票订单为 none）；GET /api/invoices 正常
+```
+
+### 6. 简化后的遗留问题
+
+1. **占位票号**：`待补号-YYYYMMDD-NN` 是真实入库的票号（占未作废唯一名额）；月底对账需人工筛出待补号并补录（列表已用橙色「待补票号」标记）。
+2. **税率 0% 为默认**：简化路径开出的票都是 0% 税率（不含税=含税、税额=0）；需要专票/含税分离时须在「高级」里改税率，或在税控系统按票面为准调整。
+3. **金额仍不可改**：简化没有放宽「改金额须作废重开」的凭证约束（仅票号在占位状态下可补录）。
+4. **订单列表移除「未开票(元)」列**：按客户要求只保留三列，未开票余额改在「详情」「开票弹窗提示」「账务页订单对账」查看；接口字段仍保留。
+5. **快捷开票不做超额拦截**：已开完的订单按钮置灰，但仍可从账务页继续开票（按既有业务弹性，返回 warning）。
+6. 既有缺口（无红字发票、开票↔收款未自动勾稽、发票代码未采集、冲销无原因/冲销人）依旧未处理，建议单独立票。
+

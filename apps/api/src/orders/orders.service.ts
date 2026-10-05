@@ -6,6 +6,7 @@ import type { OrderStatus } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
 import { fromCents, sumLineCents, toCents } from '../common/money';
 import { InvoicesService } from '../invoices/invoices.service';
+import { orderInvoiceState } from '../invoices/invoice-stats';
 
 export interface OrderLineDto {
   productId: number;
@@ -260,6 +261,8 @@ export class OrdersService {
         invoicedCents,
         uninvoicedCents: Math.max(0, totalCents - invoicedCents),
         overInvoiced: invoicedCents > totalCents,
+        // 简化交互的三态开票状态：none 未开票 / partial 部分开票 / done 已开完（按「分」整数比较）
+        invoiceState: orderInvoiceState(totalCents, invoicedCents),
         lines: ordLines,
       };
     });

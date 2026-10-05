@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, like, lte, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../db';
 import { customers, invoiceOrders, invoices, operators, orderLines, orders, receivables } from '../db/schema';
@@ -8,7 +8,7 @@ import { currentOperatorId } from '../common/operator-context';
 import { toCents } from '../common/money';
 import { normalizeInvoiceAmounts } from './invoice-amount';
 import {
-  alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage,
+  alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage, invoiceNoImmutableMessage,
   orderCustomerMismatchMessage, ordersMissingMessage, voidedImmutableMessage,
 } from './invoice-messages';
 import { buildOrderInvoiceView, summarizeInvoices } from './invoice-stats';
@@ -20,17 +20,30 @@ const todayYmd = (): string => {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
 
+/**
+ * 自动占位票号前缀（简化交互）：发票号选填，缺省时自动生成「待补号-YYYYMMDD-NN」，
+ * 后续可在编辑时补录真实票号（仅当当前票号仍是占位号时允许改号）。
+ */
+export const INVOICE_PLACEHOLDER_PREFIX = '待补号-';
+
 /** 作废操作人（与开票人分开 join，避免同一张表两次左连的别名冲突） */
 const voidOperator = alias(operators, 'void_operator');
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** 新建开票入参：简化路径只需 amountInclCents（含税，单位分）+ 可选 invoiceNo/issueDate/orderIds */
 export interface CreateInvoiceDto {
-  invoiceNo: string;
-  invoiceType: InvoiceType;
-  customerId: number;
-  amountExclCents: number;
-  taxRate: number;
+  /** 发票号码；选填（缺省自动生成占位号「待补号-YYYYMMDD-NN」，可随后补录） */
+  invoiceNo?: string;
+  /** 票种；选填，缺省 vat_general */
+  invoiceType?: InvoiceType;
+  /** 客户；选填，缺省由关联订单反推（未挂单时必填） */
+  customerId?: number;
+  /** 不含税金额（分）；与 amountInclCents 至少给一个 */
+  amountExclCents?: number;
+  /** 税率；选填，缺省 0（不含税=含税、税额=0） */
+  taxRate?: number;
   taxCents?: number;
+  /** 含税金额（分）；简化交互主路径 */
   amountInclCents?: number;
   issueDate?: string;
   orderIds?: number[];
@@ -38,6 +51,8 @@ export interface CreateInvoiceDto {
 }
 
 export interface UpdateInvoiceDto {
+  /** 仅当当前票号是占位号（待补号-…）时允许补录真实票号 */
+  invoiceNo?: string;
   remark?: string | null;
   issueDate?: string;
   taxRate?: number;
@@ -294,6 +309,7 @@ export class InvoicesService {
       invoicedCents: view.invoicedCents,
       uninvoicedCents: view.uninvoicedCents,
       overInvoiced: view.overInvoiced,
+      invoiceState: view.invoiceState,
       invoiceCount: view.invoiceCount,
       voidedCount: view.voidedCount,
       warning: view.warning,
@@ -302,6 +318,16 @@ export class InvoicesService {
       unreceivedCents: Math.max(0, receivableCents - receivedCents),
       invoices: invs.map((x) => this.toItem({ inv: x.inv, customerName: row.customerName, operatorName: x.operatorName, voidOperatorName: x.voidOperatorName }, [])),
     };
+  }
+
+  /** 占位票号：待补号-YYYYMMDD-NN（同前缀最大序号 +1，含作废记录一并避开撞号） */
+  private async nextPlaceholderNo(tx: Tx, ymdDate: string): Promise<string> {
+    const prefix = `${INVOICE_PLACEHOLDER_PREFIX}${ymdDate}-`;
+    const [row] = await tx
+      .select({ mx: sql<number | null>`coalesce(max(substring(${invoices.invoiceNo} from '[0-9]+$')::int), 0)` })
+      .from(invoices)
+      .where(like(invoices.invoiceNo, `${prefix}%`));
+    return `${prefix}${pad2(Number(row?.mx ?? 0) + 1)}`;
   }
 
   /** 订单金额（分）：按订单行 Σ(数量 × round(单价×100))，SQL 定点计算，无浮点尾差 */
@@ -343,19 +369,32 @@ export class InvoicesService {
   }
 
   // ==================== 新建 ====================
+  /**
+   * 新建发票（简化交互）：
+   * · 金额：只需 amountInclCents（含税，单位分），税率缺省 0 → 不含税=含税、税额=0；
+   *   完整入参（amountExclCents ± taxCents/amountInclCents）与既有调用完全兼容；
+   * · 票号：选填，缺省自动生成占位号「待补号-YYYYMMDD-NN」，可随后编辑补录；
+   * · 票种：选填，缺省 vat_general；
+   * · 客户：选填，缺省时由关联订单反推（多单必须同客户）。
+   */
   async create(dto: CreateInvoiceDto) {
     const amounts = normalizeInvoiceAmounts(dto);
-    const invoiceNo = (dto.invoiceNo ?? '').trim();
-    if (!invoiceNo) throw new BadRequestException('发票号码（invoiceNo）必填');
+    const invoiceNoInput = (dto.invoiceNo ?? '').trim();
+    const invoiceType: InvoiceType = dto.invoiceType ?? 'vat_general';
     const issueDate = (dto.issueDate ?? '').trim() || todayYmd();
     this.assertDate(issueDate, '开票日期（issueDate）');
     const orderIds = [...new Set((dto.orderIds ?? []).map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0))];
 
+    // 票号占位（在事务内取号，避免并发撞号）
+    let invoiceNo = invoiceNoInput;
     const created = await db
       .transaction(async (tx: Tx) => {
-        const [cust] = await tx.select().from(customers).where(eq(customers.id, dto.customerId));
+        // 客户缺省：由关联订单反推（简化交互下前端只传订单 + 一个金额）
+        const customerId = dto.customerId ?? (await this.customerIdFromOrders(tx, orderIds));
+        const [cust] = await tx.select().from(customers).where(eq(customers.id, customerId));
         if (!cust) throw new NotFoundException('客户不存在');
-        await this.assertOrders(tx, orderIds, dto.customerId);
+        await this.assertOrders(tx, orderIds, customerId);
+        if (!invoiceNo) invoiceNo = await this.nextPlaceholderNo(tx, issueDate.replace(/-/g, ''));
         const [dup] = await tx
           .select({ id: invoices.id })
           .from(invoices)
@@ -367,8 +406,8 @@ export class InvoicesService {
           .insert(invoices)
           .values({
             invoiceNo,
-            invoiceType: dto.invoiceType,
-            customerId: dto.customerId,
+            invoiceType,
+            customerId,
             taxRate: amounts.taxRate,
             amountExclCents: amounts.amountExclCents,
             taxCents: amounts.taxCents,
@@ -419,26 +458,54 @@ export class InvoicesService {
       ? [...new Set((dto.orderIds ?? []).map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0))]
       : null;
 
-    await db.transaction(async (tx: Tx) => {
-      if (orderIds) await this.assertOrders(tx, orderIds, cur.customerId);
-      await tx
-        .update(invoices)
-        .set({
-          taxRate: amounts.taxRate,
-          taxCents: amounts.taxCents,
-          amountInclCents: amounts.amountInclCents,
-          issueDate,
-          remark: dto.remark !== undefined ? (dto.remark ?? null) : cur.remark,
-          updatedAt: new Date(),
-        })
-        .where(eq(invoices.id, id));
-      if (orderIds) {
-        await tx.delete(invoiceOrders).where(eq(invoiceOrders.invoiceId, id));
-        if (orderIds.length) {
-          await tx.insert(invoiceOrders).values(orderIds.map((orderId) => ({ invoiceId: id, orderId })));
+    // 票号：占位号（待补号-…）允许补录为真实票号；真实票号不可改（换号请作废重开）
+    let nextInvoiceNo: string | null = null;
+    if (dto.invoiceNo !== undefined) {
+      const raw = String(dto.invoiceNo).trim();
+      if (!raw) throw new BadRequestException('发票号码（invoiceNo）不能为空');
+      if (raw !== cur.invoiceNo) {
+        if (!cur.invoiceNo.startsWith(INVOICE_PLACEHOLDER_PREFIX)) {
+          throw new BadRequestException(invoiceNoImmutableMessage(cur.invoiceNo));
         }
+        nextInvoiceNo = raw;
       }
-    });
+    }
+
+    await db
+      .transaction(async (tx: Tx) => {
+        if (orderIds) await this.assertOrders(tx, orderIds, cur.customerId);
+        if (nextInvoiceNo) {
+          const [dup] = await tx
+            .select({ id: invoices.id })
+            .from(invoices)
+            .where(and(eq(invoices.invoiceNo, nextInvoiceNo), eq(invoices.status, 'normal' as InvoiceStatus)));
+          if (dup) throw new BadRequestException(invoiceNoConflictMessage(nextInvoiceNo));
+        }
+        await tx
+          .update(invoices)
+          .set({
+            ...(nextInvoiceNo ? { invoiceNo: nextInvoiceNo } : {}),
+            taxRate: amounts.taxRate,
+            taxCents: amounts.taxCents,
+            amountInclCents: amounts.amountInclCents,
+            issueDate,
+            remark: dto.remark !== undefined ? (dto.remark ?? null) : cur.remark,
+            updatedAt: new Date(),
+          })
+          .where(eq(invoices.id, id));
+        if (orderIds) {
+          await tx.delete(invoiceOrders).where(eq(invoiceOrders.invoiceId, id));
+          if (orderIds.length) {
+            await tx.insert(invoiceOrders).values(orderIds.map((orderId) => ({ invoiceId: id, orderId })));
+          }
+        }
+      })
+      .catch((e: unknown) => {
+        if (isUniqueViolation(e) && nextInvoiceNo) {
+          throw new BadRequestException(invoiceNoConflictMessage(nextInvoiceNo));
+        }
+        throw e;
+      });
 
     const item = await this.findOne(id);
     const warning = orderIds ? await this.overInvoiceWarning(orderIds) : undefined;
@@ -480,6 +547,26 @@ export class InvoicesService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) {
       throw new BadRequestException(`${label}格式须为 YYYY-MM-DD，实际：${v}`);
     }
+  }
+
+  /** 从关联订单推断开票客户：未挂单则必须显式给 customerId；多单分属不同客户则拒绝 */
+  private async customerIdFromOrders(tx: Tx, orderIds: number[]): Promise<number> {
+    if (!orderIds.length) {
+      throw new BadRequestException('客户（customerId）必填：未关联订单时无法推断开票客户');
+    }
+    const rows = await tx
+      .select({ id: orders.id, customerId: orders.customerId })
+      .from(orders)
+      .where(inArray(orders.id, orderIds));
+    if (rows.length !== orderIds.length) {
+      const found = new Set(rows.map((r) => r.id));
+      throw new BadRequestException(ordersMissingMessage(orderIds.filter((x) => !found.has(x))));
+    }
+    const custIds = [...new Set(rows.map((r) => r.customerId))];
+    if (custIds.length > 1) {
+      throw new BadRequestException('关联订单分属不同客户，无法推断开票客户：请只选同一客户的订单，或显式指定 customerId');
+    }
+    return custIds[0];
   }
 
   /** 关联订单校验：必须存在，且与发票客户一致（否则对账口径会串客户） */

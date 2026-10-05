@@ -13,6 +13,10 @@ export const invoiceNoConflictMessage = (invoiceNo: string): string =>
 export const amountImmutableMessage = (field: string): string =>
   `${field}为开票凭证关键字段，不可直接修改：请先作废（POST /api/invoices/:id/void）后重新开票`;
 
+/** 真实票号不可修改（占位号「待补号-…」允许补录） */
+export const invoiceNoImmutableMessage = (invoiceNo: string): string =>
+  `发票号码「${invoiceNo}」为开票凭证关键字段，不可修改：如需换号请先作废（POST /api/invoices/:id/void）后重新开票`;
+
 /** 已作废发票不可编辑 */
 export const voidedImmutableMessage = (invoiceNo: string): string =>
   `发票 ${invoiceNo} 已作废，不可修改（如需更正请重新开票）`;
