@@ -7,7 +7,9 @@
  * 保证「界面导入」与「脚本导入」是同一套口径（唯一实现见 apps/api/src/quotes/quotes.service.ts）。
  *
  * CSV 表头（可下载模板 GET /api/quotes/template）：
- *   客户名称,产品名称,单价,币种,生效日期,失效日期,备注
+ *   客户名称,产品名称,单价,币种,生效日期,失效日期,来源,备注
+ *   · **来源**（可选）取值 manual / import / doc / contract（也接受中文「手工/导入/单据提取/合同成交价」）；
+ *     contract = 合同成交价种子、doc = 单据（.doc 采购单）提取；**留空沿用既有口径 import**（向后兼容）；
  *   · 客户名称留空 = 通用价（不限客户）；填了但不在客户档案 → 该行报错（不臆造客户）；
  *   · 产品名称可不在产品目录（此时只按名称文本匹配，product_id 留空）；
  *   · 单价必填（元，最多 2 位小数）；币种 RMB / ￥ / 人民币 等一律由服务端归一到 CNY。
@@ -92,6 +94,12 @@ console.log('--- 预览（服务端分类统计）---');
 console.log('  文件类型：' + pv.body.fileKind + '　表头行：# ' + (pv.body.headerRowIndex + 1));
 console.log('  识别到的列：' + JSON.stringify(pv.body.columns) + (pv.body.unmappedHeaders?.length ? '　未识别列：' + JSON.stringify(pv.body.unmappedHeaders) : ''));
 console.log('  共 ' + s.total + ' 行：新增 ' + s.new + ' / ' + (MODE === 'upsert' ? '改价 ' : '跳过 ') + (MODE === 'upsert' ? s.update : s.skip) + ' / 跳过 ' + s.skip + ' / 错误 ' + s.error);
+const srcStat = {};
+for (const row of pv.body.rows) {
+  const v = row.data?.source ?? '（未填→import）';
+  srcStat[v] = (srcStat[v] ?? 0) + 1;
+}
+console.log('  来源分布：' + JSON.stringify(srcStat));
 for (const row of pv.body.rows) {
   if (row.status === 'error') console.log('  [错误] 第 ' + row.rowNo + ' 行：' + row.reasons.join('；'));
 }

@@ -1,0 +1,4551 @@
+{
+ "generatedAt": "2026-10-05T16:06:00.771Z",
+ "root": "D:/futures/ziliao-data",
+ "excel": {
+  "scanned": 597,
+  "priceContracts": 570,
+  "byTop": {
+   "安宝公司": 316,
+   "尤耐克": 254
+  }
+ },
+ "docSlices": {
+  "files": 277,
+  "byKind": {
+   "other": 30,
+   "plan": 214,
+   "purchase": 33
+  },
+  "productRows": 1879,
+  "recoveredRows": 29,
+  "pricedRows": 122
+ },
+ "contract": {
+  "productRows": 3878,
+  "noiseSkipped": 61
+ },
+ "candidates": 1444,
+ "confidence": {
+  "高": 484,
+  "中": 177,
+  "低": 783
+ },
+ "typeDistribution": {
+  "待定": 1173,
+  "us_propane": 76,
+  "us_acetylene": 165,
+  "uk_acetylene": 11,
+  "uk_propane": 19
+ },
+ "typeTbd": 1173,
+ "variantGroups": 129,
+ "variantRows": 586,
+ "excluded": {
+  "sizeOnlyContract": 0,
+  "sizeOnlyDoc": 39,
+  "sizeOnlyDocPriced": 26,
+  "noiseContract": 61,
+  "samples": {
+   "sizeOnly": [
+    [
+     "嵊州海田/江南采购单/任江南采购单 - HARRIS焊杆.doc",
+     "1#",
+     7.6
+    ],
+    [
+     "嵊州海田/江南采购单/任江南采购单 - HARRIS焊杆.doc",
+     "3#",
+     7.6
+    ],
+    [
+     "嵊州海田/江南采购单/任江南采购单 - HARRIS焊杆.doc",
+     "5#",
+     8.9
+    ],
+    [
+     "嵊州海田/AIR IMETAN Ricardo/任江南采购单 - HARRIS焊杆.doc",
+     "1#",
+     6.4
+    ],
+    [
+     "嵊州海田/AIR IMETAN Ricardo/任江南采购单 - HARRIS焊杆.doc",
+     "3#",
+     7.2
+    ],
+    [
+     "嵊州海田/CCR HARRIS-2AC, 焊杆/HARRIS焊杆采购单.doc",
+     "1#",
+     6.4
+    ],
+    [
+     "嵊州海田/CCR HARRIS-2AC, 焊杆/HARRIS焊杆采购单.doc",
+     "3#",
+     7.2
+    ],
+    [
+     "嵊州海田/CCR HARRIS-2AC, 焊杆/HARRIS焊杆采购单.doc",
+     "5#",
+     7.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "0",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "1",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "2",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "3",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "4",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "5",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "6",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "7",
+     9.7
+    ],
+    [
+     "正恒公司/106D7镀铬采购单.doc",
+     "8",
+     9.7
+    ],
+    [
+     "正恒公司/114字订单小朱/114字 小朱订单/106D7镀铬采购单.doc",
+     "00",
+     8.2
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "00",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "0",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "1",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "2",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "3",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "4",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "5",
+     8.5
+    ],
+    [
+     "正恒公司/毛军方6290NX, 6290, 106D7/106D7镀铬采购单.doc",
+     "6",
+     8.5
+    ]
+   ],
+   "noise": [
+    [
+     "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/62902AC合同/AB211021 出口产品供需合同-奉化一洲.xls",
+     "6290-AC 乙炔割嘴 HARRIS品牌 2#  \n刻字须和我们样品一致\n内芯：2 A C H\n外壳：2AC HARRIS\n      A25-50m/m\n     MADE BY HARRIS\n\n包装：用HARRIS新彩盒"
+    ],
+    [
+     "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/62902AC合同/AB23463 出口产品供需合同-奉化一洲.xls",
+     "6290-AC 乙炔割嘴 HARRIS品牌 2#  \n刻字须和我们样品一致\n内芯：2 A C H\n外壳：2AC HARRIS\n      A25-50m/m\n     MADE BY HARRIS\n\n包装：用HARRIS新彩盒"
+    ],
+    [
+     "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/62902AC合同/AB251268  6290-2AC.xls",
+     "仿HARRIS6290-AC 乙炔割嘴 2#  \n重45克\n内芯：2 A C H\n外壳：2AC HARRIS\n      A25-50m/m\n     MADE BY HARRIS\n\n包装：用HARRIS新彩盒"
+    ],
+    [
+     "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/62902AC合同/ab24063 出口产品供需合同-奉化一洲.xls",
+     "6290-AC 乙炔割嘴 HARRIS品牌 2#  \n刻字须和我们样品一致\n内芯：2 A C H\n外壳：2AC HARRIS\n      A25-50m/m\n     MADE BY HARRIS\n\n包装：用HARRIS新彩盒"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/2026/ab26430.xls",
+     "BAYO GPN割嘴5只\n(00#、0#、1#、2#、3#)*1组\n刻字对应型号内外嘴刻字 刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/2026/ab26430.xls",
+     "VICTOR GPN割嘴10只\n#00.0.1.2.3.4.5.6.7.8各1只\n刻字对应型号内外嘴刻字 刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：仿-塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/2026/ab26430.xls",
+     "victor 乙炔割嘴10只 1-101\n刻字：VICTOR 00-1-101\n1-101 victor刻字割嘴\n#00.0.1.2.3.4.5.6.7.8\n\n包装：仿-塑料盒+不干胶\n10只割嘴塑料盒再入PP袋\n返单AB241003"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/2026/ab26430.xls",
+     "VICTOR GPN割嘴15只\n刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*3组\n刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/2026/ab26430.xls",
+     "BAYO GPN割嘴15只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*3组\n刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/2026/ab26430.xls",
+     "BAYO 3-GPN割嘴15只\n刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*3组\n刻字：如右图\n内嘴上3-GPN\n外嘴上BAYO 3-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "BAYO GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "VICTOR GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "VICTOR GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "VICTOR GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "BAYO GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "BAYO GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB22466 出口产品供需合同-一州(1).xls",
+     "BAYO 3-GPN割嘴8只-刻字对应型号内外嘴刻字\n(00#*7只、1#*1只)*1组\n刻字：如右图\n内嘴上3-GPN\n外嘴上BAYO 3-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/AB241003 出口产品供需合同-一州.xls",
+     "victor 丙烷割嘴 GPN－0#\n刻字：内嘴上0-GPN\n外嘴上VICTOR 0-GPN\n10只GPN victor刻字割嘴\n#00.0.1.2.3.4.5.6.7.8\n\n包装：VICTOR塑料盒+不干胶\n10只割嘴塑料盒再入PP袋"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/ab24169 出口产品供需合同-奉化一洲.xls",
+     "BAYO GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/ab24169 出口产品供需合同-奉化一洲.xls",
+     "VICTOR GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/ab24169 出口产品供需合同-奉化一洲.xls",
+     "VICTOR GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图 内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/ab24169 出口产品供需合同-奉化一洲.xls",
+     "VICTOR GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上VICTOR 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/ab24169 出口产品供需合同-奉化一洲.xls",
+     "BAYO GPN割嘴5只-刻字对应型号内外嘴刻字\n(00#、0#、1#、2#、3#)*1组\n刻字：如右图\n内嘴上1-GPN\n外嘴上BAYO 1-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/VICTOR+BAYO/订单/ab24169 出口产品供需合同-奉化一洲.xls",
+     "BAYO 3-GPN割嘴8只-刻字对应型号内外嘴刻字\n00#*4只、0#*2只、1#*2只为1组\n刻字：如右图\n内嘴上3-GPN\n外嘴上BAYO 3-GPN\n\n包装：塑料盒+不干胶"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21323（一洲）有重量  (1).xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21403（一洲）有重量  .xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21403（一洲）有重量  .xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21403（一洲）有重量  .xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21403（一洲）有重量  .xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21403（一洲）有重量  .xls",
+     "客户需求产品描述"
+    ],
+    [
+     "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/出口产品供需合同AB21403（一洲）有重量  .xls",
+     "客户需求产品描述"
+    ]
+   ]
+  }
+ },
+ "outputs": {
+  "candidates": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_candidates.csv",
+  "variants": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_variants.csv",
+  "priceRows": "D:\\futures\\factory-management-system\\tools\\ziliao\\contract_price_rows.json"
+ },
+ "top": [
+  {
+   "name": "1-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "VICTOR包装 印: MADE IN USA",
+   "count": 91,
+   "files": 91,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/常规生产计划单.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "11101",
+   "altWritings": 0
+  },
+  {
+   "name": "2-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "VICTOR包装 印: MADE IN USA, 不干胶不用贴,另外放",
+   "count": 88,
+   "files": 88,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "21101",
+   "altWritings": 0
+  },
+  {
+   "name": "3-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 79,
+   "files": 79,
+   "example": "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+   "examples": [
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+    "嵊州海田/AMZ  1-101 JZWELD牌子/常规生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "31101",
+   "altWritings": 0
+  },
+  {
+   "name": "0-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "VICTOR包装 MADE IN USA",
+   "count": 59,
+   "files": 59,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "01101",
+   "altWritings": 0
+  },
+  {
+   "name": "4-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 58,
+   "files": 58,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AMZ  1-101 JZWELD牌子/常规生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "41101",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN-1",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 不干胶made in mexico GPN用新警告标志",
+   "count": 44,
+   "files": 44,
+   "example": "嵊州海田/常规生产计划单.doc",
+   "examples": [
+    "嵊州海田/常规生产计划单.doc",
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn1",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 警告标志 MADE IN USA",
+   "count": 44,
+   "files": 44,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn2",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 6290-1# 产品号码6010",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "6290割嘴",
+   "count": 43,
+   "files": 38,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴62901#产品号码6010",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 MC-12-1# 产品号码6003",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 42,
+   "files": 38,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2022/AB22907 出口产品供需合同-一洲P052657.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴mc121#产品号码6003",
+   "altWritings": 4
+  },
+  {
+   "name": "2-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 41,
+   "files": 41,
+   "example": "ziliao/安宝公司/B.S.A. 6290NX,6290,1-101,GPN/AB22854 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/B.S.A. 6290NX,6290,1-101,GPN/AB22854 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/B.S.A. 6290NX,6290,1-101,GPN/AB23568 出口产品供需合同-一洲(1).xls",
+    "ziliao/安宝公司/B.S.A. 6290NX,6290,1-101,GPN/AB24310 出口产品供需合同-一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同+计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "2gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 SC-12-2# 产品号码6001",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "这款要求26.4.5提前发货",
+   "count": 41,
+   "files": 38,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24002 出口产品供需合同-一洲PO61910(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴sc122#产品号码6001",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 MC-12-2# 产品号码6004",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 41,
+   "files": 37,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab230044 出口产品供需合同-一洲po53070.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab23587 出口产品供需合同-一洲po60881.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴mc122#产品号码6004",
+   "altWritings": 3
+  },
+  {
+   "name": "1-101 割嘴  0#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 38,
+   "files": 38,
+   "example": "ziliao/尤耐克/1-101泡壳小应/LGC230319082宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/1-101泡壳小应/LGC230319082宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW251107575宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW251107606宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1101割嘴0#",
+   "altWritings": 1
+  },
+  {
+   "name": "5-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 38,
+   "files": 38,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "51101",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 00#-3-101 产品号码6017",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 38,
+   "files": 38,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2022/AB22907 出口产品供需合同-一洲P052657.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴00#3101产品号码6017",
+   "altWritings": 1
+  },
+  {
+   "name": "GPN-3",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "塑壳 蓝盖 不干胶 50只/中盒",
+   "count": 38,
+   "files": 38,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+    "嵊州海田/CAD  蓝盖GPN/蓝盖 GPN 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn3",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-GPN 2#\n产品号码6028",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 38,
+   "files": 36,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2022/AB221050 出口产品供需合同-一洲P052929.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1gpn2#产品号码6028",
+   "altWritings": 2
+  },
+  {
+   "name": "1-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 新款不干胶,GPN贴警告标志 印: MADE IN USA 106HC: 吸塑,放说明书 印:MADE IN JAPAN",
+   "count": 37,
+   "files": 37,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/BOM GPN/VICTOR GPN 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-3-GPN 产品号码6031",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 36,
+   "files": 36,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2022/AB221050 出口产品供需合同-一洲P052929.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴13gpn产品号码6031",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1#-3-101 产品号码6019",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 36,
+   "files": 36,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab23799 出口产品供需合同-一洲po61342.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1#3101产品号码6019",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 1-GPN 3#\n产品号码6029",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 36,
+   "files": 33,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24002 出口产品供需合同-一洲PO61910(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1gpn3#产品号码6029",
+   "altWritings": 1
+  },
+  {
+   "name": "3-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 35,
+   "files": 35,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/BOM GPN/VICTOR GPN 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "3gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1#-1-101 产品号码6024",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 35,
+   "files": 35,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab23799 出口产品供需合同-一洲po61342.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1#1101产品号码6024",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 2-3-GPN 产品号码6032",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 35,
+   "files": 35,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab230044 出口产品供需合同-一洲po53070.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴23gpn产品号码6032",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 2#-1-101 产品号码6025",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 35,
+   "files": 35,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab23799 出口产品供需合同-一洲po61342.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴2#1101产品号码6025",
+   "altWritings": 1
+  },
+  {
+   "name": "6290NX-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "塑壳 乙炔红盖 丙烷黑盖 不干胶 50只/中盒",
+   "count": 34,
+   "files": 34,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX 6290NX GPN 邢/常规生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/HARRIS NX 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx2",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 2#-3-101 产品号码6020",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 34,
+   "files": 34,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24002 出口产品供需合同-一洲PO61910(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴2#3101产品号码6020",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 6290-3# 产品号码6012",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 34,
+   "files": 34,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24002 出口产品供需合同-一洲PO61910(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴62903#产品号码6012",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 3#-3-101 产品号码6021",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 33,
+   "files": 33,
+   "example": "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/M Haseeb  A.SH  106hc直通  80克/A.SH/AB241054 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24002 出口产品供需合同-一洲PO61910(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴3#3101产品号码6021",
+   "altWritings": 0
+  },
+  {
+   "name": "2-W",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 31,
+   "files": 31,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "2w",
+   "altWritings": 0
+  },
+  {
+   "name": "4-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 31,
+   "files": 31,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/BOM GPN/VICTOR GPN 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "4gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX-3",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 31,
+   "files": 31,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX 6290NX GPN 邢/常规生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/HARRIS NX 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx3",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-2 53g\n代码：4187",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 31,
+   "files": 31,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx253g代码4187",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX-1",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "HARRIS彩盒 不干胶 10只/中盒 VICTOR包装",
+   "count": 30,
+   "files": 30,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/HARRIS NX 生产计划单.doc",
+    "嵊州海田/CJE, CJS, GPN, 1-101,新警告标志 邢/常规生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx1",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-2 93g\n代码：4158",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 30,
+   "files": 30,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a293g代码4158",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-2 103g\n代码：4136",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 30,
+   "files": 30,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc122103g代码4136",
+   "altWritings": 0
+  },
+  {
+   "name": "1-101 割嘴  1#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 29,
+   "files": 29,
+   "example": "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250407175宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250407175宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/2026/UW260907468宁波一洲(1).xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/LGC231107515-1宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1101割嘴1#",
+   "altWritings": 1
+  },
+  {
+   "name": "GPN-4",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 MADE IN MEXICO 1-101,GPN都贴新款贴警告标志",
+   "count": 29,
+   "files": 29,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn4",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-0 53g\n代码：4184",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 28,
+   "files": 28,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx053g代码4184",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-1 93g\n代码：4157",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 28,
+   "files": 28,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a193g代码4157",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-3 103g\n代码：4137",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 28,
+   "files": 28,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc123103g代码4137",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-5 103g\n代码：4151",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 28,
+   "files": 28,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc125103g代码4151",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-1 53g\n代码：4186",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 27,
+   "files": 27,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx153g代码4186",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-3 53g\n代码：4188",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 27,
+   "files": 27,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx353g代码4188",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-1 103g\n代码：4134",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色 刻字例如：SC12-3",
+   "count": 27,
+   "files": 27,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc121103g代码4134",
+   "altWritings": 0
+  },
+  {
+   "name": "0-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 新款不干胶,GPN贴警告标志 印: MADE IN USA",
+   "count": 26,
+   "files": 26,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/BSC VICTOR GPN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/VICTOR 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "0gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-3 93g\n代码：4161",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 26,
+   "files": 26,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a393g代码4161",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-4 93g\n代码：4162",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 26,
+   "files": 26,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a493g代码4162",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-4 103g\n代码：4138",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 26,
+   "files": 26,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21779 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc124103g代码4138",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN-0",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "塑壳 1-1-1红盖 GPN黑盖 不干胶 50只/中盒",
+   "count": 24,
+   "files": 24,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn0",
+   "altWritings": 0
+  },
+  {
+   "name": "1-W",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 23,
+   "files": 23,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1w",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN-2 71g\n代码：4194",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 23,
+   "files": 23,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn271g代码4194",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 乙炔割嘴6290-3 \n代码：4027",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 23,
+   "files": 23,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris乙炔割嘴62903代码4027",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-0 103g\n代码：4133",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 23,
+   "files": 23,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc120103g代码4133",
+   "altWritings": 0
+  },
+  {
+   "name": "1-101 割嘴  00#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 22,
+   "files": 22,
+   "example": "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250307093宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250307093宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250807377宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/LGC10507185-宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1101割嘴00#",
+   "altWritings": 1
+  },
+  {
+   "name": "丙烷割嘴 GPN-1 71g\n代码：4193",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 22,
+   "files": 22,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn171g代码4193",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN-3 71g\n代码：4195",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 21,
+   "files": 21,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn371g代码4195",
+   "altWritings": 0
+  },
+  {
+   "name": "5-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 20,
+   "files": 20,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/VICTOR 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "5gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-1",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "塑壳 红盖 不干胶 50只/中盒",
+   "count": 20,
+   "files": 20,
+   "example": "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/6290HARRIS生产计划单.doc",
+   "examples": [
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/6290HARRIS生产计划单.doc",
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/HARRIS NX 生产计划单.doc",
+    "嵊州海田/PAV, HARRIS原装,PVA,CWD,CCR/HARRIS NX 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62901",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX-0",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "塑壳 黑盖 不干胶 50只/中盒",
+   "count": 20,
+   "files": 20,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX 6290NX GPN 邢/常规生产计划单.doc",
+    "嵊州海田/CLG 6290NX/常规生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx0",
+   "altWritings": 0
+  },
+  {
+   "name": "8-MFA",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 20,
+   "files": 20,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/AMZ  1-101 JZWELD牌子/任江南采购单,MFN MFA.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "8mfa",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴1-101-2 102g\n代码：4191",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 20,
+   "files": 20,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab230046  出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴11012102g代码4191",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "尼龙袋 白盒 不干胶 10只/中盒 PNME-3 50 985克)",
+   "count": 20,
+   "files": 19,
+   "example": "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/6290HARRIS生产计划单.doc",
+   "examples": [
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/6290HARRIS生产计划单.doc",
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/HARRIS NX 生产计划单.doc",
+    "嵊州海田/ECG 订单/MASTER 6290NX 计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62902",
+   "altWritings": 0
+  },
+  {
+   "name": "3-W",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 19,
+   "files": 19,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "3w",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX-4",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 19,
+   "files": 19,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX 6290NX GPN 邢/常规生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/HARRIS NX 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx4",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴1-101-3 102g\n代码：4192",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 19,
+   "files": 19,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴11013102g代码4192",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 乙炔割嘴6290-4 \n代码：4209",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 18,
+   "files": 18,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22815 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris乙炔割嘴62904代码4209",
+   "altWritings": 0
+  },
+  {
+   "name": "00-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "VICTOR包装 新款不干胶印:MADE IN MEXICO 1-101,GPN都贴新款贴警告标志",
+   "count": 17,
+   "files": 17,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/CKP, CHL, MEXICO 1-101/CKP, GPN  1-101生产计划单.doc",
+    "嵊州海田/CKP, CHL, MEXICO 1-101/CPT 1-101生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "001101",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX-5",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 17,
+   "files": 17,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX 6290NX GPN 邢/常规生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/HARRIS NX 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx5",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN-5",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 17,
+   "files": 17,
+   "example": "嵊州海田/CJE, CJS, GPN, 1-101,新警告标志 邢/VICTOR GPN 1-101生产计划单.doc",
+   "examples": [
+    "嵊州海田/CJE, CJS, GPN, 1-101,新警告标志 邢/VICTOR GPN 1-101生产计划单.doc",
+    "嵊州海田/CJH 订单/VICTOR1-101生产计划单.doc",
+    "嵊州海田/CJY 1-101, GPN/VICTOR1-101生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn5",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-3",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 16,
+   "files": 16,
+   "example": "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/6290HARRIS生产计划单.doc",
+   "examples": [
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/6290HARRIS生产计划单.doc",
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/HARRIS NX 生产计划单.doc",
+    "嵊州海田/PAV, HARRIS原装,PVA,CWD,CCR/HARRIS NX 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62903",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #2\n塑料盖贴：1-101 2",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 16,
+   "files": 14,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#2塑料盖贴11012",
+   "altWritings": 1
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-2 103g\n货号：4136",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 16,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25271 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25875 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc122103g货号4136",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #3\n塑料盖贴：1-101 3",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 15,
+   "files": 13,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22329 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#3塑料盖贴11013",
+   "altWritings": 1
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-3 103g\n货号：4137",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 15,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25271 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25875 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc123103g货号4137",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-5 103g\n货号：4151",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 15,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25271 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25875 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc125103g货号4151",
+   "altWritings": 0
+  },
+  {
+   "name": "00-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 新款不干胶,GPN贴警告标志",
+   "count": 14,
+   "files": 14,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/CFK 1-101 MADE IN MEXICO/VICTOR 生产计划单.doc",
+    "嵊州海田/CFT1-101,GPN   MADE MEXICO 邢/VICTOR 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "00gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 6290-2#\n产品号码6011",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "6290割嘴",
+   "count": 14,
+   "files": 14,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23759 出口产品供需合同-一洲P061258.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23824 出口产品供需合同-一洲PO61372.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23923 出口产品供需合同-一洲P061582.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴62902#产品号码6011",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴1-101 1# 产品号码6024",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 14,
+   "files": 14,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24378  出口产品供需合同-一洲PO62435.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴11011#产品号码6024",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴3-101 0# 产品号码6018",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 14,
+   "files": 14,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24357 出口产品供需合同-一洲PO62395.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24707 出口产品供需合同-一洲PO62833.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴31010#产品号码6018",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴1-101 0# 产品号码6023",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "1-101割嘴",
+   "count": 14,
+   "files": 14,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26106.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴11010#产品号码6023",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴3-101 0# 产品号码6018",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 14,
+   "files": 14,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26106.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴31010#产品号码6018",
+   "altWritings": 0
+  },
+  {
+   "name": "WS6290NX2丙烷割嘴 6290-NX-2",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用深蓝色",
+   "count": 14,
+   "files": 14,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws6290nx2丙烷割嘴6290nx2",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-0 103g\n货号：4133",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色 SC12重量102.7克",
+   "count": 14,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25271 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25875 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc120103g货号4133",
+   "altWritings": 0
+  },
+  {
+   "name": "1-101 割嘴  2#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 13,
+   "example": "ziliao/尤耐克/CROSSWELD文件/合同/LGC230507212宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/CROSSWELD文件/合同/LGC230507212宁波一洲.xlsx",
+    "ziliao/尤耐克/JOVAL订单/JOVAL订单/lgc91101438-宁波一洲.xls",
+    "ziliao/尤耐克/OKILA改不干胶/OKILA订单/LGC10801310-宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1101割嘴2#",
+   "altWritings": 1
+  },
+  {
+   "name": "1-101 割嘴  3#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 13,
+   "example": "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250607285宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250607285宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/2025/UW250707328宁波一洲 (1).xlsx",
+    "ziliao/尤耐克/JOVAL订单/JOVAL订单/LGC10801313-宁波一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1101割嘴3#",
+   "altWritings": 1
+  },
+  {
+   "name": "6290NX-6",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 13,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/HARRIS 6290NX生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/HARRIS NX 生产计划单.doc",
+    "嵊州海田/CWD HARRIS 6290AC 邢/6290AC HARRIS生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx6",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴1-101 2# 产品号码6025",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 13,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24378  出口产品供需合同-一洲PO62435.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24903 出口产品供需合同-一洲PO63123.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴11012#产品号码6025",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴3-101 2# 产品号码6020",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 13,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB241060 出口产品供需合同-一洲PO63329.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24757 出口产品供需合同-一洲PO62924(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴31012#产品号码6020",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴3-101 00# 产品号码6017",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "3-101割嘴",
+   "count": 13,
+   "files": 13,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26107.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴310100#产品号码6017",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN 割嘴 1#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 13,
+   "example": "ziliao/安宝公司/旧订单资料/M Haseeb victor GPN/AB21960 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/旧订单资料/M Haseeb victor GPN/AB21960 出口产品供需合同-奉化一洲.xls",
+    "ziliao/尤耐克/275 叶, 倪 363/LGC230701332宁波一洲.xlsx",
+    "ziliao/尤耐克/CROSSWELD文件/合同/LGC231107515-2宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn割嘴1#",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 乙炔割嘴 SC-12-4 103g\n货号：4138",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 13,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25271 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2025/AB25875 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith乙炔割嘴sc124103g货号4138",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-4",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 12,
+   "files": 12,
+   "example": "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/HARRIS NX 生产计划单.doc",
+   "examples": [
+    "嵊州海田/CWX 1-101,2-W SC12,MC12,HARRIS NX,AC/HARRIS NX 生产计划单.doc",
+    "正恒公司/032字的106D7 袁毫东/210880320407生产计划单.doc",
+    "正恒公司/114字订单小朱/114字 小朱订单/114 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62904",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴3-101 1# 产品号码6019",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 12,
+   "files": 12,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24357 出口产品供需合同-一洲PO62395.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24903 出口产品供需合同-一洲PO63123.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴31011#产品号码6019",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴3-101 1# 产品号码6019",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "3-101割嘴",
+   "count": 12,
+   "files": 12,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26107.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴31011#产品号码6019",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴3-101 2# 产品号码6020",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 12,
+   "files": 12,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26107.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴31012#产品号码6020",
+   "altWritings": 0
+  },
+  {
+   "name": "WS6290NX1丙烷割嘴 6290-NX-1",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用 深蓝色",
+   "count": 12,
+   "files": 12,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws6290nx1丙烷割嘴6290nx1",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴\n1-101",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 12,
+   "files": 2,
+   "example": "ziliao/安宝公司/1-101常规250409/AB25293 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/1-101常规250409/AB25293 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/常规 1-101, 3-101/AB25631 出口产品供需合同-一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "0# / 1# / 2# / 3# / 4# / 5#",
+   "key": "乙炔割嘴1101",
+   "altWritings": 0
+  },
+  {
+   "name": "1502 割嘴 4#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/尤耐克/BARBOSA 1502,1503,NFF/订单/LGC230307107宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/BARBOSA 1502,1503,NFF/订单/LGC230307107宁波一洲.xlsx",
+    "ziliao/尤耐克/BARBOSA 1502,1503,NFF/订单/LGC230507238宁波一洲.xlsx",
+    "ziliao/尤耐克/BARBOSA 1502,1503,NFF/订单/LGC230807356宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "1502割嘴4#",
+   "altWritings": 0
+  },
+  {
+   "name": "6-1-101",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 11,
+   "files": 11,
+   "example": "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+   "examples": [
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+    "嵊州海田/CJY 1-101, GPN/VICTOR1-101生产计划单.doc",
+    "嵊州海田/CSJ 1-101,GPN 邢/VICTOR1-101生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "61101",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN-2 71g\n货号：4194",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn271g货号4194",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴1-101 1# 产品号码6024",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26107.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴11011#产品号码6024",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴1-101 2# 产品号码6025",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "1-101割嘴",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26107.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴11012#产品号码6025",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-1 53g\n货号：4186",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx153g货号4186",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-2 53g\n货号：4187",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx253g货号4187",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 乙炔割嘴6290-2 55g\n货号：4210",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris乙炔割嘴6290255g货号4210",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-2 93g\n货号：4158",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a293g货号4158",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-3 93g\n货号：4161",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a393g货号4161",
+   "altWritings": 0
+  },
+  {
+   "name": "WSSC502丙烷割嘴 SC-50-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用深蓝色",
+   "count": 11,
+   "files": 11,
+   "example": "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab23341 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2024/AB23340 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "wssc502丙烷割嘴sc502",
+   "altWritings": 0
+  },
+  {
+   "name": "0-W",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 10,
+   "files": 10,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "0w",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 GPN #2 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/ab25071  出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/ab25071  出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#2仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴1-101 00# 产品号码6022",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24757 出口产品供需合同-一洲PO62924(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24879 出口产品供需合同-一洲PO62138.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴110100#产品号码6022",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴3-101 00# 产品号码6017",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24357 出口产品供需合同-一洲PO62395.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24707 出口产品供需合同-一洲PO62833.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴310100#产品号码6017",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #1\n塑料盖贴：1-101 1",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "品牌：Oxyweld 返单AB24563包装和生产",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22329 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#1塑料盖贴11011",
+   "altWritings": 1
+  },
+  {
+   "name": "乙炔割嘴1-101-2 82g\n货号：4191",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101282g货号4191",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 丙烷割嘴6290-NX-3 53g\n货号：4188",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris丙烷割嘴6290nx353g货号4188",
+   "altWritings": 0
+  },
+  {
+   "name": "PNME18 割嘴 1/16",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「uk」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 10,
+   "files": 10,
+   "example": "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2026/UW260501249(PNME-3).xlsx",
+   "examples": [
+    "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2026/UW260501249(PNME-3).xlsx",
+    "ziliao/尤耐克/MTL/MTL合同/LGC10801299-宁波一洲.xls",
+    "ziliao/尤耐克/MTL/MTL合同/LGC10801300-宁波一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "pnme18割嘴116",
+   "altWritings": 0
+  },
+  {
+   "name": "6290 割嘴 1#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2025前/uw250701344宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2025前/uw250701344宁波一洲.xlsx",
+    "ziliao/尤耐克/FUJIMA,HOYOMA-NX/HOYOMA-6290NX/LGC22301114-宁波一洲.xls",
+    "ziliao/尤耐克/H HOUSE 6290NX/合同/LGC230305078宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290割嘴1#",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-101 #1 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1101#1仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-101 #2 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1101#2仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-101 #3 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1101#3仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 GPN #4 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#4仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴1-101 0# 产品号码6023",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24491 出口产品供需合同-一洲PO62589.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24903 出口产品供需合同-一洲PO63123.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴11010#产品号码6023",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN-00",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "长壳 229,GPN蓝盖, 164,1-101红盖",
+   "count": 9,
+   "files": 9,
+   "example": "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+   "examples": [
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-1.doc",
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+    "嵊州海田/CJU GPN MADE IN USA/VICTOR1-101生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn00",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-1 93g\n货号：4157",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a193g货号4157",
+   "altWritings": 0
+  },
+  {
+   "name": "WS62902乙炔割嘴 6290-2",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用 红色",
+   "count": 9,
+   "files": 9,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab23341 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws62902乙炔割嘴62902",
+   "altWritings": 0
+  },
+  {
+   "name": "10-MFA",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/AMZ  1-101 JZWELD牌子/任江南采购单,MFN MFA.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "10mfa",
+   "altWritings": 0
+  },
+  {
+   "name": "106HC-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/CSH 106HC/TOKYO JAPNN生产计划单.doc",
+    "嵊州海田/HOVU-HCM-VN,      A.C.L/ACL生产计划单-2.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "106hc2",
+   "altWritings": 0
+  },
+  {
+   "name": "4-W",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "4w",
+   "altWritings": 0
+  },
+  {
+   "name": "5-W",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "5w",
+   "altWritings": 0
+  },
+  {
+   "name": "6-GPN",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR包装 新款不干胶,GPN贴警告标志 印: MADE IN USA, 不贴,另放 106HC: 吸塑,放说明书 印:MADE IN JAPAN",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+   "examples": [
+    "嵊州海田/22 IAM   T20 106HC金色字  宋/VICTOR GPN 生产计划单.doc",
+    "嵊州海田/CDX GPN-10直通, HARRIS 6290NX, 229-5H 邢/VICTOR 生产计划单.doc",
+    "嵊州海田/CGT  GPN直通/VICTOR 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6gpn",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-0",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "塑壳 乙炔红盖 丙烷黑盖 不干胶 50只/中盒",
+   "count": 8,
+   "files": 8,
+   "example": "正恒公司/032字的106D7 袁毫东/210880320407生产计划单.doc",
+   "examples": [
+    "正恒公司/032字的106D7 袁毫东/210880320407生产计划单.doc",
+    "正恒公司/114字订单小朱/114字 小朱订单/114 生产计划单.doc",
+    "正恒公司/319字 6290 项高健/常规生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62900",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-2AC",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "HARRIS原装",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/6290AC HARRIS生产计划单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/6290AC HARRIS生产计划单.doc",
+    "嵊州海田/CCR HARRIS-2AC, 焊杆/6290AC HARRIS生产计划单.doc",
+    "嵊州海田/CJE, CJS, GPN, 1-101,新警告标志 邢/6290AC HARRIS生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62902ac",
+   "altWritings": 0
+  },
+  {
+   "name": "6290-5",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "正恒公司/114字订单小朱/114字 小朱订单/114 生产计划单.doc",
+   "examples": [
+    "正恒公司/114字订单小朱/114字 小朱订单/114 生产计划单.doc",
+    "正恒公司/407字 项高健/WelTec-6290生产计划单.doc",
+    "正恒公司/692字 张裕宁/常规生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "62905",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN-1 71g\n货号：4193",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab24257 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn171g货号4193",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN-3 71g\n货号：4195",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn371g货号4195",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-101 #4 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1101#4仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 1-101 #5 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/AB26003 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/ab25071  出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴1101#5仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 GPN #0  塑料盖贴：GPN-0",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "包装要求：塑料盒 贴标：OXYWELD 对应塑料盖上贴型号标贴如图 另注意:塑料盒盖子需要红/蓝区别 PNME嘴外套刻字是229及型号，东西是PNME标贴是229",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#0塑料盖贴gpn0",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 GPN #1  塑料盖贴：GPN-1",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#1塑料盖贴gpn1",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 GPN #2  塑料盖贴：GPN-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#2塑料盖贴gpn2",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 GPN #3  塑料盖贴：GPN-3",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#3塑料盖贴gpn3",
+   "altWritings": 0
+  },
+  {
+   "name": "尼龙袋",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "VICTOR 3-W VICTOR 6-MFA",
+   "count": 8,
+   "files": 8,
+   "example": "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+   "examples": [
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  W焊杆.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR 80V焊杆.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单",
+   "recovered": 8,
+   "variantTexts": "",
+   "key": "尼龙袋",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #0\n塑料盖贴：1-101 0",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22329 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#0塑料盖贴11010",
+   "altWritings": 1
+  },
+  {
+   "name": "GPN 割嘴 3#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/尤耐克/CROSSWELD文件/合同/LGC230207057宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/CROSSWELD文件/合同/LGC230207057宁波一洲.xlsx",
+    "ziliao/尤耐克/CUTTWELD GPN 倪/2026合同。/UW250720327宁波一洲.xlsx",
+    "ziliao/尤耐克/JOVAL订单/JOVAL订单/lgc91101438-宁波一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn割嘴3#",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-0 93g\n货号：4154",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用黑色",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a093g货号4154",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-5 93g\n代码：4163",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 8,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/ab22264 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a593g代码4163",
+   "altWritings": 0
+  },
+  {
+   "name": "15-MFA",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 7,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/AMZ  1-101 JZWELD牌子/任江南采购单,MFN MFA.doc",
+    "嵊州海田/CJE, CJS, GPN, 1-101,新警告标志 邢/VICTOR GPN 1-101生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "15mfa",
+   "altWritings": 0
+  },
+  {
+   "name": "3-101 割嘴 1#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 8,
+   "files": 7,
+   "example": "ziliao/尤耐克/SUA/SUA订单/LGC10202041-宁波一洲.xls",
+   "examples": [
+    "ziliao/尤耐克/SUA/SUA订单/LGC10202041-宁波一洲.xls",
+    "ziliao/尤耐克/SUA/SUA订单/LGC230502215宁波一洲.xlsx",
+    "ziliao/尤耐克/SUA/SUA订单/LGC240302109宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "3101割嘴1#",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #1 仿包装",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 8,
+   "files": 6,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251200 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25193 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#1仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #2 仿包装",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 8,
+   "files": 6,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251200 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25193 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#2仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #3 仿包装",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 8,
+   "files": 6,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251200 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25193 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#3仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #5 仿包装",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 8,
+   "files": 5,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251200 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#5仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #8 仿包装",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 8,
+   "files": 5,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251200 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#8仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "106HC-1",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/CSH 106HC/TOKYO JAPNN生产计划单.doc",
+    "嵊州海田/HOVU-HCM-VN,      A.C.L/ACL生产计划单-2.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "106hc1",
+   "altWritings": 0
+  },
+  {
+   "name": "106HC-3",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/CSH 106HC/TOKYO JAPNN生产计划单.doc",
+    "嵊州海田/HOVU-HCM-VN,      A.C.L/ACL生产计划单-2.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "106hc3",
+   "altWritings": 0
+  },
+  {
+   "name": "106HC-5",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/HOVU-HCM-VN,      A.C.L/ACL生产计划单-2.doc",
+    "嵊州海田/IAS T15,T20,106HC 加热嘴 宋/VICTOR GPN 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "106hc5",
+   "altWritings": 0
+  },
+  {
+   "name": "12-MFA",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+   "examples": [
+    "嵊州海田/21IIF03  VICTOR 1-101, GPN,0-7-W,MFA,MFN 宋/采购单.doc",
+    "嵊州海田/江南采购单/任江南采购单-VICTOR  MFA.doc",
+    "嵊州海田/AMZ  1-101 JZWELD牌子/任江南采购单,MFN MFA.doc"
+   ],
+   "conf": "高",
+   "kinds": "采购单+计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "12mfa",
+   "altWritings": 0
+  },
+  {
+   "name": "6290AC 割嘴 2#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/尤耐克/41,6290AC原装/lgc231201579宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/41,6290AC原装/lgc231201579宁波一洲.xlsx",
+    "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2025前/UW250601272宁波一洲(1).xlsx",
+    "ziliao/尤耐克/POWERHOUSE 6290/UW260701369宁波一洲(1).xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290ac割嘴2#",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX-00",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "塑壳 黑盖 不干胶 50只/中盒",
+   "count": 7,
+   "files": 7,
+   "example": "嵊州海田/CTG NX 邢/常规生产计划单.doc",
+   "examples": [
+    "嵊州海田/CTG NX 邢/常规生产计划单.doc",
+    "嵊州海田/CZA 常规 6290NX/常规生产计划单.doc",
+    "正恒公司/004字订单 项高健/192010040917-1计划单白盒.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单+其它单据",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx00",
+   "altWritings": 0
+  },
+  {
+   "name": "澳大利亚款式乙炔 割嘴 41-12\n刻字内容：如右图所示41  12",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "散装：但需确保运输途中不能损坏。",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/AB21902 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/AB21902 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/AB22683 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/ab231136 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "澳大利亚款式乙炔割嘴4112刻字内容如右图所示4112",
+   "altWritings": 1
+  },
+  {
+   "name": "澳大利亚款式乙炔 割嘴 41-15\n刻字内容如图所示41  15",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/AB21902 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/AB21902 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/AB22683 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/HARRIS 6290-2AC, 41 原装/41合同/ab231136 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "澳大利亚款式乙炔割嘴4115刻字内容如图所示4115",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 GPN #1 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22253 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#1仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴3-101 3# 产品号码6021",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24757 出口产品供需合同-一洲PO62924(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24879 出口产品供需合同-一洲PO62138.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴31013#产品号码6021",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #4\n塑料盖贴：1-101 4",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22329 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#4塑料盖贴11014",
+   "altWritings": 1
+  },
+  {
+   "name": "乙炔割嘴1-101 00# 产品号码6022",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "1-101割嘴",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26029.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26107.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26387.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴110100#产品号码6022",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN 割嘴 5#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/旧订单资料/M Haseeb victor GPN/AB21960 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/旧订单资料/M Haseeb victor GPN/AB21960 出口产品供需合同-奉化一洲.xls",
+    "ziliao/尤耐克/CUTTWELD GPN 倪/2026合同。/UW250720327宁波一洲.xlsx",
+    "ziliao/尤耐克/SUA/SUA订单/LGC240302109宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn割嘴5#",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN-6",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+   "examples": [
+    "嵊州海田/AIR IMETAN Ricardo/AIR IMETAN生产计划单-2 (2).doc",
+    "嵊州海田/CJH 订单/VICTOR1-101生产计划单.doc",
+    "嵊州海田/CJY 1-101, GPN/VICTOR1-101生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn6",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 乙炔割嘴6290-3 55g\n货号：4027",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab24257 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris乙炔割嘴6290355g货号4027",
+   "altWritings": 0
+  },
+  {
+   "name": "smith 丙烷割嘴 SC-50-A-4 93g\n货号：4162",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24793 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/AB24989 出口产品供需合同-奉化一洲(3).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2024/ab241194 出口产品供需合同-奉化一洲(2).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "smith丙烷割嘴sc50a493g货号4162",
+   "altWritings": 0
+  },
+  {
+   "name": "WS10111乙炔割嘴 101-1-1",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用 红色",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws10111乙炔割嘴10111",
+   "altWritings": 0
+  },
+  {
+   "name": "WS62903乙炔割嘴 6290-3",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用 红色",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab23341 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws62903乙炔割嘴62903",
+   "altWritings": 0
+  },
+  {
+   "name": "WS6290NX3丙烷割嘴 6290-NX-3",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws6290nx3丙烷割嘴6290nx3",
+   "altWritings": 0
+  },
+  {
+   "name": "WS6290NX4丙烷割嘴 6290-NX-4",
+   "type": "us_propane",
+   "typeConfirmed": true,
+   "typeReason": "气体（propane）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2023/AB231061 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab231061 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "ws6290nx4丙烷割嘴6290nx4",
+   "altWritings": 0
+  },
+  {
+   "name": "WSGPN2丙烷割嘴 GPN-2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用深蓝色",
+   "count": 7,
+   "files": 7,
+   "example": "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2022前/ab22913 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab23341 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/Weldsolutions不干胶/合同/2023/ab23805 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "wsgpn2丙烷割嘴gpn2",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 1-101 #0 仿包装",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 7,
+   "files": 5,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251200 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴1101#0仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN #1 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 4,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2026/AB26156.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn#1仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN #2 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 4,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2026/AB26156.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn#2仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN #3 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 4,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2026/AB26156.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn#3仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷割嘴 GPN #4 仿包装",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "",
+   "count": 7,
+   "files": 4,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB251050 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2025/AB25565 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2026/AB26156.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷割嘴gpn#4仿包装",
+   "altWritings": 0
+  },
+  {
+   "name": "106HC-0",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "吸塑, 印: MADE IN JAPAN",
+   "count": 6,
+   "files": 6,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/CSH 106HC/TOKYO JAPNN生产计划单.doc",
+    "嵊州海田/HOVU-HCM-VN,      A.C.L/ACL生产计划单-2.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "106hc0",
+   "altWritings": 0
+  },
+  {
+   "name": "106HC-4",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+   "examples": [
+    "嵊州海田/伊朗106HC,GPN贴不干胶/106HC生产计划单MADE IN JAPAN.doc",
+    "嵊州海田/HOVU-HCM-VN,      A.C.L/ACL生产计划单-2.doc",
+    "嵊州海田/IAS T15,T20,106HC 加热嘴 宋/VICTOR GPN 生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "106hc4",
+   "altWritings": 0
+  },
+  {
+   "name": "3-101 割嘴 000#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/尤耐克/SUA/SUA订单/LGC10901351-宁波一洲.xls",
+   "examples": [
+    "ziliao/尤耐克/SUA/SUA订单/LGC10901351-宁波一洲.xls",
+    "ziliao/尤耐克/SUA/SUA订单/LGC22302066-宁波一洲.xls",
+    "ziliao/尤耐克/SUA/SUA订单/LGC240302109宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "3101割嘴000#",
+   "altWritings": 0
+  },
+  {
+   "name": "6290 割嘴 0#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到地域「us」，缺乙炔/丙烷 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/尤耐克/H HOUSE 6290NX/合同/LGC21105406宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/H HOUSE 6290NX/合同/LGC21105406宁波一洲.xlsx",
+    "ziliao/尤耐克/H HOUSE 6290NX/合同/LGC240205068宁波一洲.xlsx",
+    "ziliao/尤耐克/IRON S.R.L 双三角/GOLVER S.R.L/lgc21008381-宁波一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290割嘴0#",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX 割嘴 1#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2026/UW260801414宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2026/UW260801414宁波一洲.xlsx",
+    "ziliao/尤耐克/IRON S.R.L 双三角/订单/LGC10208042-宁波一洲.xls",
+    "ziliao/尤耐克/SUA/SUA订单/UW241002467宁波一洲(1).xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx割嘴1#",
+   "altWritings": 0
+  },
+  {
+   "name": "6290NX 割嘴 2#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2025前/UW251101595宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2025前/UW251101595宁波一洲.xlsx",
+    "ziliao/尤耐克/DAIDEN 叶/DAIDEN订单/2026/UW260601310.xlsx",
+    "ziliao/尤耐克/KLIQ NX 不干胶/UW250902440宁波一洲.xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "6290nx割嘴2#",
+   "altWritings": 0
+  },
+  {
+   "name": "丙烷切割喷嘴,1号 厚度：10-20mm孔口：1.2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "塑料盒,贴不干胶，victor",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/AB2171308 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/ab22937 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷切割喷嘴1号厚度1020mm孔口12",
+   "altWritings": 1
+  },
+  {
+   "name": "丙烷切割喷嘴,2号 厚度：20-40mm 孔口：1.5",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「propane」，缺英式/美式 → 待人工确认",
+   "packaging": "塑料盒,贴不干胶，victor",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/AB2171308 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/ab22937 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "丙烷切割喷嘴2号厚度2040mm孔口15",
+   "altWritings": 1
+  },
+  {
+   "name": "割嘴 GPN #4  塑料盖贴：GPN-4",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2021/AB21875 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/A. SH  AIR - OXY 里卡多/合同/2022/AB22329 出口产品供需合同-奉化一洲(1).xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴gpn#4塑料盖贴gpn4",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴 MC-12-3# 产品号码6005",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2023/AB23322 出口产品供需合同-一洲P060384.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2023/AB23322 出口产品供需合同-一洲P060384.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2023/ab230044 出口产品供需合同-一洲po53070.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24971 出口产品供需合同-一洲PO63216.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴mc123#产品号码6005",
+   "altWritings": 2
+  },
+  {
+   "name": "割嘴3-GPN 1# 产品号码6031",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24757 出口产品供需合同-一洲PO62924(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24994 出口产品供需合同-一洲PO63243.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴3gpn1#产品号码6031",
+   "altWritings": 0
+  },
+  {
+   "name": "割嘴3-GPN 2# 产品号码6032",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2024/AB24139 出口产品供需合同-一洲PO62138(1).xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2025/AB251014 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2025/AB25758 出口产品供需合同-一洲PO64713.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "割嘴3gpn2#产品号码6032",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔割嘴 ANM 1# \n刻字内容：规格与型号\n包装：常规-中性",
+   "type": "uk_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（uk）均为字面证据",
+   "packaging": "如下图所示",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/旧订单资料/REDIUS俄罗斯/DOKA PNM/DOKA 订单/AB22819 出口产品供需合同-一洲.xls",
+   "examples": [
+    "ziliao/安宝公司/旧订单资料/REDIUS俄罗斯/DOKA PNM/DOKA 订单/AB22819 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/旧订单资料/REDIUS俄罗斯/DOKA PNM/DOKA 订单/AB23402 出口产品供需合同-一洲.xls",
+    "ziliao/安宝公司/旧订单资料/REDIUS俄罗斯/DOKA PNM/DOKA 订单/AB23695 出口产品供需合同-一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴anm1#刻字内容规格与型号包装常规中性",
+   "altWritings": 1
+  },
+  {
+   "name": "乙炔割嘴1-101 3# 产品号码6026",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+   "examples": [
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26016.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26387.xls",
+    "ziliao/安宝公司/美国FRONNY/订单/2026/AB26396.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔割嘴11013#产品号码6026",
+   "altWritings": 0
+  },
+  {
+   "name": "乙炔切割喷嘴,1号 厚度：10-20mm 预热：0.7 孔口：1.2",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "塑料盒,贴不干胶，victor",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/AB2171308 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/ab22937 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔切割喷嘴1号厚度1020mm预热07孔口12",
+   "altWritings": 1
+  },
+  {
+   "name": "乙炔切割喷嘴,2号 厚度：20-40mm 预热：0.8 孔口：1.5",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "塑料盒,贴不干胶，victor",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/AB2171308 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/ab22937 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔切割喷嘴2号厚度2040mm预热08孔口15",
+   "altWritings": 1
+  },
+  {
+   "name": "乙炔切割喷嘴,3号 厚度：40-60mm 预热：0.9 孔口：1.8",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "只认到气体「acetylene」，缺英式/美式 → 待人工确认",
+   "packaging": "塑料盒,贴不干胶，victor",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+   "examples": [
+    "ziliao/安宝公司/EAGLEE CAJA 巴拉圭1503/AB22946 出口产品供需合同-奉化一洲(1).xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/AB2171308 出口产品供需合同-奉化一洲.xls",
+    "ziliao/安宝公司/KLK  1-101. GPN/合同/ab22937 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "乙炔切割喷嘴3号厚度4060mm预热09孔口18",
+   "altWritings": 1
+  },
+  {
+   "name": "G1-P16/10",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "嵊州海田/CEY ,CSD, 圆壳G1-A/邵云忠G1-P两头黑盖生产计划单.doc",
+   "examples": [
+    "嵊州海田/CEY ,CSD, 圆壳G1-A/邵云忠G1-P两头黑盖生产计划单.doc",
+    "嵊州海田/CEY ,CSD, 圆壳G1-A/邵云忠G1-P生产计划单.doc",
+    "嵊州海田/CEY ,CSD, 圆壳G1-A/EAT G1-P/邵云忠G1-P两头黑盖生产计划单.doc"
+   ],
+   "conf": "高",
+   "kinds": "计划单",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "g1p1610",
+   "altWritings": 0
+  },
+  {
+   "name": "GPN 割嘴 2#",
+   "type": "待定",
+   "typeConfirmed": false,
+   "typeReason": "名称里没有可辨认的类型证据 → 待人工确认",
+   "packaging": "",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/尤耐克/CUTTWELD GPN 倪/2026合同。/UW250720327宁波一洲.xlsx",
+   "examples": [
+    "ziliao/尤耐克/CUTTWELD GPN 倪/2026合同。/UW250720327宁波一洲.xlsx",
+    "ziliao/尤耐克/JOVAL订单/JOVAL订单/LGC10401156-宁波一洲.xls",
+    "ziliao/尤耐克/JOVAL订单/JOVAL订单/UW260501250宁波一洲(2).xlsx"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "gpn割嘴2#",
+   "altWritings": 0
+  },
+  {
+   "name": "HARRIS 乙炔割嘴6290-2 \n代码：4210",
+   "type": "us_acetylene",
+   "typeConfirmed": true,
+   "typeReason": "气体（acetylene）+ 地域（us）均为字面证据",
+   "packaging": "标贴尺寸：80x16mm 塑料盒盖用红色",
+   "count": 6,
+   "files": 6,
+   "example": "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+   "examples": [
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21864 出口产品供需合同-奉化一洲(2).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2021/AB21996 出口产品供需合同-一洲(1).xls",
+    "ziliao/安宝公司/INFAR不干胶/INFRA合同/2022/AB22050 出口产品供需合同-奉化一洲.xls"
+   ],
+   "conf": "高",
+   "kinds": "合同",
+   "recovered": 0,
+   "variantTexts": "",
+   "key": "harris乙炔割嘴62902代码4210",
+   "altWritings": 0
+  }
+ ]
+}

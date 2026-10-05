@@ -56,6 +56,24 @@ zip ──extract_ziliao.py──► 解压目录 + _manifest.csv
 `quote_files.csv`（报价单清单）、`quote_files_samples.json`（抽样明细）、`quote_files_summary.txt`（摘要与结论）、
 `quote_seed_candidates.csv`（可导入的候选行，直接喂 `import_quotes_cloud.mjs`）。
 
+## 本轮新增脚本（任务一/二/三 · 产品建档候选 + 历史成交价种子）
+
+| 文件 | 作用 | 用法 |
+| --- | --- | --- |
+| **lib/ziliao-extract.mjs** | 抽取共享库：Excel 合同（表头含单价列）/ .doc 切片（计划单、采购单）/ Word 正文元数据；文本归一与服务端 `normalizeToken` **逐字符同口径**；产品类型推断只认字面证据，推断不出一律 `tbd` | 被下面两个 CLI import |
+| **extract_products.mjs** | **任务一**：从 570 份带单价列合同 + 214 份计划单 + 36 份采购单/带价单据抽产品 → 产品建档候选 CSV（含建议类型/默认包装/出现次数/来源文件数/置信度）+ **疑似同产品不同写法**清单（**不自动合并**） | node tools/ziliao/extract_products.mjs |
+| **extract_price_seeds.mjs** | **任务二**：从合同与 .doc 采购单抽 `(客户=文件夹名, 产品名, 单价, 币种, 日期)` → 报价种子 CSV（表头含**来源**列：contract / doc） | node tools/ziliao/extract_price_seeds.mjs |
+| **import_products_cloud.mjs** | 产品批量导入：**只调既有接口** `/api/master-data/import/preview\|commit`（target=products）；`--dry-run` 先看 新增/更新/跳过/错误；幂等（按产品名归一判重，复跑全 skip） | node tools/ziliao/import_products_cloud.mjs --in tools/ziliao/products_candidates.csv --dry-run |
+| **analyze_price_gap.mjs** | **任务三配套**：报价种子导入后仍缺价的**原因分析**（命名不一致 / 无价源），产出逐产品写法的线索清单 | node tools/ziliao/analyze_price_gap.mjs |
+
+产物（跑完落在仓库 tools/ziliao/）：
+`products_candidates.csv`（产品建档候选）、`products_variants.csv`（疑似同产品不同写法，**未合并**）、`products_candidates_summary.txt`、
+`contract_price_seeds.csv`（历史成交价报价种子，直接喂 `import_quotes_cloud.mjs`）、`contract_price_seeds_summary.txt`、
+`price_gap_analysis.csv` + `price_gap_summary.txt`（剩余缺价原因）。
+
+> 报价导入的**来源**列：`contract`（合同成交价）/ `doc`（.doc 单据提取）/ `import`（用户上传的报价表）/ `manual`；
+> 留空沿用既有口径 `import`（向后兼容）。服务端词表见 apps/api/src/db/schema.ts 的 `QUOTE_SOURCES`。
+
 ## 环境变量（.mjs 脚本共用）
 
 | 变量 | 默认 | 说明 |
@@ -132,6 +150,24 @@ set FMS_BASE=https://<云端地址>/api
 node tools/ziliao/sync_folder_data.mjs ^
   --customers tools/ziliao/customer_folders.csv ^
   --packs tools/ziliao/pack_template_candidates.csv --dry-run
+
+# 15) 【任务一】抽产品建档候选 + 疑似同产品不同写法（只读资料包）
+node tools/ziliao/extract_products.mjs
+
+# 16) 【任务二】抽历史成交价报价种子（只读资料包）
+node tools/ziliao/extract_price_seeds.mjs
+
+# 17) 【任务三配套】剩余缺价原因分析
+node tools/ziliao/analyze_price_gap.mjs
+
+# 18) 产品建档导入（先 --dry-run；FMS_BASE 指向目标环境）
+$env:FMS_BASE = "https://<云端地址>/api"
+node tools/ziliao/import_products_cloud.mjs --in tools/ziliao/products_candidates.csv --dry-run
+node tools/ziliao/import_products_cloud.mjs --in tools/ziliao/products_candidates.csv
+
+# 19) 历史成交价导入（currency 归一到 CNY；幂等键 = 客户+产品+生效日期，默认 upsert 改价）
+node tools/ziliao/import_quotes_cloud.mjs --in tools/ziliao/contract_price_seeds.csv --dry-run
+node tools/ziliao/import_quotes_cloud.mjs --in tools/ziliao/contract_price_seeds.csv
 ~~~
 
 ## 单独用 .doc 抽取器

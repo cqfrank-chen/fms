@@ -28,3 +28,6 @@ __pycache__/
 
 # 一次性分析/复测的中间产物（不随仓库走）
 .scratch/
+
+# tools/ziliao：全量行 JSON 报告（内容与同名 CSV 完全重复、可由脚本重新生成，1.4MB 不入库）
+tools/ziliao/contract_price_seeds_report.json
