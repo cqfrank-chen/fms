@@ -114,18 +114,25 @@ export class OrdersController {
     private readonly planSheetsService: PlanSheetsService,
   ) {}
 
+  /**
+   * 订单列表。
+   * I17 裁定：占位档案（未建档客户·待补 / 未建档产品·待补）相关单据**默认隐藏**；
+   * includePlaceholders=1（界面「显示占位档案」开关）或 hasPending=1（补全工作流）时显示。
+   */
   @Get()
   findAll(
     @Query('status') status?: OrderStatus,
     @Query('customerId') customerId?: string,
     @Query('kw') kw?: string,
     @Query('hasPending') hasPending?: string,
+    @Query('includePlaceholders') includePlaceholders?: string,
   ) {
     return this.service.findAll({
       status,
       customerId: customerId ? Number(customerId) : undefined,
       kw,
       hasPending,
+      includePlaceholders,
     });
   }
 

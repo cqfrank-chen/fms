@@ -4,6 +4,8 @@ export const PRODUCT_TYPE_LABEL: Record<string, string> = {
   uk_propane: '英式丙烷',
   us_acetylene: '美式乙炔',
   us_propane: '美式丙烷',
+  // 待定：占位产品「（未建档产品·待补）」专用（I17 甲方裁定③：不再借用 uk_acetylene）
+  tbd: '待定',
 }
 
 export const SETTLEMENT_LABEL: Record<string, string> = {
@@ -34,11 +36,21 @@ export const PACK_LABEL: Record<string, string> = {
   label: '不干胶',
 }
 
-/** 币种 */
+/**
+ * 币种（I17 甲方裁定）：统一归一为 CNY —— RMB / RMB¥ / ￥ / ¥ / 人民币 一律按 CNY 展示。
+ * RMB 仅作为历史数据兼容项保留（新写入一律 CNY，见后端 common/currency.ts）。
+ */
 export const CURRENCY_LABEL: Record<string, string> = {
-  RMB: 'RMB',
+  CNY: 'CNY',
+  RMB: 'CNY',
   USD: 'USD',
 }
+
+/** 币种下拉可选项（规范值；历史 RMB 行在展示层已归一到 CNY） */
+export const CURRENCY_OPTIONS = [
+  { value: 'CNY', label: 'CNY' },
+  { value: 'USD', label: 'USD' },
+]
 
 /** 仓储单据三态（入库/盘点/应收/应付） */
 export const RECEIPT_STATUS_LABEL: Record<string, string> = {

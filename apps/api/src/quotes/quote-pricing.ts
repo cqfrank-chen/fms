@@ -1,4 +1,6 @@
 import { normalizeToken } from '../ai/table-parser.service';
+import { normalizeCurrency } from '../common/currency';
+import type { CanonicalCurrency } from '../common/currency';
 
 /**
  * ============================================================
@@ -58,7 +60,7 @@ export interface PriceHit {
   rule: PriceRule;
   ruleText: string;
   unitPriceCents: number;
-  /** 报价记录里的原币种（CNY / RMB / USD） */
+  /** 报价记录里的币种（甲方裁定后统一为 CNY / USD） */
   currency: string;
   validFrom: string | null;
   validTo: string | null;
@@ -136,7 +138,7 @@ export function pickQuote(quotes: QuoteLike[], query: PriceQuery): PriceHit | nu
       rule,
       ruleText: PRICE_RULE_LABEL[rule],
       unitPriceCents: Math.round(best.unitPriceCents),
-      currency: best.currency || 'CNY',
+      currency: normalizeCurrency(best.currency),
       validFrom: best.validFrom,
       validTo: best.validTo,
       source: best.source,
@@ -148,14 +150,13 @@ export function pickQuote(quotes: QuoteLike[], query: PriceQuery): PriceHit | nu
 }
 
 /**
- * 报价币种 → 订单行币种枚举（orders 侧只有 RMB / USD，报价侧默认 CNY）。
- * CNY / RMB / 人民币 / ￥ 一律归一为 RMB；其余（USD / 美元 / $）归一为 USD，无法识别按 RMB。
+ * 报价币种 → 订单行币种（I17 甲方裁定 2026-10-05：**币种统一归一为 CNY**）。
+ * RMB / RMB¥ / ￥ / ¥ / 人民币 → CNY；USD / 美元 / $ → USD；缺省或认不出 → CNY。
+ * 实现委托 common/currency.ts 的 normalizeCurrency（唯一权威实现，避免两处口径漂移）。
+ * 保留本函数名是为兼容既有调用点（识单补价）。
  */
-export function currencyToOrderEnum(currency?: string | null): 'RMB' | 'USD' {
-  const c = normalizeToken(currency ?? '');
-  if (!c) return 'RMB';
-  if (c === 'usd' || c.includes('美元') || c === '$' || c.includes('usd')) return 'USD';
-  return 'RMB';
+export function currencyToOrderEnum(currency?: string | null): CanonicalCurrency {
+  return normalizeCurrency(currency);
 }
 
 /** 命中说明（中文一句话，识单 notes / 界面提示共用，保证「来源可追溯」） */

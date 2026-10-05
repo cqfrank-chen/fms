@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as XLSX from '@e965/xlsx';
 import * as ExcelJS from 'exceljs';
 import * as iconv from 'iconv-lite';
+import { normalizeCurrency } from '../common/currency';
 import type { ParsedOrder, ParsedOrderLine } from './order-parser.service';
 
 /**
@@ -807,7 +808,7 @@ export function ruleMapMatrix(rows: string[][], opts: OrderParseOptions = {}): R
   let poNo = '';
   let dueDateRaw = '';
   let note = '';
-  let currency: 'RMB' | 'USD' | undefined;
+  let currency: 'CNY' | 'USD' | undefined;
 
   const lines: ParsedOrderLine[] = [];
   const skipped: DataRowDiag['skipped'] = [];
@@ -846,10 +847,11 @@ export function ruleMapMatrix(rows: string[][], opts: OrderParseOptions = {}): R
     }
     else { validRows += 1; if (firstValidRow < 0) firstValidRow = idx; lastValidRow = idx; }
     if (!note) note = pick(row, 'note');
+    // 币种归一（I17 甲方裁定）：识别到的 RMB / RMB¥ / ￥ / ¥ / 人民币 一律归一到 CNY；USD / 美元 / $ → USD。
+    // 单据没有币种列（取到空）时保持 undefined，由落库路径的默认口径补 CNY。
     if (!currency) {
-      const cur = pick(row, 'currency').toUpperCase();
-      if (cur.includes('USD') || cur.includes('$') || cur.includes('美元')) currency = 'USD';
-      else if (cur.includes('RMB') || cur.includes('CNY') || cur.includes('￥') || cur.includes('¥') || cur.includes('元')) currency = 'RMB';
+      const cur = pick(row, 'currency').trim();
+      if (cur) currency = normalizeCurrency(cur);
     }
     const productName = pick(row, 'productName');
     const productCode = pick(row, 'productCode');

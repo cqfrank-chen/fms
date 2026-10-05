@@ -8,6 +8,7 @@ import {
 import type { PlanStatus } from '../db/schema';
 import { fromCents, sumLineCents } from '../common/money';
 import { currentOperatorId } from '../common/operator-context';
+import { normalizeCurrency } from '../common/currency';
 
 /** 事务句柄类型（drizzle transaction callback 参数） */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -104,7 +105,7 @@ export class PlanSheetsService {
       // 4. 应收开立（决策修订：确认订单即生成订单级应收；出库不再生成；驳回订单时冲销）
       if (lines.length) {
         // 一期单币种：混币种无法折算，直接拦截（原实现取首行币种 + 直接求和会算错账）
-        if (new Set(lines.map((l) => l.currency)).size > 1)
+        if (new Set(lines.map((l) => normalizeCurrency(l.currency))).size > 1)
           throw new BadRequestException('整单币种不一致，无法开立应收（一期仅支持单币种）');
         const now = new Date();
         const [{ mx }] = await tx
@@ -118,7 +119,8 @@ export class PlanSheetsService {
           sourceId: orderId,
           // 金额按「分」计算，避免 JS 浮点尾差
           amount: fromCents(sumLineCents(lines.map((l) => ({ quantity: l.quantity, unitPrice: Number(l.unitPrice) })))),
-          currency: lines[0]?.currency ?? 'RMB',
+          // 币种归一（I17 甲方裁定）：应收快照同样统一为 CNY / USD
+          currency: normalizeCurrency(lines[0]?.currency),
           // 账期 0 也落到期日（= 确认日）：否则该应收 dueDate 为空、永不进账龄分桶/标红
           dueDate: new Date(Date.now() + Math.max(0, cust?.creditDays ?? 0) * 86400000),
           status: 'draft',

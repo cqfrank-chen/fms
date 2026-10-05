@@ -239,8 +239,10 @@ async function main() {
     dueDate: null, // 缺交期（.doc 计划单族常态）
     note: '识单落草稿（e2e）',
     lines: [
-      { productName: '1-101 割嘴 00#', quantity: 200, unitPrice: null }, // 缺价：报价里没有该客户档，但通用价存在
+      // 缺价 + 通用价存在 → **落草稿管线自身**就该按报价回填（裁定④：.doc 管线走同一补价路径）
+      { productName: '1-101 割嘴 00#', quantity: 200, unitPrice: null },
       { productName: '完全没建过档的产品', quantity: null, unitPrice: null }, // 产品未建档 + 缺数量 + 缺价
+      { productName: '缺价测试产品', quantity: 100, unitPrice: null }, // 缺价 + 此刻无任何报价 → 保持待补，稍后再补
     ],
   }, token);
   eq('落草稿接口返回 201', draft.status, 201);
@@ -254,9 +256,13 @@ async function main() {
   ok('单头待补：客户未建档', codes.includes('customer_not_filed'), codes);
   ok('单头待补：缺交期', codes.includes('due_date_missing'), codes);
   ok('单头待补：行级汇总', codes.includes('line_pending'), codes);
-  eq('第 1 行待补 = 缺单价', d.lines[0].pendingItems.map((x) => x.code), ['price_missing']);
-  eq('第 2 行待补 = 产品未建档 + 缺数量 + 缺单价', d.lines[1].pendingItems.map((x) => x.code),
+  // 裁定④：落草稿管线自身补价（客户未建档 → 只能命中通用价 3.00）
+  eq('裁定④ 缺价行在落草稿时即被报价补上（单价 3.00 元）', d.lines[0].unitPrice, 3.0);
+  eq('裁定④ 补价行的待补项已清空', d.lines[0].pendingItems, null);
+  eq('裁定④ 第 2 行待补 = 产品未建档 + 缺数量 + 缺单价', d.lines[1].pendingItems.map((x) => x.code),
     ['product_not_filed', 'quantity_missing', 'price_missing']);
+  eq('第 3 行（此刻无报价、且产品未建档）待补 = 产品未建档 + 缺单价', d.lines[2].pendingItems.map((x) => x.code),
+    ['product_not_filed', 'price_missing']);
   ok('待补诊断是中文（界面直接可见）', d.pendingItems.every((x) => /[\u4e00-\u9fa5]/.test(x.message)), d.pendingItems.map((x) => x.message));
 
   // ---- SQL 核对：订单 / 订单行 / 占位档案 ----
@@ -266,16 +272,22 @@ async function main() {
   eq('SQL：due_date_tbd 标记', oRow.rows[0].due_date_tbd, true);
   eq('SQL：未建档客户名', oRow.rows[0].draft_customer_name, '尚未建档的客户');
   ok('SQL：pending_items 是 jsonb 数组', Array.isArray(oRow.rows[0].pending_items), oRow.rows[0].pending_items);
-  const lRows = await db.query('select quantity, unit_price, pending_items, product_name_text, price_source from order_lines where order_id = $1 order by id', [d.id]);
-  eq('SQL：订单行数', lRows.rows.length, 2);
-  eq('SQL：缺价行单价存 0（列 NOT NULL，靠待补标记提醒）', Number(lRows.rows[0].unit_price), 0);
+  const lRows = await db.query('select quantity, unit_price, currency, pending_items, product_name_text, price_source from order_lines where order_id = $1 order by id', [d.id]);
+  eq('SQL：订单行数', lRows.rows.length, 3);
+  eq('裁定④ SQL：落草稿补价行已写库（3.00 元）', Number(lRows.rows[0].unit_price), 3.0);
+  eq('裁定④ SQL：price_source 标 quote（来源可追溯）', lRows.rows[0].price_source, 'quote');
+  eq('裁定④ SQL：补价行不再标缺价', lRows.rows[0].pending_items, null);
+  ok('裁定⑤ SQL：订单行币种归一为 CNY（写入前归一）', lRows.rows.every((r) => r.currency === 'CNY'), lRows.rows.map((r) => r.currency));
+  eq('SQL：缺价行单价存 0（列 NOT NULL，靠待补标记提醒）', Number(lRows.rows[2].unit_price), 0);
   eq('SQL：缺数量行数量存 0', lRows.rows[1].quantity, 0);
   ok('SQL：产品未建档行的识别原文已留痕', lRows.rows[1].product_name_text === '完全没建过档的产品', lRows.rows[1].product_name_text);
   ok('SQL：产品未建档行指向占位产品', lRows.rows[1].pending_items.some((x) => x.code === 'product_not_filed'));
   const phCust = await db.query('select id, name from customers where name = $1', ['（未建档客户·待补）']);
   eq('SQL：惰性创建占位客户（显式标注「待补」）', phCust.rows.length, 1);
-  const phProd = await db.query('select id, name from products where name = $1', ['（未建档产品·待补）']);
+  const phProd = await db.query('select id, name, type from products where name = $1', ['（未建档产品·待补）']);
   eq('SQL：惰性创建占位产品', phProd.rows.length, 1);
+  // 裁定③：占位产品类型是中立的「待定」（tbd），不再借用 uk_acetylene
+  eq('裁定③ SQL：占位产品类型 = tbd（待定）', phProd.rows[0].type, 'tbd');
   eq('SQL：订单挂到占位客户下', oRow.rows[0].draft_customer_name !== null && phCust.rows[0].id !== customerId, true);
 
   // ---- 筛选：有未补全项的草稿单 ----
@@ -290,19 +302,21 @@ async function main() {
   eq('有待补项 → 确认被拦截（400）', confirmBlocked.status, 400);
   ok('拦截原因是中文待补清单', String(confirmBlocked.body.message).includes('待补项'), confirmBlocked.body.message);
 
-  // ---- 一键从报价补价（先补客户档，让客户档报价可用） ----
+  // ---- 一键从报价补价（先补客户档，再给第 3 行产品录入通用价） ----
   const realCust = await req('POST', '/customers', { name: '尚未建档的客户', creditDays: 30 }, token);
+  // 第 3 行「缺价测试产品」此刻还没有任何报价 → 先落一条通用价（按产品名文本匹配）
+  await req('POST', '/quotes', { productName: '缺价测试产品', unitPrice: 8.80, currency: '人民币', validFrom: PAST, remark: 'e2e 补价用通用价' }, token);
   const fill1 = await req('POST', '/orders/' + d.id + '/fill-quote-prices', undefined, token);
   eq('一键补价接口返回 201', fill1.status, 201);
-  eq('补价：命中 1 行（通用价兜底；未建档产品行对不上）', fill1.body.filled.length, 1);
-  eq('补价：未命中 1 行（保持待补）', fill1.body.missed.length, 1);
-  // 该单此时仍挂在**占位客户**下，所以只能命中「通用价」（绝不会误用其他客户的报价）
-  eq('补价：第 1 行单价 = 通用价 3.00 元（不跨客户取价）', fill1.body.filled[0].unitPrice, 3.0);
+  eq('补价：命中 1 行（通用价按产品名文本命中）', fill1.body.filled.length, 1);
+  eq('补价：未命中 1 行（未建档产品对不上，保持待补）', fill1.body.missed.length, 1);
+  eq('补价：命中行单价 = 8.80 元', fill1.body.filled[0].unitPrice, 8.8);
   eq('补价：命中规则 = 通用价', fill1.body.filled[0].ruleText, '通用价（不限客户）');
-  const afterFill = await db.query('select unit_price, price_source, pending_items from order_lines where order_id = $1 order by id', [d.id]);
-  eq('SQL：补价已写库（3.00 元）', Number(afterFill.rows[0].unit_price), 3.0);
-  eq('SQL：price_source 标 quote（来源可追溯）', afterFill.rows[0].price_source, 'quote');
-  eq('SQL：该行缺价标记已清除', afterFill.rows[0].pending_items, null);
+  const afterFill = await db.query('select unit_price, price_source, pending_items, currency from order_lines where order_id = $1 order by id', [d.id]);
+  eq('SQL：补价已写库（8.80 元）', Number(afterFill.rows[2].unit_price), 8.8);
+  eq('SQL：price_source 标 quote（来源可追溯）', afterFill.rows[2].price_source, 'quote');
+  eq('SQL：该行缺价标记已清除（产品未建档标记保留，仍需建档）',
+    (afterFill.rows[2].pending_items ?? []).filter((x) => x.code === 'price_missing'), []);
   ok('SQL：未命中行仍标待补', afterFill.rows[1].pending_items.length > 0, afterFill.rows[1].pending_items);
 
   // ---- 逐项补全（人工建档 + 填数量 + 补客户/交期） ----
@@ -312,6 +326,7 @@ async function main() {
     lines: [
       { productId: prod1, quantity: 200, unitPrice: 9.0 },
       { productId: prod2, quantity: 500, unitPrice: 3.8 },
+      { productId: prod3, quantity: 100, unitPrice: 8.8 },
     ],
   }, token);
   eq('补全接口返回 200', itemFill.status, 200);
@@ -352,6 +367,91 @@ async function main() {
   eq('不传 folderCustomer → 第 2 行取通用价 2.50', noFolder.body.lines[1].unitPrice, 2.5);
   ok('不传 folderCustomer → 客户仍未识别（既有 error 保留，未被补价掩盖）',
     noFolder.body.issues.some((i) => i.path === 'customer' && i.level === 'error'), noFolder.body.issues.map((i) => i.path));
+
+  // ================= ⑥ 本轮 5 项甲方裁定 =================
+  console.log('\n【⑥ 甲方裁定 5 项】哨兵日 / 占位档案默认隐藏 / 占位产品待定 / .doc 补价 / 币种归一 CNY');
+
+  // ---- 裁定①：哨兵日 2099-12-31 + due_date_tbd 成对（不变），界面按标记显示「待定」 ----
+  const inv = await db.query("select count(*)::int as n from orders where due_date_tbd <> (due_date::date = date '2099-12-31')");
+  eq('裁定① SQL：due_date_tbd 与哨兵日 2099-12-31 严格成对（不变量）', inv.rows[0].n, 0);
+
+  // ---- 裁定⑤：币种统一归一为 CNY（写入前归一） ----
+  const cny1 = await req('POST', '/quotes', { productName: '币种归一测试', unitPrice: 1.23, currency: 'RMB¥' }, token);
+  eq('裁定⑤ 新建报价返回 201', cny1.status, 201);
+  eq('裁定⑤ RMB¥ → 写入即归一为 CNY', cny1.body.currency, 'CNY');
+  const cny2 = await req('POST', '/quotes', { productName: '币种归一测试2', unitPrice: 2.34, currency: '￥' }, token);
+  eq('裁定⑤ ￥ → CNY', cny2.body.currency, 'CNY');
+  const cny4 = await req('POST', '/quotes', { productName: '币种归一测试4', unitPrice: 1.11, currency: '人民币' }, token);
+  eq('裁定⑤ 人民币 → CNY', cny4.body.currency, 'CNY');
+  const cny3 = await req('POST', '/quotes', { productName: '币种归一测试3', unitPrice: 3.45, currency: 'USD' }, token);
+  eq('裁定⑤ USD 保持 USD', cny3.body.currency, 'USD');
+  const changed2 = await req('PUT', '/quotes/' + cny3.body.id + '/price', { unitPrice: 4.56, currency: 'rmb' }, token);
+  eq('裁定⑤ 改价路径同样归一（rmb → CNY）', changed2.body.currency, 'CNY');
+  const nonStd = await db.query("select count(*)::int as n from product_quotes where currency not in ('CNY','USD')");
+  eq('裁定⑤ SQL：报价表不存在非规范币种', nonStd.rows[0].n, 0);
+
+  // ---- 裁定②：占位档案默认隐藏 + 「显示占位档案」开关 ----
+  const custDefault = await req('GET', '/customers', undefined, token);
+  ok('裁定② 客户列表默认不含占位客户', !custDefault.body.some((c) => c.name === '（未建档客户·待补）'), custDefault.body.map((c) => c.name));
+  ok('裁定② 客户列表默认仍含真实客户（安宝公司）', custDefault.body.some((c) => c.name === '安宝公司'), custDefault.body.map((c) => c.name));
+  const custShow = await req('GET', '/customers?includePlaceholders=1', undefined, token);
+  ok('裁定② 开关打开后可见占位客户（排查用）', custShow.body.some((c) => c.name === '（未建档客户·待补）'), custShow.body.map((c) => c.name));
+  const prodDefault = await req('GET', '/products', undefined, token);
+  ok('裁定② 产品列表默认不含占位产品', !prodDefault.body.some((p) => p.name === '（未建档产品·待补）'), prodDefault.body.map((p) => p.name));
+  const prodShow = await req('GET', '/products?includePlaceholders=1', undefined, token);
+  ok('裁定② 开关打开后可见占位产品（且类型为「待定」tbd）',
+    prodShow.body.some((p) => p.name === '（未建档产品·待补）' && p.type === 'tbd'),
+    prodShow.body.filter((p) => p.name === '（未建档产品·待补）'));
+
+  // 造一张「挂占位客户 + 占位产品」的草稿，验证订单列表同样默认隐藏
+  const phDraft = await req('POST', '/orders/draft', {
+    folderCustomer: '裁定②占位客户',
+    lines: [{ productName: '裁定②占位产品', quantity: 1, unitPrice: null }],
+  }, token);
+  eq('裁定② 造占位草稿成功', phDraft.status, 201);
+  // 裁定①：待定单据确实用哨兵日占位（NOT NULL 约束未被破坏），且标记与日期成对
+  const sentinel = await db.query("select count(*)::int as n from orders where due_date::date = date '2099-12-31' and due_date_tbd");
+  ok('裁定① SQL：待定单据确实用哨兵日占位（界面按 due_date_tbd 显示「待定」）', sentinel.rows[0].n >= 1, sentinel.rows[0].n);
+  const inv2 = await db.query("select count(*)::int as n from orders where due_date_tbd <> (due_date::date = date '2099-12-31')");
+  eq('裁定① SQL：造单后不变量仍成立', inv2.rows[0].n, 0);
+  const ordDefault = await req('GET', '/orders', undefined, token);
+  ok('裁定② 订单列表默认隐藏占位档案相关单据', !ordDefault.body.some((o) => o.id === phDraft.body.id), ordDefault.body.map((o) => o.id));
+  ok('裁定② 订单列表默认仍含普通订单（老路单）', ordDefault.body.some((o) => o.id === legacy.body.id), ordDefault.body.map((o) => o.id));
+  const ordShow = await req('GET', '/orders?includePlaceholders=1', undefined, token);
+  ok('裁定② 开关打开后订单列表可见占位单', ordShow.body.some((o) => o.id === phDraft.body.id), ordShow.body.length);
+  const ordPending = await req('GET', '/orders?hasPending=1', undefined, token);
+  ok('裁定② 「仅看有未补全项的草稿单」不受开关限制（补全工作流必须能看到）',
+    ordPending.body.some((o) => o.id === phDraft.body.id), ordPending.body.map((o) => o.id));
+
+  // ---- 裁定④：.doc 切片管线口径（识单 → 落草稿 两跳，与 tools/ziliao/draft_orders_from_parse.mjs 一致） ----
+  const docCsv = Buffer.from([
+    '合同号:YZ260917,交货时间: ' + FUTURE,
+    '品名规格,数量,不含税价格,产品描述,包装',
+    'PNM 1/32,400,,,',
+    '',
+  ].join('\r\n'), 'utf8');
+  const docParse = await req('POST', '/ai/orders/parse', { ...uploadBody(docCsv, '计划单切片.csv'), folderCustomer: '安宝公司' }, token);
+  eq('裁定④ .doc 切片识单：补价 1 行', docParse.body.quoteFilledCount, 1);
+  eq('裁定④ .doc 切片识单：priceFrom=quote', docParse.body.lines[0].priceFrom, 'quote');
+  const docDraft = await req('POST', '/orders/draft', {
+    customerId: docParse.body.customerId ?? null,
+    folderCustomer: '安宝公司',
+    poNo: docParse.body.poNo ?? null,
+    dueDate: docParse.body.dueDate ?? null,
+    lines: docParse.body.lines.map((l) => ({
+      productId: l.productId ?? null,
+      productName: l.productId ? null : (l.productName ?? null),
+      quantity: l.quantity ?? null,
+      unitPrice: l.unitPrice ?? null,
+      priceFrom: l.priceFrom === 'quote' ? 'quote' : null,
+    })),
+  }, token);
+  eq('裁定④ .doc 切片落草稿成功', docDraft.status, 201);
+  const docLine = await db.query('select unit_price, price_source, pending_items, currency from order_lines where order_id = $1', [docDraft.body.id]);
+  eq('裁定④ SQL：.doc 计划单缺价行已按「文件夹客户 + 产品」补价（9.99 元）', Number(docLine.rows[0].unit_price), 9.99);
+  eq('裁定④ SQL：price_source=quote（来源可追溯）', docLine.rows[0].price_source, 'quote');
+  eq('裁定④ SQL：该行无缺价待补', docLine.rows[0].pending_items, null);
+  eq('裁定⑤ SQL：.doc 落草稿的订单行币种 = CNY', docLine.rows[0].currency, 'CNY');
 
   // ================= 权限 =================
   console.log('\n【权限】报价写操作限 admin / planner');

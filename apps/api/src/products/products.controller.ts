@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { PRODUCT_TYPES } from '../db/schema';
 import type { ProductType } from '../db/schema';
@@ -38,9 +38,10 @@ interface RouteItem {
 export class ProductsController {
   constructor(private readonly service: ProductsService) {}
 
+  /** 列表：默认隐藏占位产品「（未建档产品·待补）」；includePlaceholders=1 显示（界面「显示占位档案」开关） */
   @Get()
-  findAll() {
-    return this.service.findAll();
+  findAll(@Query('includePlaceholders') includePlaceholders?: string) {
+    return this.service.findAll({ includePlaceholders });
   }
 
   @Roles('admin', 'planner')

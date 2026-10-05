@@ -7,15 +7,30 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 // 单厂单租户：不建多厂表，模型以本表为基（多厂扩展路径见 spec §13）
 // ============================================================
 
-/** 产品类型（四种）：英式乙炔/英式丙烷/美式乙炔/美式丙烷 */
+/**
+ * 产品类型（四种业务类型 + 一个中立占位类型）：
+ *   uk_acetylene 英式乙炔 / uk_propane 英式丙烷 / us_acetylene 美式乙炔 / us_propane 美式丙烷
+ *   tbd 待定 —— **占位产品专用**（甲方裁定 2026-10-05：占位产品的类型字段改为中立「待定」，
+ *        不再借用 uk_acetylene；迁移只新增枚举值，见 drizzle/0022_*）。
+ */
 export const PRODUCT_TYPES = [
   'uk_acetylene', // 英式乙炔（ANM 系）
   'uk_propane', //   英式丙烷（PNM 系）
   'us_acetylene', // 美式乙炔（6290 系）
   'us_propane', //   美式丙烷（101 系）
+  'tbd', //         待定（占位产品专用；不是真实产品类型，永远进不了生产链路）
 ] as const;
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 export const productTypeEnum = pgEnum('product_type', PRODUCT_TYPES);
+
+/** 产品类型的中文标签（界面展示用；tbd = 待定） */
+export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
+  uk_acetylene: '英式乙炔',
+  uk_propane: '英式丙烷',
+  us_acetylene: '美式乙炔',
+  us_propane: '美式丙烷',
+  tbd: '待定',
+};
 
 /** 结算方式（客户/供应商共用词表，可自由扩展） */
 export const SETTLEMENTS = [
@@ -91,8 +106,13 @@ export const STATUSES = ['draft', 'confirmed', 'production', 'completed', 'cance
 export type OrderStatus = (typeof STATUSES)[number];
 export const orderStatusEnum = pgEnum('order_status', STATUSES);
 
-/** 币种（一期单币种 RMB 记账，字段保留出海预留） */
-export const CURRENCIES = ['RMB', 'USD'] as const;
+/**
+ * 币种（一期单币种记账，字段保留出海预留）。
+ * I17 甲方裁定（2026-10-05）：**币种统一归一为 CNY** —— 识别到的 RMB / RMB¥ / ￥ / ¥ / 人民币
+ * 一律归一到 CNY 存储与展示（写入前归一，见 common/currency.ts）。'CNY' 是**新增的枚举值**
+ * （迁移只新增，见 drizzle/0022_*）；'RMB' 保留仅为兼容历史行，新写入不再产生 RMB。
+ */
+export const CURRENCIES = ['RMB', 'USD', 'CNY'] as const;
 export type Currency = (typeof CURRENCIES)[number];
 export const currencyEnum = pgEnum('currency', CURRENCIES);
 
@@ -121,6 +141,17 @@ export const ORDERS_DUE_DATE_TBD = '2099-12-31';
 /** 未建档客户/产品占位档案名（惰性创建：只有真的落了缺客户/缺产品的草稿才会出现这两行） */
 export const PENDING_CUSTOMER_NAME = '（未建档客户·待补）';
 export const PENDING_PRODUCT_NAME = '（未建档产品·待补）';
+
+/**
+ * 占位档案清单（甲方裁定 2026-10-05）：这两条**不是真实档案**，只是为了让 NOT NULL 外键能落库。
+ * 前端客户/产品/订单相关列表**默认隐藏**它们；需要排查时用「显示占位档案」开关
+ * （接口参数 includePlaceholders=1）再看。后端保留、内部引用不变。
+ */
+export const PENDING_ENTITY_NAMES = [PENDING_CUSTOMER_NAME, PENDING_PRODUCT_NAME] as const;
+
+/** 是否为占位档案名（客户/产品列表默认隐藏的唯一判定口径；去首尾空白后精确比对） */
+export const isPendingEntityName = (name?: string | null): boolean =>
+  !!name && (PENDING_ENTITY_NAMES as readonly string[]).includes(name.trim());
 
 /** 订单（Order）：客户下达的生产需求单据 */
 export const orders = pgTable('orders', {

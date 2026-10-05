@@ -4,6 +4,7 @@ import { db } from '../db';
 import { customers, operators, productQuotes, products, QUOTE_SOURCES } from '../db/schema';
 import type { NewProductQuote, ProductQuote, QuoteSource } from '../db/schema';
 import { fromCents, toCents } from '../common/money';
+import { normalizeCurrency } from '../common/currency';
 import { currentOperatorId } from '../common/operator-context';
 import {
   mapHeaderFields, normalizeToken, parseDateCell, parseNumberCell, TableParserService,
@@ -289,8 +290,9 @@ export class QuotesService {
       updatedAt: new Date(),
       operatorId: currentOperatorId() ?? cur.operatorId ?? null,
     };
+    // 币种归一（甲方裁定）：RMB / RMB¥ / ￥ / ¥ / 人民币 → CNY
     if (input.currency !== undefined && input.currency !== null && String(input.currency).trim()) {
-      patch.currency = String(input.currency).trim().toUpperCase();
+      patch.currency = normalizeCurrency(input.currency);
     }
     if (input.validFrom !== undefined) patch.validFrom = this.dateOrThrow(input.validFrom, '生效日期');
     if (input.validTo !== undefined) patch.validTo = this.dateOrThrow(input.validTo, '失效日期');
@@ -475,7 +477,8 @@ export class QuotesService {
       let existingId: number | null = null;
       if (!reasons.length) {
         data.unitPriceCents = toCents(Number(data.unitPrice));
-        data.currency = String(data.currency ?? '').trim().toUpperCase() || 'CNY';
+        // 币种归一（甲方裁定）：识别到的 RMB / RMB¥ / ￥ / ¥ / 人民币 一律归一到 CNY
+        data.currency = normalizeCurrency(String(data.currency ?? ''));
         const key = quoteKey(customerId, productId, pname || null, (data.validFrom as string | null) ?? null);
         const dupRowNo = seenInFile.get(key);
         if (dupRowNo !== undefined) {
@@ -531,7 +534,7 @@ export class QuotesService {
           productId: row.data.productId as number | null,
           productName: (row.data.productName as string | null) ?? null,
           unitPriceCents: row.data.unitPriceCents as number,
-          currency: String(row.data.currency ?? 'CNY'),
+          currency: normalizeCurrency(String(row.data.currency ?? '')),
           validFrom: (row.data.validFrom as string | null) ?? null,
           validTo: (row.data.validTo as string | null) ?? null,
           remark: (row.data.remark as string | null) ?? null,
@@ -629,7 +632,8 @@ export class QuotesService {
     const cents = this.priceToCents(input);
     if (cents == null && !partial) throw new BadRequestException('单价必填（unitPrice 元 或 unitPriceCents 分）');
     if (cents != null) out.unitPriceCents = cents;
-    if (!partial || input.currency !== undefined) out.currency = (str(input.currency) ?? 'CNY').toUpperCase();
+    // 币种归一（甲方裁定）：写入前归一 —— RMB / RMB¥ / ￥ / ¥ / 人民币 等一律存 CNY
+    if (!partial || input.currency !== undefined) out.currency = normalizeCurrency(str(input.currency));
     if (!partial || input.validFrom !== undefined) out.validFrom = this.dateOrThrow(input.validFrom, '生效日期');
     if (!partial || input.validTo !== undefined) out.validTo = this.dateOrThrow(input.validTo, '失效日期');
     if (!partial || input.remark !== undefined) out.remark = str(input.remark) ?? null;

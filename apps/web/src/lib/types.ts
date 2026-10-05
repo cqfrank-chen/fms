@@ -23,7 +23,8 @@ export interface OrderLine {
   productName?: string
   quantity: number
   unitPrice: number
-  currency: 'RMB' | 'USD'
+  /** 币种：甲方裁定统一归一为 CNY（历史行可能仍是 RMB，展示层归一到 CNY） */
+  currency: 'CNY' | 'USD' | 'RMB'
   engraving?: string | null
   packaging?: PackagingSpec | null
   /** 行级待补项；null = 普通订单行（不参与待补机制） */

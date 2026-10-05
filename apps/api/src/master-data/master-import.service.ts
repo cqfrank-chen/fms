@@ -51,13 +51,14 @@ function enumLookup(entries: Array<[string, string]>): Record<string, string> {
   return out;
 }
 
-/** 产品类型：Word 表里只有四个值，中文/缩写/原值都接受 */
+/** 产品类型：中文/缩写/原值都接受；'tbd'（待定）是占位产品的中立值，人工也允许显式填 */
 const PRODUCT_TYPE_VALUES = enumLookup([
   ...PRODUCT_TYPES.map((t) => [t, t] as [string, string]),
   ['英式乙炔', 'uk_acetylene'], ['英乙', 'uk_acetylene'], ['uk乙炔', 'uk_acetylene'],
   ['英式丙烷', 'uk_propane'], ['英丙', 'uk_propane'], ['uk丙烷', 'uk_propane'],
   ['美式乙炔', 'us_acetylene'], ['美乙', 'us_acetylene'], ['us乙炔', 'us_acetylene'],
   ['美式丙烷', 'us_propane'], ['美丙', 'us_propane'], ['us丙烷', 'us_propane'],
+  ['待定', 'tbd'], ['未定', 'tbd'],
 ]);
 
 /** 结算方式：schema 词表 + 常见中文写法 */
@@ -74,7 +75,7 @@ const SETTLEMENT_VALUES = enumLookup([
   ['现结', 'cash'], ['现金', 'cash'],
 ]);
 
-const PRODUCT_TYPE_HINT = '可填：英式乙炔 / 英式丙烷 / 美式乙炔 / 美式丙烷（或 uk_acetylene 等原值）';
+const PRODUCT_TYPE_HINT = '可填：英式乙炔 / 英式丙烷 / 美式乙炔 / 美式丙烷 / 待定（或 uk_acetylene、tbd 等原值）';
 const SETTLEMENT_HINT = '可填：30%定金+70%发货前 / 月结30天 / 月结60天 / 发货前付清 / 预付30% / 月结 / 现结';
 
 /** 两类导入的字段定义（以 db/schema.ts 现有列为准，不臆造字段） */

@@ -168,11 +168,25 @@ describe('④ 产品匹配与其它', () => {
     expect(pickQuote(quotes, { customerId: 7, productId: 999, onDate: ON })!.quoteId).toBe(1);
   });
 
-  it('币种归一：CNY/RMB → RMB，USD → USD，缺省 RMB', () => {
-    expect(currencyToOrderEnum('CNY')).toBe('RMB');
-    expect(currencyToOrderEnum('rmb')).toBe('RMB');
-    expect(currencyToOrderEnum('USD')).toBe('USD');
-    expect(currencyToOrderEnum(null)).toBe('RMB');
+  // I17 甲方裁定（2026-10-05）：币种统一归一为 CNY —— RMB / RMB¥ / ￥ / ¥ / 人民币 一律 → CNY
+  it('币种归一：CNY/RMB/人民币/￥/¥ → CNY，USD/美元/$ → USD，缺省 CNY', () => {
+    for (const v of ['CNY', 'cny', 'RMB', 'rmb', 'RMB¥', '￥', '¥', '人民币', '元']) {
+      expect(currencyToOrderEnum(v)).toBe('CNY');
+    }
+    for (const v of ['USD', 'usd', '美元', '$', 'US$']) {
+      expect(currencyToOrderEnum(v)).toBe('USD');
+    }
+    expect(currencyToOrderEnum(null)).toBe('CNY');
+    expect(currencyToOrderEnum('')).toBe('CNY');
+    expect(currencyToOrderEnum('未识别的东西')).toBe('CNY'); // 认不出不编造外币，按人民币
+  });
+
+  it('取价命中 priceSource 的币种也归一（RMB 写法 → CNY）', () => {
+    const hit = pickQuote(
+      [q({ id: 9, customerId: 7, productId: 22, unitPriceCents: 1000, currency: 'RMB¥' })],
+      { customerId: 7, productId: 22, onDate: ON },
+    )!;
+    expect(hit.currency).toBe('CNY');
   });
 
   it('describeHit：中文说明含报价单号、规则与有效期（来源可追溯）', () => {

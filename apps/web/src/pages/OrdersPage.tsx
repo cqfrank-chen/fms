@@ -6,7 +6,8 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
-import { INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
+import { CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
+import { PLACEHOLDER_HINT, useShowPlaceholders, withPlaceholders } from '../lib/placeholders'
 import { fmtCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
@@ -98,11 +99,13 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
   const [products, setProducts] = useState<Product[]>([])
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
+  // I17 裁定②：建档下拉默认不含占位档案（否则会不小心把用户指到「（未建档客户·待补）」上）
+  const [showPlaceholders] = useShowPlaceholders()
 
   useEffect(() => {
-    loadOptions<Customer>('/customers', setCustomers, '客户档案')
-    loadOptions<Product>('/products', setProducts, '产品目录')
-  }, [])
+    loadOptions<Customer>(withPlaceholders('/customers', showPlaceholders), setCustomers, '客户档案')
+    loadOptions<Product>(withPlaceholders('/products', showPlaceholders), setProducts, '产品目录')
+  }, [showPlaceholders])
 
   // 编辑模式（I05 驳回重做闭环）：外部选定草稿订单 → 整单载入表单
   useEffect(() => {
@@ -135,7 +138,8 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
     productId: undefined as unknown as number,
     quantity: 1000,
     unitPrice: 3.5,
-    currency: 'RMB',
+    // 币种统一归一为 CNY（I17 甲方裁定）
+    currency: 'CNY',
   }
 
   // ===== AI 导入承接：未建档客户/产品文本 → 快速建档（检测在建单前完成） =====
@@ -191,7 +195,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
         productId: l.productId ?? undefined,
         quantity: l.quantity ?? undefined,
         unitPrice: l.unitPrice ?? undefined,
-        currency: l.currency ?? 'RMB',
+        currency: l.currency ?? 'CNY',
         engraving: l.engraving,
         packaging: l.packaging,
       })),
@@ -341,7 +345,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
   const lineDefaults = useMemo(() => ({
     quantity: 1000,
     unitPrice: 3.5,
-    currency: 'RMB',
+    currency: 'CNY',
   }), [])
 
   // 卡片展示用：仍为空的未建档产品（行号+文本）
@@ -393,7 +397,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
       render: (_: unknown, record: { name: number; key: number }) => (
         <Form.Item key={`${record.key}-currency`} name={[record.name, 'currency']}
           initialValue={lineDefaults.currency} style={{ marginBottom: 0 }}>
-          <Select options={[{ value: 'RMB', label: 'RMB' }, { value: 'USD', label: 'USD' }]} />
+          <Select options={CURRENCY_OPTIONS} />
         </Form.Item>
       ),
     },
@@ -545,6 +549,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [kw, setKw] = useState('')
   /** I17：只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
   const [pendingOnly, setPendingOnly] = useState(false)
+  /** I17 裁定②：「显示占位档案」开关（默认关闭 = 隐藏未建档客户/产品占位档案相关单据） */
+  const [showPlaceholders, setShowPlaceholders] = useShowPlaceholders()
   const [fillFor, setFillFor] = useState<Order | null>(null)
   const [detail, setDetail] = useState<Order | null>(null)
   /** 快捷开票目标订单（带入剩余未开票金额；I16 交互简化） */
@@ -575,7 +581,10 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     } finally { setConfirmingId(null) }
   }
 
-  useEffect(() => { loadOptions<Customer>('/customers', setCustomers, '客户档案') }, [])
+  // 客户筛选下拉：默认不含占位客户（避免把「（未建档客户·待补）」当真实客户筛）
+  useEffect(() => {
+    loadOptions<Customer>(withPlaceholders('/customers', showPlaceholders), setCustomers, '客户档案')
+  }, [showPlaceholders])
 
   async function fetchRows() {
     setLoading(true)
@@ -586,12 +595,14 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       if (customerId) params.set('customerId', String(customerId))
       if (kw.trim()) params.set('kw', kw.trim())
       if (pendingOnly) params.set('hasPending', '1')
+      // I17 裁定②：默认隐藏占位档案相关单据；打开开关才带 includePlaceholders=1
+      if (showPlaceholders) params.set('includePlaceholders', '1')
       setRows(await api<Order[]>(`/orders?${params.toString()}`))
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
     } finally { setLoading(false) }
   }
-  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick, pendingOnly]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick, pendingOnly, showPlaceholders]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 取消订单（五态收敛）：未投产可取消，未开工计划单与未核销应收同步冲销 */
   async function doCancel(r: Order) {
@@ -645,8 +656,14 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     },
     {
       title: '交期', dataIndex: 'dueDate', width: 110,
+      // 交期待定（I17）：库里的 due_date 是**哨兵日 2099-12-31**（orders.due_date 是 NOT NULL），
+      // 界面只认 due_date_tbd=true → 显示「待定」，绝不把哨兵日当成真实交期展示/预填。
       render: (v: string, r: Order) => (r.dueDateTbd
-        ? <Tag color="error">待定</Tag>
+        ? (
+          <Tooltip title="交期待定：原始单据未识别到交货日期。因 orders.due_date 为 NOT NULL，系统用哨兵日 2099-12-31 占位并置 due_date_tbd=true；补填真实交期后该标记自动清除。">
+            <Tag color="error" style={{ cursor: 'help' }}>待定</Tag>
+          </Tooltip>
+        )
         : dayjs(v).format('YYYY-MM-DD')),
     },
     {
@@ -728,6 +745,15 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       <Space size={4}>
         <Switch size="small" checked={pendingOnly} onChange={setPendingOnly} />
         <Text style={{ fontSize: 12 }}>仅看有未补全项的草稿单</Text>
+      </Space>
+      {/* I17 裁定②：占位档案默认隐藏，此开关仅供排查 */}
+      <Space size={4}>
+        <Tooltip title={PLACEHOLDER_HINT}>
+          <Switch size="small" checked={showPlaceholders} onChange={setShowPlaceholders} />
+        </Tooltip>
+        <Tooltip title={PLACEHOLDER_HINT}>
+          <Text style={{ fontSize: 12, cursor: 'help' }}>显示占位档案</Text>
+        </Tooltip>
       </Space>
       <Button onClick={fetchRows}>查询</Button>
     </Space>

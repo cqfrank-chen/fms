@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { SETTLEMENTS } from '../db/schema';
 import type { Settlement } from '../db/schema';
@@ -28,9 +28,10 @@ export class CreateCustomerDto {
 export class CustomersController {
   constructor(private readonly service: CustomersService) {}
 
+  /** 列表：默认隐藏占位档案「（未建档客户·待补）」；includePlaceholders=1 显示（界面「显示占位档案」开关） */
   @Get()
-  findAll() {
-    return this.service.findAll();
+  findAll(@Query('includePlaceholders') includePlaceholders?: string) {
+    return this.service.findAll({ includePlaceholders });
   }
 
   @Roles('admin', 'planner')

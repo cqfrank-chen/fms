@@ -1,12 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { and, desc, eq, inArray, like, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
   customers, operators, orderLines, orders, outbounds, PENDING_CUSTOMER_NAME, PENDING_PRODUCT_NAME,
   planSheetLines, planSheets, products, receivables, ORDERS_DUE_DATE_TBD,
 } from '../db/schema';
-import type { NewOrderLine, OrderStatus, PendingItem } from '../db/schema';
+import type { Currency, NewOrderLine, OrderStatus, PendingItem } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
+import { normalizeCurrency } from '../common/currency';
+import { includePlaceholders } from '../common/placeholders';
 import { fromCents, sumLineCents, toCents } from '../common/money';
 import { InvoicesService } from '../invoices/invoices.service';
 import { orderInvoiceState } from '../invoices/invoice-stats';
@@ -14,6 +16,8 @@ import { QuotesService } from '../quotes/quotes.service';
 import { describeHit } from '../quotes/quote-pricing';
 import { normName } from '../ai/order-parser.service';
 import { computeLinePending, computeOrderPending, PENDING_CODES, pendingText } from './pending-items';
+import { quoteFillTargets, resolveQuoteFills } from './draft-quote-fill';
+import type { DraftQuoteFill } from './draft-quote-fill';
 
 /** 事务句柄类型（drizzle transaction callback 参数） */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -22,7 +26,8 @@ export interface OrderLineDto {
   productId: number;
   quantity: number;
   unitPrice: number;
-  currency?: 'RMB' | 'USD';
+  /** 币种：写入前一律过 normalizeCurrency（RMB / ￥ / 人民币 → CNY，见 common/currency.ts） */
+  currency?: Currency;
   engraving?: string;
   packaging?: Record<string, string>;
 }
@@ -41,6 +46,11 @@ export interface OrderListQuery {
   kw?: string;
   /** '1' = 只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
   hasPending?: string;
+  /**
+   * '1' = 包含占位档案相关单据（未建档客户·待补 / 未建档产品·待补）。
+   * I17 裁定：**默认隐藏**占位档案相关的订单；打开「显示占位档案」开关（或按「有未补全项的草稿单」筛选）时显示。
+   */
+  includePlaceholders?: string;
 }
 
 /** 落草稿的单行入参（识单结果一行；数量/单价可空 = 原始单据本来就没有） */
@@ -50,7 +60,8 @@ export interface DraftOrderLineDto {
   productName?: string | null;
   quantity?: number | null;
   unitPrice?: number | null;
-  currency?: 'RMB' | 'USD';
+  /** 币种：写入前一律过 normalizeCurrency（RMB / ￥ / 人民币 → CNY） */
+  currency?: Currency;
   engraving?: string;
   packaging?: Record<string, string>;
   /** 单价来源（识单补价时为 'quote'，用于「补价成功的行不再算缺价」判定） */
@@ -95,6 +106,8 @@ const ymdDash = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private readonly invoices: InvoicesService,
     private readonly quotes: QuotesService,
@@ -126,7 +139,7 @@ export class OrdersService {
           productId: l.productId,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
-          currency: l.currency ?? 'RMB',
+          currency: normalizeCurrency(l.currency),
           engraving: l.engraving ?? null,
           packaging: l.packaging ?? null,
         })),
@@ -186,8 +199,20 @@ export class OrdersService {
       conds.push(or(like(orders.orderNo, kw), like(orders.poNo, kw)));
     }
     // 只看有未补全项的草稿单：pending_items 非空数组（null = 不参与待补机制的普通订单，不算）
-    if (q.hasPending === '1' || q.hasPending === 'true') {
+    const hasPendingOnly = q.hasPending === '1' || q.hasPending === 'true';
+    if (hasPendingOnly) {
       conds.push(sql`jsonb_array_length(coalesce(${orders.pendingItems}, '[]'::jsonb)) > 0`);
+    }
+    // I17 甲方裁定：占位档案（未建档客户·待补 / 未建档产品·待补）相关单据**默认隐藏**。
+    // 例外：① 显式打开「显示占位档案」开关（includePlaceholders=1）→ 显示（排查用）；
+    //       ② 按「有未补全项的草稿单」筛选 → 属于补全工作流，必须能看到这些草稿，否则无从补全。
+    if (!includePlaceholders(q.includePlaceholders) && !hasPendingOnly) {
+      const pendingCustomerId = await this.findPendingCustomerId();
+      const pendingProductId = await this.findPendingProductId();
+      if (pendingCustomerId != null) conds.push(ne(orders.customerId, pendingCustomerId));
+      if (pendingProductId != null) {
+        conds.push(sql`not exists (select 1 from order_lines ol where ol.order_id = ${orders.id} and ol.product_id = ${pendingProductId})`);
+      }
     }
     const base = db
       .select({
@@ -261,7 +286,7 @@ export class OrdersService {
               productId: l.productId,
               quantity: l.quantity,
               unitPrice: l.unitPrice,
-              currency: l.currency ?? 'RMB',
+              currency: normalizeCurrency(l.currency),
               engraving: l.engraving ?? null,
               packaging: l.packaging ?? null,
               pendingItems: pending.length ? pending : null,
@@ -295,21 +320,70 @@ export class OrdersService {
     const customer = await this.resolveDraftCustomer(dto.customerId ?? null, headName);
     const due = this.resolveDraftDueDate(dto.dueDate ?? null);
 
-    const values: Array<Omit<NewOrderLine, 'orderId'>> = [];
-    const linePendings: PendingItem[][] = [];
+    // ---- 第一遍：解析产品 + 数量（报价补价要先有 productId / 产品原文） ----
+    interface PreparedLine {
+      line: DraftOrderLineDto;
+      product: { id: number; filed: boolean; name: string | null };
+      qtyOk: boolean;
+      quantity: number;
+      priceOk: boolean;
+      unitPrice: number;
+    }
+    const prepared: PreparedLine[] = [];
     for (const line of dto.lines ?? []) {
       const product = await this.resolveDraftProduct(line.productId ?? null, line.productName ?? null);
       const qtyOk = line.quantity != null && String(line.quantity).trim() !== ''
         && Number.isFinite(Number(line.quantity)) && Number(line.quantity) > 0;
       const priceOk = line.unitPrice != null && String(line.unitPrice).trim() !== ''
         && Number.isFinite(Number(line.unitPrice)) && Number(line.unitPrice) >= 0;
-      const quantity = qtyOk ? Math.round(Number(line.quantity)) : 0;
-      const unitPrice = priceOk ? Number(line.unitPrice) : 0;
-      const priceFrom = priceOk && line.priceFrom === 'quote' ? ('quote' as const) : null;
+      prepared.push({
+        line,
+        product,
+        qtyOk,
+        quantity: qtyOk ? Math.round(Number(line.quantity)) : 0,
+        priceOk,
+        unitPrice: priceOk ? Number(line.unitPrice) : 0,
+      });
+    }
+
+    // ---- 第二遍：缺价的行走**同一条报价补价路径**（I17 甲方裁定④） ----
+    // 口径：按「客户（优先真实档案 id，未建档时只能命中通用价）+ 该行产品（id 或产品名文本）」取价，
+    // 命中 → 补价 + priceFrom='quote'（来源可追溯）；未命中 → 保持缺价待补，绝不编造价格。
+    // 说明：识单通道（/ai/orders/parse）已经补过一次价，这里再补一次是为了让**任何**落草稿来源
+    //（含 .doc 切片管线、批量脚本、直接调接口）都走同一条路径 —— 已有价格的行不会被覆盖。
+    const targets = quoteFillTargets(
+      customer.filed ? customer.id : null,
+      prepared.map((p) => ({
+        productId: p.product.filed ? p.product.id : null,
+        productName: p.product.name ?? p.line.productName ?? null,
+        hasPrice: p.priceOk,
+      })),
+    );
+    let fills: Array<DraftQuoteFill | null> = new Array(prepared.length).fill(null);
+    if (targets.length) {
+      try {
+        const hits = await this.quotes.lookupMany(targets.map((t) => t.query));
+        fills = resolveQuoteFills(prepared.length, targets, hits);
+      } catch (e) {
+        // 取价异常不阻断落草稿：如实告警，该行保持缺价待补
+        this.logger.warn('落草稿补价失败（按缺价处理）：' + (e as Error).message);
+      }
+    }
+
+    // ---- 第三遍：装配行 + 标待补 ----
+    const values: Array<Omit<NewOrderLine, 'orderId'>> = [];
+    const linePendings: PendingItem[][] = [];
+    prepared.forEach((p, i) => {
+      const { line, product } = p;
+      const hit = fills[i];
+      const quantity = p.quantity;
+      const priceOk = p.priceOk || !!hit;
+      const unitPrice = p.priceOk ? p.unitPrice : (hit ? fromCents(hit.unitPriceCents) : 0);
+      const priceFrom = priceOk && (!!hit || line.priceFrom === 'quote') ? ('quote' as const) : null;
       const pending = computeLinePending({
         productId: product.filed ? product.id : null,
         productName: product.name,
-        quantity: qtyOk ? quantity : null,
+        quantity: p.qtyOk ? quantity : null,
         unitPrice: priceOk ? unitPrice : null,
         priceFrom,
       });
@@ -318,14 +392,14 @@ export class OrdersService {
         productId: product.id,
         quantity,
         unitPrice,
-        currency: line.currency ?? 'RMB',
+        currency: normalizeCurrency(line.currency),
         engraving: line.engraving ?? null,
         packaging: line.packaging ?? null,
         pendingItems: pending.length ? pending : null,
         priceSource: priceFrom,
         productNameText: product.filed ? null : (product.name ?? line.productName ?? null),
       });
-    }
+    });
 
     const orderPending = computeOrderPending({
       customerId: customer.filed ? customer.id : null,
@@ -393,6 +467,8 @@ export class OrdersService {
         const remain = (r.line.pendingItems ?? []).filter((x) => x.code !== PENDING_CODES.PRICE_MISSING);
         await tx.update(orderLines).set({
           unitPrice: price,
+          // 币种同步取报价的币种（归一后）：避免「人民币行 + 美元价」这类跨币种混价
+          currency: normalizeCurrency(h.currency),
           priceSource: 'quote',
           pendingItems: remain.length ? remain : null,
         }).where(eq(orderLines.id, r.line.id));
@@ -513,14 +589,16 @@ export class OrdersService {
   }
 
   /**
-   * 占位产品：**惰性创建**。products.type 是 NOT NULL 枚举（无 unknown 取值），
-   * 这里填 'uk_acetylene' 只是满足约束 —— 该产品**永远不能进入生产**：
-   * 引用它的订单一定带「产品未建档」待补项，confirmOrder 会直接拦截（见 plan-sheets.service）。
+   * 占位产品：**惰性创建**。
+   * I17 甲方裁定：类型字段用**中立值 'tbd'（待定）**，不再借用 'uk_acetylene'。
+   * 该产品**永远不能进入生产**：引用它的订单一定带「产品未建档」待补项，
+   * confirmOrder 会直接拦截（见 plan-sheets.service）。已有占位产品数据由
+   * db/migrate.ts 的幂等数据修正统一刷成 'tbd'（迁移只新增枚举值，见 drizzle/0022_*）。
    */
   private async ensurePendingProduct(): Promise<number> {
     const hit = await this.findPendingProductId();
     if (hit != null) return hit;
-    const [row] = await db.insert(products).values({ name: PENDING_PRODUCT_NAME, type: 'uk_acetylene', safetyStock: 0 }).returning({ id: products.id });
+    const [row] = await db.insert(products).values({ name: PENDING_PRODUCT_NAME, type: 'tbd', safetyStock: 0 }).returning({ id: products.id });
     return row.id;
   }
 

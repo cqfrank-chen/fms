@@ -27,6 +27,11 @@ interface CrudResourceProps<T extends { id: number }> {
   initialValues?: Record<string, unknown>
   /** 增删改成功后回调（用于通知同页其它卡片刷新，如实体统计/产品工序路线） */
   onChanged?: () => void
+  /**
+   * 列表请求附加查询串（含前导 '?' 或 '&'）。
+   * I17：客户/产品列表默认隐藏占位档案，「显示占位档案」开关打开时传 '?includePlaceholders=1'。
+   */
+  listQuery?: string
 }
 
 /** 通用主数据 CRUD：列表 + 弹窗表单增删改，直接生效无草稿态（对齐票 09 原型设置页） */
@@ -37,6 +42,7 @@ export default function CrudResource<T extends { id: number }>({
   fields,
   initialValues,
   onChanged,
+  listQuery = '',
 }: CrudResourceProps<T>) {
   const [rows, setRows] = useState<T[]>([])
   const [loading, setLoading] = useState(false)
@@ -48,14 +54,14 @@ export default function CrudResource<T extends { id: number }>({
   async function fetchRows() {
     setLoading(true)
     try {
-      setRows(await api<T[]>(`/${resource}`))
+      setRows(await api<T[]>(`/${resource}${listQuery}`))
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
     } finally {
       setLoading(false)
     }
   }
-  useEffect(() => { fetchRows() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRows() }, [listQuery]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() {
     setEditing(null)

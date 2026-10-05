@@ -7,7 +7,8 @@ import type { LlmMessage } from './llm-gateway.service';
 import { matrixToCompactText, ruleMapMatrix } from './table-parser.service';
 import type { HeaderArea, RuleMapResult } from './table-parser.service';
 import { QuotesService } from '../quotes/quotes.service';
-import { currencyToOrderEnum, describeHit } from '../quotes/quote-pricing';
+import { describeHit } from '../quotes/quote-pricing';
+import { normalizeCurrency } from '../common/currency';
 import type { PriceHit, PriceRule } from '../quotes/quote-pricing';
 
 /**
@@ -26,7 +27,8 @@ export interface ParsedOrderLine {
   productCode?: string;
   quantity?: number;
   unitPrice?: number;
-  currency?: 'RMB' | 'USD';
+  /** 币种：甲方裁定统一归一为 CNY / USD（RMB / ￥ / 人民币 等写法一律归一到 CNY，见 common/currency.ts） */
+  currency?: 'CNY' | 'USD';
   engraving?: string;
   packagingText?: string; // 包装要求原文 → 规则转 PackagingSpec
 }
@@ -125,7 +127,7 @@ const SYSTEM_PROMPT = `你是工厂订单录入助手，把客户发来的订单
     "productName": "产品型号（保留原文如 ANM 3 / PNM 1/32 / 6290 / 101，不要改写或加注释）",
     "quantity": 数量数字,
     "unitPrice": 单价数字,
-    "currency": "RMB|USD（未标明币种时按单据语境推断，仍拿不准填 RMB）",
+    "currency": "CNY|USD（未标明币种时按单据语境推断；人民币一律写 CNY，仍拿不准填 CNY）",
     "engraving": "刻字需求（无则空串）",
     "packagingText": "包装要求原文整段（无则空串）"
   }]
@@ -452,7 +454,8 @@ export class OrderParserService {
       const hit = quoteHits[i];
       // 报价补价后的单价/币种（未命中时保持原值 —— 缺价仍标 error 待补）
       const unitPrice = hit ? fromCents(hit.unitPriceCents) : l.unitPrice;
-      const currency = hit ? currencyToOrderEnum(hit.currency) : l.currency;
+      // 币种：报价命中按报价币种归一；单据自带 / LLM 返回的写法也统一归一到 CNY / USD（甲方裁定）
+      const currency = normalizeCurrency(hit ? hit.currency : l.currency);
       if (unitPrice === undefined || unitPrice === null || unitPrice < 0) {
         lineIssues.push({ path: `lines[${i}].unitPrice`, level: 'error', message: '未识别到单价（须人工补填价格）' });
       }

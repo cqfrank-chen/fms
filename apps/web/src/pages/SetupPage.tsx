@@ -1,4 +1,4 @@
-import { Button, Card, Divider, Form, Input, Popconfirm, Space, Tag, Typography, message } from 'antd'
+import { Button, Card, Divider, Form, Input, Popconfirm, Space, Switch, Tag, Tooltip, Typography, message } from 'antd'
 import { useEffect, useState } from 'react'
 import CrudResource from '../components/CrudResource'
 import type { FieldConfig } from '../components/CrudResource'
@@ -9,6 +9,7 @@ import InvoiceSettingsCard from '../components/InvoiceSettingsCard'
 import UpdateCard from '../components/UpdateCard'
 import UserManageCard from '../components/UserManageCard'
 import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL } from '../lib/labels'
+import { PLACEHOLDER_HINT, useShowPlaceholders, withPlaceholders } from '../lib/placeholders'
 import { api } from '../lib/api'
 import type { ColumnsType } from 'antd/es/table'
 
@@ -113,6 +114,8 @@ export default function SetupPage() {
   // 主数据/字典任一增删改后自增，驱动实体统计与产品工序路线等联动刷新
   const [dataVersion, setDataVersion] = useState(0)
   const bumpData = () => setDataVersion((v) => v + 1)
+  // I17 裁定②：「显示占位档案」开关（默认关闭 = 客户/产品列表隐藏两个占位档案）
+  const [showPlaceholders, setShowPlaceholders] = useShowPlaceholders()
   return (
     <div style={{ maxWidth: 1240 }}>
       <Typography.Title level={4} style={{ marginTop: 0 }}>主数据（设置）</Typography.Title>
@@ -120,6 +123,17 @@ export default function SetupPage() {
         订单/计划单/排期/仓储/账目的唯一引用来源。直接生效无草稿态。
       </Typography.Paragraph>
       <EntityStats reloadToken={dataVersion} />
+      {/* I17 裁定②：占位档案（未建档客户·待补 / 未建档产品·待补）默认隐藏，此开关仅供排查 */}
+      <Space size={8} style={{ marginTop: 8 }}>
+        <Tooltip title={PLACEHOLDER_HINT}>
+          <Switch size="small" checked={showPlaceholders} onChange={setShowPlaceholders} />
+        </Tooltip>
+        <Tooltip title={PLACEHOLDER_HINT}>
+          <Typography.Text type="secondary" style={{ cursor: 'help' }}>
+            显示占位档案（未建档客户·待补 / 未建档产品·待补；默认隐藏）
+          </Typography.Text>
+        </Tooltip>
+      </Space>
       <div style={{ display: 'grid', gap: 16, marginTop: 12 }}>
         <CrudResource<ProductRow>
           title="产品目录"
@@ -128,6 +142,7 @@ export default function SetupPage() {
           fields={PRODUCT_FIELDS}
           initialValues={{ safetyStock: 0 }}
           onChanged={bumpData}
+          listQuery={withPlaceholders('', showPlaceholders)}
         />
         <MasterImportCard target="products" title="产品目录 · 批量导入（Excel / CSV）" onChanged={bumpData} />
         <CrudResource<CustomerRow>
@@ -137,6 +152,7 @@ export default function SetupPage() {
           fields={CUSTOMER_FIELDS}
           initialValues={{ creditDays: 30 }}
           onChanged={bumpData}
+          listQuery={withPlaceholders('', showPlaceholders)}
         />
         <MasterImportCard target="customers" title="客户档案 · 批量导入（Excel / CSV）" onChanged={bumpData} />
         <CrudResource<SupplierRow>

@@ -7,6 +7,7 @@ import type { UploadProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
+import { CURRENCY_OPTIONS } from '../lib/labels'
 import type { Customer, Order, PackagingSpec, Product } from '../lib/types'
 import PackComboEditor from './PackComboEditor'
 
@@ -18,7 +19,7 @@ const IMG_EXT_RE = /\.(png|jpe?g|webp|gif|bmp)$/i
 export interface AiIssue { path: string; level: 'error' | 'warn'; message: string }
 export interface AiParsedLine {
   productName: string; productId: number | null; match: 'exact' | 'none'
-  quantity?: number; unitPrice?: number; currency?: 'RMB' | 'USD'
+  quantity?: number; unitPrice?: number; currency?: 'CNY' | 'USD' | 'RMB'
   engraving?: string; packaging?: PackagingSpec; issues: AiIssue[]
   /** 行金额（分）——后端按 common/money 定点计算，前端只做展示 */
   amountCents?: number
@@ -56,7 +57,7 @@ export interface AiResolveResult {
 export interface AiFillLine {
   productId?: number
   productName?: string // AI 识别原文（未建档时新建订单页用文本提示建档）
-  quantity?: number; unitPrice?: number; currency: 'RMB' | 'USD'
+  quantity?: number; unitPrice?: number; currency: 'CNY' | 'USD' | 'RMB'
   engraving?: string; packaging?: PackagingSpec
 }
 export interface AiFillPayload {
@@ -78,7 +79,7 @@ interface Props {
 /** 可编辑草稿行 */
 interface EditLine {
   productId?: number; productName?: string
-  quantity?: number; unitPrice?: number; currency: 'RMB' | 'USD'
+  quantity?: number; unitPrice?: number; currency: 'CNY' | 'USD' | 'RMB'
   engraving?: string; packaging?: PackagingSpec
   _unmatched: boolean // AI 未匹配到目录产品 → 允许按识别名带过去，新建订单页建档
   _browse?: boolean // 从目录浏览（切出文本编辑态）
@@ -214,7 +215,7 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
         productName: l.productName,
         quantity: l.quantity,
         unitPrice: l.unitPrice,
-        currency: l.currency ?? 'RMB',
+        currency: l.currency ?? 'CNY',
         engraving: l.engraving,
         packaging: l.packaging,
         _unmatched: l.productId === null,
@@ -670,7 +671,7 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
                   render: (_, l, i) => (
                     <Select style={{ width: '100%' }} value={l.currency}
                       onChange={(v) => setRow(i, { currency: v })}
-                      options={[{ value: 'RMB', label: 'RMB' }, { value: 'USD', label: 'USD' }]} />
+                      options={CURRENCY_OPTIONS} />
                   ),
                 },
                 {

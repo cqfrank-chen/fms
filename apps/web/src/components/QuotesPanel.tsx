@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadProps } from 'antd'
 import { api, loadOptions } from '../lib/api'
+import { CURRENCY_LABEL, CURRENCY_OPTIONS } from '../lib/labels'
 import { fmtCents } from '../lib/money'
 import { getToken } from '../lib/token'
 
@@ -225,7 +226,11 @@ export default function QuotesPanel({ onChanged }: { onChanged?: () => void }) {
       title: '单价', dataIndex: 'unitPriceCents', width: 130, align: 'right',
       render: (_: unknown, r) => <PriceCell row={r} onSaved={bump} />,
     },
-    { title: '币种', dataIndex: 'currency', width: 80 },
+    {
+      // I17 裁定⑤：展示同样归一（历史 RMB 行按 CNY 显示）
+      title: '币种', dataIndex: 'currency', width: 80,
+      render: (v: unknown) => CURRENCY_LABEL[String(v ?? 'CNY')] ?? String(v ?? 'CNY'),
+    },
     { title: '有效期', key: 'span', width: 200, render: (_: unknown, r) => <Text style={{ fontSize: 12 }}>{fmtSpan(r)}</Text> },
     { title: '来源', dataIndex: 'source', width: 100, render: (v: string) => SOURCE_LABEL[v] ?? v },
     {
@@ -319,7 +324,8 @@ export default function QuotesPanel({ onChanged }: { onChanged?: () => void }) {
                 options={customers.map((c) => ({ value: c.id, label: c.name }))} />
             </Form.Item>
             <Form.Item name="currency" label="币种" style={{ width: 110 }}>
-              <Select options={[{ value: 'CNY', label: 'CNY' }, { value: 'RMB', label: 'RMB' }, { value: 'USD', label: 'USD' }]} />
+              {/* I17 裁定⑤：币种统一归一为 CNY —— 下拉只给规范值（RMB / 人民币 / ￥ / ¥ 等写法写入前自动归一为 CNY） */}
+              <Select options={CURRENCY_OPTIONS} />
             </Form.Item>
           </Space>
           <Form.Item name="productId" label="产品（可留空）">
@@ -526,7 +532,11 @@ export function QuoteImportCard({ onDone }: { onDone?: () => void }) {
     { title: '客户', width: 150, render: (_: unknown, r) => String(r.data.customerName ?? '（通用价）') },
     { title: '产品', width: 200, ellipsis: true, render: (_: unknown, r) => String(r.data.productName ?? '—') },
     { title: '单价', width: 90, align: 'right', render: (_: unknown, r) => (r.data.unitPrice === null || r.data.unitPrice === undefined ? '—' : String(r.data.unitPrice)) },
-    { title: '币种', width: 70, render: (_: unknown, r) => String(r.data.currency ?? 'CNY') },
+    {
+      // I17 裁定⑤：导入预览的币种同样归一展示
+      title: '币种', width: 70,
+      render: (_: unknown, r) => CURRENCY_LABEL[String(r.data.currency ?? 'CNY')] ?? String(r.data.currency ?? 'CNY'),
+    },
     { title: '生效', width: 105, render: (_: unknown, r) => String(r.data.validFrom ?? '—') },
     { title: '失效', width: 105, render: (_: unknown, r) => String(r.data.validTo ?? '—') },
     { title: '原因 / 说明', dataIndex: 'reasons', ellipsis: true, render: (rs: string[]) => (rs?.length ? <Text type="secondary" style={{ fontSize: 12 }}>{rs.join('；')}</Text> : '—') },

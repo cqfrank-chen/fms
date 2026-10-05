@@ -8,11 +8,17 @@ import {
   processes as processesTbl,
   workCenters,
 } from '../db/schema';
+import { hidePlaceholders } from '../common/placeholders';
 
 @Injectable()
 export class ProductsService {
-  async findAll() {
-    return db.select().from(products).orderBy(products.id);
+  /**
+   * 产品目录列表。
+   * I17：默认**隐藏占位产品**「（未建档产品·待补）」（甲方裁定）；includePlaceholders=1 时显示（排查用）。
+   */
+  async findAll(opts: { includePlaceholders?: string } = {}) {
+    const rows = await db.select().from(products).orderBy(products.id);
+    return hidePlaceholders(rows, opts.includePlaceholders);
   }
 
   async create(data: NewProduct) {
