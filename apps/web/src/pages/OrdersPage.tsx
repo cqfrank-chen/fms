@@ -426,7 +426,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
       ) : (
         <Typography.Text type="secondary">保存后为草稿；确认后自动生成计划单</Typography.Text>
       )}>
-      {!editing && <AiOrderImport onReviewDone={fillFromAI} />}
+      {!editing && <AiOrderImport onReviewDone={fillFromAI} onDraftCreated={onEdited} />}
 
       {(pending?.customer || unmatchedEntries.length > 0) && (
         <Alert

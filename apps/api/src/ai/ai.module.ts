@@ -8,13 +8,14 @@ import { AiOrdersController } from './ai-orders.controller';
 import { LlmGatewayService } from './llm-gateway.service';
 import { OrderParserService } from './order-parser.service';
 import { QaService } from './qa.service';
+import { TableParserService } from './table-parser.service';
 import { ReportSummaryService } from './report-summary.service';
 import { RuleAlertService } from './rule-alerts.service';
 
 @Module({
   imports: [SchedulingModule, AccountingModule], // 复用排期 overdue 与利润取数口径
   controllers: [AiController, AiOrdersController, AiFeedbackController],
-  providers: [AiConfigService, LlmGatewayService, OrderParserService, QaService, ReportSummaryService, RuleAlertService],
+  providers: [AiConfigService, LlmGatewayService, OrderParserService, TableParserService, QaService, ReportSummaryService, RuleAlertService],
   exports: [LlmGatewayService, OrderParserService],
 })
 export class AiModule {}

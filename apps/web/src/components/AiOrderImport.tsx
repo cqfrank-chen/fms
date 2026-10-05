@@ -4,13 +4,15 @@ import {
 } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
-import type { Customer, PackagingSpec, Product } from '../lib/types'
+import type { Customer, Order, PackagingSpec, Product } from '../lib/types'
 import PackComboEditor from './PackComboEditor'
 
 const { Text } = Typography
-const MAX_IMG = 8 * 1024 * 1024 // 8MB（nginx/后端 12mb 内）
+const MAX_FILE = 8 * 1024 * 1024 // 8MB（nginx/后端 12mb 内）
+const IMG_EXT_RE = /\.(png|jpe?g|webp|gif|bmp)$/i
 
 // ===== 后端 /api/ai/orders/parse 的返回结构（与 order-parser.service 对齐）=====
 export interface AiIssue { path: string; level: 'error' | 'warn'; message: string }
@@ -18,6 +20,8 @@ export interface AiParsedLine {
   productName: string; productId: number | null; match: 'exact' | 'none'
   quantity?: number; unitPrice?: number; currency?: 'RMB' | 'USD'
   engraving?: string; packaging?: PackagingSpec; issues: AiIssue[]
+  /** 行金额（分）——后端按 common/money 定点计算，前端只做展示 */
+  amountCents?: number
 }
 export interface AiResolveResult {
   customerId: number | null; customerName: string; customerMatch: 'exact' | 'none'
@@ -25,6 +29,15 @@ export interface AiResolveResult {
   lines: AiParsedLine[]; issues: AiIssue[]
   confidence: 'high' | 'low'; notes: string[]
   directPass: boolean
+  /** 订单合计金额（分） */
+  totalCents?: number
+  /** 解析通道：text / image / table-rule（Excel/CSV 规则映射）/ table-llm（表格 LLM 兜底）/ stub */
+  parseSource?: 'text' | 'image' | 'table-rule' | 'table-llm' | 'stub'
+  /** 表格映射诊断（仅 Excel/CSV）：命中率、缺失列、是否走了 LLM */
+  table?: {
+    headerRowIndex: number; hitRate: number; requiredHits: number
+    missingRequired: string[]; dataRowCount: number; usedLlm: boolean
+  }
 }
 
 /** AI 复核确认后回传给新建订单表单的载荷（未命中档案的客户/产品以文本原样带入） */
@@ -46,6 +59,8 @@ export interface AiFillPayload {
 interface Props {
   /** 复核确认：把草稿（含未建档文本）交回订单页，由用户最终检测/建档/保存 */
   onReviewDone?: (payload: AiFillPayload) => void
+  /** 已直接生成草稿订单（Excel 全字段命中时）：通知订单页刷新列表并切到列表页 */
+  onDraftCreated?: () => void
 }
 
 /** 可编辑草稿行 */
@@ -62,6 +77,26 @@ interface EditDraft {
   lines: EditLine[]
 }
 
+/** Excel/CSV 表格预览行（客户/产品/数量/单价/金额/交期；金额以「分」派生自可编辑草稿） */
+interface PreviewRow {
+  key: number
+  customer: string
+  product: string
+  quantity?: number
+  unitPrice?: number
+  amountCents: number
+  dueDate: string
+}
+
+const PREVIEW_COLUMNS: ColumnsType<PreviewRow> = [
+  { title: '客户', dataIndex: 'customer', width: 170, render: (v: string) => v || '—' },
+  { title: '产品', dataIndex: 'product', width: 240, render: (v: string) => v || '—' },
+  { title: '数量', dataIndex: 'quantity', width: 90, align: 'right', render: (v?: number) => (v === undefined ? '—' : v) },
+  { title: '单价（元）', dataIndex: 'unitPrice', width: 100, align: 'right', render: (v?: number) => (v === undefined ? '—' : v.toFixed(2)) },
+  { title: '金额（元）', dataIndex: 'amountCents', width: 110, align: 'right', render: (v: number) => (v ? (v / 100).toFixed(2) : '0.00') },
+  { title: '交期', dataIndex: 'dueDate', width: 120, render: (v: string) => v || '—' },
+]
+
 const todayStr = () => dayjs().format('YYYY-MM-DD')
 const fmtTime = (iso: string) => dayjs(iso).format('MM-DD HH:mm')
 
@@ -72,8 +107,14 @@ interface SavedDraft {
   updatedAt: string
 }
 
-/** AI 订单导入：图片/文本 → 解析预览（低置信标红）→ 人工修正 → 填入新建订单表单（建档/保存由订单页承接） */
-export default function AiOrderImport({ onReviewDone }: Props) {
+/** 金额（分 → 元，两位小数）：与后端 common/money 的 lineCents 同口径（定点，避免浮点尾差） */
+const centsOf = (quantity?: number, unitPrice?: number) =>
+  Math.round(quantity || 0) * Math.round((unitPrice || 0) * 100)
+const yuan = (cents: number) => (cents / 100).toFixed(2)
+
+/** AI 订单导入：图片/文本/Excel(CSV) → 解析预览（低置信标红）→ 人工修正
+ *  → 全字段命中可「生成草稿订单」（恒为草稿态）；未建档项则填入新建订单表单由订单页承接 */
+export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [busy, setBusy] = useState(false)
@@ -169,7 +210,7 @@ export default function AiOrderImport({ onReviewDone }: Props) {
     })
   }
 
-  async function doParse(body: { text?: string; image?: string }, from: string) {
+  async function doParse(body: { text?: string; image?: string; file?: string; fileName?: string }, from: string) {
     // I14：已有未提交草稿时，新解析覆盖前需二次确认（不误吞修正内容）
     if (saved) {
       const go = await new Promise<boolean>((resolve) => {
@@ -198,18 +239,46 @@ export default function AiOrderImport({ onReviewDone }: Props) {
     } finally { setBusy(false) }
   }
 
-  // ---- 图片上传：转 dataURL 直送（不经 multipart）----
+  /**
+   * 上传入口（拖拽/点选共用）：图片 / Excel(.xlsx) / CSV 三种走向。
+   * - 图片 → dataURL 走既有 vision 识别（不受本次改动影响）
+   * - xlsx/csv → dataURL 走表格解析管线（规则映射优先，命中不足再走 LLM）
+   * - .xls/.pdf → 前端即时中文提示（后端同样拦截，双保险）
+   * 文件转 dataURL 直送（不经 multipart，与既有图片路径同一约定）
+   */
+  function pickFile(file: File) {
+    const name = file.name.toLowerCase()
+    if (name.endsWith('.xls') && !name.endsWith('.xlsx')) {
+      message.error('暂不支持旧版 .xls 格式：请用 Excel 另存为 .xlsx 或 .csv 后重试')
+      return
+    }
+    if (name.endsWith('.pdf')) {
+      message.error('PDF 暂不支持直接解析：请把订单页截图成图片上传，或另存为 .xlsx / .csv 后重试')
+      return
+    }
+    const isImage = file.type.startsWith('image/') || IMG_EXT_RE.test(name)
+    if (!isImage && !/\.(xlsx|csv|tsv)$/.test(name)) {
+      message.error('仅支持 Excel(.xlsx) / CSV 表格或订单图片，请重新选择文件')
+      return
+    }
+    if (file.size > MAX_FILE) { message.error('文件超过 8MB，请精简后重试（大表可另存为 .csv）'); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = String(reader.result)
+      if (isImage) doParse({ image: dataUrl, fileName: file.name }, '图片')
+      else doParse({ file: dataUrl, fileName: file.name }, '表格')
+    }
+    reader.onerror = () => message.error('文件读取失败，请重新选择')
+    reader.readAsDataURL(file)
+  }
+
   const uploadProps: UploadProps = {
-    accept: 'image/*',
+    accept: 'image/*,.xlsx,.csv,.tsv',
+    multiple: false,
     showUploadList: false,
     beforeUpload: (file) => {
-      if (!file.type.startsWith('image/')) { message.warning('请上传图片文件'); return Upload.LIST_IGNORE }
-      if (file.size > MAX_IMG) { message.warning('图片超过 8MB，请压缩后再试'); return Upload.LIST_IGNORE }
-      const reader = new FileReader()
-      reader.onload = () => doParse({ image: String(reader.result) }, '图片')
-      reader.onerror = () => message.error('图片读取失败')
-      reader.readAsDataURL(file)
-      return false // 阻止自动上传
+      pickFile(file as unknown as File)
+      return false // 阻止自动上传：统一由前端转 dataURL 直送
     },
   }
 
@@ -247,20 +316,100 @@ export default function AiOrderImport({ onReviewDone }: Props) {
     } finally { setSaving(false) }
   }
 
+  // ===== Excel/CSV：表格预览（客户/产品/数量/单价/金额/交期）+ 直接生成草稿订单 =====
+  const isTable = !!result?.parseSource?.startsWith('table')
+
+  /** 预览行：直接由可编辑草稿派生 —— 上方一改，预览同步更新（改完即所见） */
+  const previewCustomer = draft?.customerId
+    ? (customers.find((c) => c.id === draft.customerId)?.name ?? draft.customerText ?? '')
+    : (draft?.customerText ?? '')
+  const previewRows = (draft?.lines ?? []).map((l, i) => ({
+    key: i,
+    // 客户/交期是单头字段：每行都展示，便于按行核对（与单据表的阅读习惯一致）
+    customer: previewCustomer,
+    product: l.productId ? (products.find((p) => p.id === l.productId)?.name ?? l.productName ?? '') : (l.productName ?? ''),
+    quantity: l.quantity,
+    unitPrice: l.unitPrice,
+    amountCents: centsOf(l.quantity, l.unitPrice),
+    dueDate: draft?.dueDate ?? '',
+  }))
+  const previewTotalCents = previewRows.reduce((s, r) => s + r.amountCents, 0)
+
+  /** 可直接生成草稿订单的条件：客户命中档案 + 每行都有目录产品/数量/单价 */
+  const draftReady = !!draft?.customerId
+    && draft.lines.length > 0
+    && draft.lines.every((l) => !!l.productId && !!l.quantity && l.quantity > 0 && l.unitPrice !== undefined && l.unitPrice !== null)
+
+  /**
+   * 生成草稿订单：复用既有 POST /orders（后端创建态恒为 draft，不是「已确认」）。
+   * 只有全字段命中（客户/产品都在档案）才允许，避免把未建档数据写进 FK；
+   * 有未建档项时引导用户走「按识别结果填入新建订单」→ 建档后保存。
+   */
+  async function createDraftOrder() {
+    if (!draft || !result) return
+    if (!draft.customerId) { message.warning('客户未匹配到档案：请先在上方选择客户（或走「填入新建订单」快速建档）'); return }
+    const badIdx = draft.lines.findIndex((l) => !l.productId || !l.quantity || l.quantity <= 0 || l.unitPrice === undefined || l.unitPrice === null)
+    if (badIdx >= 0) {
+      message.warning('第 ' + (badIdx + 1) + ' 行产品/数量/单价未就绪：请在上方修正或改用「填入新建订单」建档后保存')
+      return
+    }
+    const body = {
+      customerId: draft.customerId,
+      poNo: draft.poNo || undefined,
+      dueDate: draft.dueDate,
+      note: draft.note || undefined,
+      lines: draft.lines.map((l) => ({
+        productId: l.productId as number,
+        quantity: l.quantity as number,
+        unitPrice: l.unitPrice as number,
+        currency: l.currency,
+        engraving: l.engraving || undefined,
+        packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
+      })),
+    }
+    setSaving(true)
+    try {
+      const created = await api<Order>('/orders', { method: 'POST', body })
+      // 学习闭环：把「识别结果 + 人工最终稿」回流（Excel 来源单独标记，便于统计直通率）
+      api('/ai/feedback', {
+        method: 'POST',
+        body: {
+          source: isTable ? 'excel_import' : 'ai_import',
+          parsed: result,
+          corrected: body,
+          directPass: result.directPass,
+        },
+      }).catch(() => {})
+      api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
+      message.success('已生成草稿订单 ' + created.orderNo + '（草稿态：需到订单列表「确认」后才生成计划单）')
+      setSaved(null); setResult(null); setDraft(null)
+      onDraftCreated?.()
+    } catch (err) {
+      message.error('生成草稿订单失败：' + (err as Error).message)
+    } finally { setSaving(false) }
+  }
+
   const unmatchedCount = draft?.lines.filter((l) => l._unmatched).length ?? 0
   const customerUnmatched = !!draft?.customerText && !draft.customerId
 
   return (
     <>
-      <div style={{ border: '1px dashed #91caff', borderRadius: 8, padding: 10, marginBottom: 16, background: '#f0f7ff', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <Text strong style={{ color: '#0958d9' }}>📷 AI 导入订单</Text>
-        <Space size={8}>
-          <Upload {...uploadProps} disabled={busy}>
-            <Button size="small" type="primary" ghost loading={busy} icon={<InboxOutlined />}>上传订单图片</Button>
-          </Upload>
+      <div style={{ border: '1px dashed #91caff', borderRadius: 8, padding: 10, marginBottom: 16, background: '#f0f7ff' }}>
+        <Space wrap size={10} style={{ marginBottom: 8 }}>
+          <Text strong style={{ color: '#0958d9' }}>📄 AI 导入订单</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            支持 Excel(.xlsx) / CSV（UTF-8、GBK 自动识别）与订单图片；识别后可在表格预览里逐项修正
+          </Text>
           <Button size="small" loading={busy} onClick={() => setTextOpen(true)}>粘贴订单文本</Button>
         </Space>
-        <Text type="secondary" style={{ fontSize: 12 }}>支持客户邮件/微信传单/拍照图 → AI 识别成草稿，低置信字段标红人工复核</Text>
+        <Upload.Dragger {...uploadProps} disabled={busy}>
+          <p className="ant-upload-drag-icon" style={{ marginBottom: 4 }}><InboxOutlined /></p>
+          <p className="ant-upload-text" style={{ fontSize: 14 }}>点击选择或把 Excel / CSV / 订单图片拖到这里识别</p>
+          <p className="ant-upload-hint" style={{ fontSize: 12 }}>
+            .xlsx、.csv（含中文 GBK 编码）、.png/.jpg 等；旧版 .xls 请先用 Excel 另存为 .xlsx 或 .csv；单文件 ≤ 8MB。
+            识别结果恒为草稿，需人工核对后「生成草稿订单」或填入新建订单表单。
+          </p>
+        </Upload.Dragger>
       </div>
 
       {/* I14：上次未提交草稿（刷新/误关自动保存，可恢复继续编辑） */}
@@ -285,22 +434,31 @@ export default function AiOrderImport({ onReviewDone }: Props) {
 
       {/* 结果预览 + 人工复核（确认 = 填入下方新建订单表单） */}
       <Modal
-        title={<>AI 识别结果 · 订单草稿 <Tag color={result?.directPass ? 'green' : result?.confidence === 'low' ? 'orange' : 'blue'}>
-          {result?.directPass ? '可直接确认' : result?.confidence === 'low' ? '低置信·需复核' : '需复核'}
-        </Tag></>}
+        title={<>
+          AI 识别结果 · 订单草稿
+          {isTable && (
+            <Tag color="geekblue" style={{ marginLeft: 6 }}>
+              {result?.parseSource === 'table-rule' ? 'Excel/CSV 表头规则映射' : 'Excel/CSV AI 语义映射'}
+            </Tag>
+          )}
+          <Tag color={result?.directPass ? 'green' : result?.confidence === 'low' ? 'orange' : 'blue'}>
+            {result?.directPass ? '可直接确认' : result?.confidence === 'low' ? '低置信·需复核' : '需复核'}
+          </Tag>
+        </>}
         open={!!result && !!draft}
         onCancel={cancelReview}
-        width={980}
+        width={1080}
         footer={
           <Space>
             <Text type="secondary" style={{ fontSize: 12 }}>
               {customerUnmatched || unmatchedCount > 0
-                ? `${customerUnmatched ? '客户 1 个、' : ''}${unmatchedCount} 个产品不在档案 —— 可在下方新建订单页一键快速建档，这里不做限制`
-                : result?.directPass ? 'AI 全字段通过规则校验，可一键填入' : '按识别结果填入，可在新建订单页继续修正'}
+                ? `${customerUnmatched ? '客户 1 个、' : ''}${unmatchedCount} 个产品不在档案 —— 可点右侧「填入新建订单」一键快速建档`
+                : result?.directPass ? 'AI 全字段通过规则校验，可直接生成草稿订单' : '按识别结果填入，可在新建订单页继续修正'}
             </Text>
             <Button onClick={cancelReview}>取消</Button>
-            <Button type="primary" loading={saving} onClick={confirmFill}>
-              按识别结果填入新建订单
+            <Button loading={saving} onClick={confirmFill}>按识别结果填入新建订单</Button>
+            <Button type="primary" loading={saving} disabled={!draftReady} onClick={createDraftOrder}>
+              生成草稿订单
             </Button>
           </Space>
         }
@@ -317,6 +475,28 @@ export default function AiOrderImport({ onReviewDone }: Props) {
                     {it.level === 'error' ? '🔴' : '🟡'} <Text code style={{ fontSize: 11 }}>{it.path}</Text> {it.message}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Excel/CSV 表格预览（客户/产品/数量/单价/金额/交期）—— 直接派生自下方可编辑草稿，改完即同步 */}
+            {isTable && (
+              <div style={{ border: '1px solid #e6f4ff', background: '#fafcff', borderRadius: 6, padding: '6px 8px' }}>
+                <Space size={8} wrap style={{ marginBottom: 4 }}>
+                  <Text strong style={{ fontSize: 13 }}>📋 表格预览（识别结果）</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    表头关键列命中 {result?.table?.requiredHits ?? 0}/4
+                    {result?.table?.usedLlm ? '；已用 AI 语义映射兜底' : '；规则映射直接得出（未调用 AI）'}
+                    {result?.table?.missingRequired?.length ? '；缺失列：' + result.table.missingRequired.join('、') : ''}
+                    {'；共 ' + previewRows.length + ' 行明细，合计 ' + yuan(previewTotalCents) + ' 元'}
+                  </Text>
+                </Space>
+                <Table<PreviewRow>
+                  size="small" pagination={false} dataSource={previewRows} columns={PREVIEW_COLUMNS}
+                  locale={{ emptyText: '未识别到明细行' }}
+                />
+                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                  预览随下方修正实时更新；单价单位为「元」，金额按 数量 × 单价（分）定点计算。
+                </div>
               </div>
             )}
 

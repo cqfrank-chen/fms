@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { db } from '../db';
 import { customers, products } from '../db/schema';
+import { lineCents, sumLineCents } from '../common/money';
 import { LlmGatewayService } from './llm-gateway.service';
 import type { LlmMessage } from './llm-gateway.service';
+import { matrixToCompactText, ruleMapMatrix } from './table-parser.service';
+import type { RuleMapResult } from './table-parser.service';
 
 /**
  * 订单解析（I12 核心）：多模态/文本 → 结构化抽取 → 确定性规则校验 → 主数据匹配
@@ -44,6 +47,8 @@ export interface ResolvedLine extends ParsedOrderLine {
   match: 'exact' | 'none';
   packaging?: Record<string, string>; // packTextToSpec 转换结果
   issues: Issue[];
+  /** 行金额（分）：数量 × 单价，按 common/money 定点计算（金额一律以「分」为准） */
+  amountCents: number;
 }
 
 export interface ResolveResult {
@@ -59,7 +64,23 @@ export interface ResolveResult {
   notes: string[];
   /** 直通：无 error 且客户/全部产品都精确匹配 → 可一键确认（验收口径 ≥70%） */
   directPass: boolean;
+  /** 订单合计金额（分）：各行 amountCents 之和 */
+  totalCents: number;
+  /** 实际使用的解析通道（便于前端/接口自测断言分支是否正确） */
+  parseSource: ParseSource;
+  /** 表格映射诊断（仅 Excel/CSV 输入有值：命中率/缺失列/是否走了 LLM 兜底） */
+  table?: {
+    headerRowIndex: number;
+    hitRate: number;
+    requiredHits: number;
+    missingRequired: string[];
+    dataRowCount: number;
+    usedLlm: boolean;
+  };
 }
+
+/** 解析通道：文本 / 图片（vision）/ 表格规则映射 / 表格 LLM 兜底映射 / 测试直通 */
+export type ParseSource = 'text' | 'image' | 'table-rule' | 'table-llm' | 'stub';
 
 const SYSTEM_PROMPT = `你是工厂订单录入助手，把客户发来的订单（邮件/Excel文本/图片）抽取为 JSON。
 硬性要求：只输出 JSON，不输出任何多余文字。
@@ -88,6 +109,22 @@ const SYSTEM_PROMPT = `你是工厂订单录入助手，把客户发来的订单
 5. 金额四舍五入保留 2 位小数。`;
 
 const VISION_PROMPT = `${SYSTEM_PROMPT}\n注意：这是一张订单图片（可能是客户微信传单/拍照/扫描件），请仔细阅读图中全部行项目与数值。`;
+
+/**
+ * 表格（Excel/CSV）语义映射提示词：与图片识别**共用同一 JSON schema**（SYSTEM_PROMPT 的字段结构），
+ * 仅追加「表格形态」的说明与严格输出约束，保证下游 resolve() 无需分支处理两种来源。
+ */
+const TABLE_PROMPT = `${SYSTEM_PROMPT}
+
+注意：输入是客户订单表格的**逐行紧凑文本**（R1/R2… 为行号，" | " 为列分隔符，通常第一行是表头）。
+表格之外可能还有邮件正文线索（[上下文线索]），客户名/交期可能只出现在线索里，请一并利用。
+严格输出约束（硬性）：
+1. 只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字；
+2. 顶层键固定为 customerName / poNo / dueDate / note / confidence / notes / lines，不要增删键；
+3. lines 必须是数组，表格里每一条产品行对应一个元素，保持原有行序与行数，不要合并或去重；
+4. 数量/单价输出纯数字（去掉千分位、货币符号与"只/个/pcs"等单位和括号内备注）；
+5. dueDate 输出 YYYY-MM-DD；表格里是"9/30/2026"这类写法也要归一化；
+6. 表格里的合计行/小计行/空行不要当产品行输出。`;
 
 /** 包装要求原文 → 复合包装规格（box/bag/carton/label）。
  *  短语级分类：按空格/标点切短语，逐短语打标签；"纸箱"短语含"盒"视为纸箱子描述（不重复归 box）；
@@ -126,14 +163,75 @@ export class OrderParserService {
 
   constructor(private readonly llm: LlmGatewayService) {}
 
-  /** 主入口：文本 或 图片(dataURL) → 解析 + 规则校验 + 主数据匹配
-   *  stub：仅 mock（未配 AI_API_KEY）时用于验收/离线测试直通 LLM 输出；真 key 环境忽略 */
-  async parseAndResolve(input: { text?: string; image?: string; stub?: ParsedOrder }): Promise<ResolveResult> {
+  /** 主入口：文本 / 图片(dataURL) / 表格矩阵 → 解析 + 规则校验 + 主数据匹配
+   *  stub：仅 mock（未配 AI_API_KEY）时用于验收/离线测试直通 LLM 输出；真 key 环境忽略
+   *
+   *  表格分支（Excel/CSV）：先做**规则映射**（表头关键词命中客户/产品/数量/单价四列 → 直接出结果，不调 LLM）；
+   *  命中率不足才把表格前 N 行转紧凑文本交给 LLM 做语义映射（严格 JSON schema，与图片结果同构）。 */
+  async parseAndResolve(input: {
+    text?: string;
+    image?: string;
+    /** 表格矩阵（Excel/CSV 解析产物） */
+    table?: { rows: string[][]; source?: 'excel' | 'csv' };
+    /** 附加线索（随表格一起提交的文本，如客户邮件原文/粘贴的说明），仅在表格命中率不足时随表格一起喂给 LLM */
+    hint?: string;
+    stub?: ParsedOrder;
+  }): Promise<ResolveResult> {
     let parsed: ParsedOrder;
-    if (input.stub && !(await this.llm.hasChatKey())) parsed = input.stub;
-    else if (input.image) parsed = await this.visionParse(input.image);
-    else parsed = await this.textParse(input.text ?? '');
-    return this.resolve(parsed);
+    let parseSource: ParseSource = 'text';
+    let tableDiag: ResolveResult['table'];
+
+    if (input.stub && !(await this.llm.hasChatKey())) {
+      parsed = input.stub;
+      parseSource = 'stub';
+    } else if (input.image) {
+      parsed = await this.visionParse(input.image);
+      parseSource = 'image';
+    } else if (input.table?.rows?.length) {
+      const rule: RuleMapResult = ruleMapMatrix(input.table.rows);
+      let usedLlm = false;
+      if (rule.mapping.sufficient && rule.dataRowCount > 0) {
+        parsed = rule.parsed; // 规则映射命中齐全：完全不调 LLM（可复现、离线可用）
+      } else {
+        usedLlm = true;
+        parsed = await this.tableLlmParse(input.table.rows, input.hint, rule);
+        if (!parsed.lines.length && rule.parsed.lines.length) {
+          // LLM 兜底也没出产品行 → 退回规则映射（至少人工能在预览里修正）
+          parsed = { ...rule.parsed, notes: [...rule.parsed.notes, 'AI 语义映射未识别出产品行，已回退表头规则映射结果'] };
+        }
+      }
+      parseSource = usedLlm ? 'table-llm' : 'table-rule';
+      tableDiag = {
+        headerRowIndex: rule.mapping.headerRowIndex,
+        hitRate: rule.mapping.hitRate,
+        requiredHits: rule.mapping.requiredHits,
+        missingRequired: rule.mapping.missingRequired as string[],
+        dataRowCount: rule.dataRowCount,
+        usedLlm,
+      };
+    } else {
+      parsed = await this.textParse(input.text ?? '');
+      parseSource = 'text';
+    }
+
+    const resolved = await this.resolve(parsed, parseSource);
+    return { ...resolved, table: tableDiag };
+  }
+
+  /** 表格 → LLM 语义映射（命中率不足时）：紧凑文本 + 上下文线索，要求严格 JSON（与图片结构一致） */
+  private async tableLlmParse(rows: string[][], hint: string | undefined, rule: RuleMapResult): Promise<ParsedOrder> {
+    const compact = matrixToCompactText(rows, 40);
+    const head = '表头规则映射命中率 ' + rule.mapping.requiredHits + '/4'
+      + (rule.mapping.missingRequired.length ? '，缺失列：' + rule.mapping.missingRequired.join('、') : '') + '。';
+    const user = '[订单表格逐行文本]\n' + compact + '\n[表格结束]\n'
+      + (hint ? '[上下文线索]\n' + hint.slice(0, 2000) + '\n[线索结束]\n' : '')
+      + '[提示]' + head;
+    const messages: LlmMessage[] = [
+      { role: 'system', content: TABLE_PROMPT },
+      { role: 'user', content: user },
+    ];
+    const r = await this.llm.chat(messages, { json: true });
+    return this.safeParse(r.text);
   }
 
   private async textParse(text: string): Promise<ParsedOrder> {
@@ -169,8 +267,8 @@ export class OrderParserService {
     }
   }
 
-  /** 确定性校验 + 主数据匹配（纯函数可测；学习闭环的规则热追加点） */
-  async resolve(parsed: ParsedOrder): Promise<ResolveResult> {
+  /** 确定性校验 + 主数据匹配（学习闭环的规则热追加点）；parseSource 由调用方按实际通道传入。 */
+  async resolve(parsed: ParsedOrder, parseSource: ParseSource = 'text'): Promise<ResolveResult> {
     const issues: Issue[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -269,12 +367,18 @@ export class OrderParserService {
         packagingText: l.packagingText,
         packaging,
         issues: lineIssues,
+        // 行金额（分）：定点计算，避免浮点尾差（金额口径统一走 common/money）
+        amountCents: l.quantity && l.unitPrice !== undefined && l.unitPrice !== null
+          ? lineCents(l.quantity, l.unitPrice)
+          : 0,
       });
     });
 
     const allIssues = [...issues, ...lines.flatMap((l) => l.issues)];
     const hasError = allIssues.some((i) => i.level === 'error');
     const directPass = !hasError && !!customerId && lines.length > 0 && lines.every((l) => l.productId != null && l.quantity && l.quantity > 0);
+    // 订单合计（分）：与前端展示/落库口径一致（各行 amountCents 已定点）
+    const totalCents = sumLineCents(lines.map((l) => ({ quantity: l.quantity ?? 0, unitPrice: l.unitPrice ?? 0 })));
     return {
       customerId, customerName, customerMatch,
       poNo: parsed.poNo, dueDate, note: parsed.note,
@@ -283,6 +387,8 @@ export class OrderParserService {
       confidence: hasError ? 'low' : parsed.confidence,
       notes: parsed.notes,
       directPass,
+      totalCents,
+      parseSource,
     };
   }
 }

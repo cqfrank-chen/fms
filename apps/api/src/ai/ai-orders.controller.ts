@@ -5,6 +5,10 @@ import { db } from '../db';
 import { aiParseDrafts } from '../db/schema';
 import { Roles } from '../auth/decorators';
 import { OrderParserService } from './order-parser.service';
+import { TableParserService, detectTableFileKind } from './table-parser.service';
+
+/** 文件体积上限（与 main.ts 的 12mb JSON 上限留出余量） */
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 class ParseOrderDto {
   @IsOptional()
@@ -16,30 +20,80 @@ class ParseOrderDto {
   @IsString()
   image?: string; // dataURL（data:image/...;base64,...）
 
+  /** 上传文件：dataURL（data:<mime>;base64,xxx）或纯 base64；xlsx/csv/图片 都走这里 */
+  @IsOptional()
+  @IsString()
+  file?: string;
+
+  /** 原始文件名（用于扩展名判定与 .xls 提示；浏览器上传时必带） */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fileName?: string;
+
   /** 仅 mock 模式（未配 AI_API_KEY）生效：直通 LLM 抽取结果，供验收/离线测试 */
   @IsOptional()
   stub?: Record<string, unknown>;
 
-  @ValidateIf((o: ParseOrderDto) => !o.text && !o.image && !o.stub)
-  @IsString({ message: 'text / image / stub 至少提供一个' })
+  @ValidateIf((o: ParseOrderDto) => !o.text && !o.image && !o.file && !o.stub)
+  @IsString({ message: 'text / image / file / stub 至少提供一个' })
   _atLeastOne?: string;
+}
+
+/** dataURL 或纯 base64 → Buffer + MIME（解析失败给中文提示，不抛库原始错误） */
+export function decodeUpload(fileStr: string, fileName?: string): { buffer: Buffer; mime: string; name: string } {
+  const m = fileStr.match(/^data:([^;,]*)?(;base64)?,(.*)$/s);
+  const mime = (m?.[1] ?? '').trim();
+  const base64 = (m ? m[3] : fileStr).replace(/\s/g, '');
+  if (!base64) throw new BadRequestException('上传内容为空，请重新选择文件');
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+  } catch {
+    throw new BadRequestException('上传内容不是合法文件（base64 解析失败），请重新选择文件');
+  }
+  if (!buffer.length) throw new BadRequestException('上传内容为空，请重新选择文件');
+  if (buffer.length > MAX_FILE_BYTES) {
+    throw new BadRequestException('文件超过 8MB，请精简表格后重试（或另存为 .csv）');
+  }
+  return { buffer, mime, name: (fileName ?? '').trim() };
 }
 
 @Controller('ai/orders')
 export class AiOrdersController {
-  constructor(private readonly parser: OrderParserService) {}
+  constructor(
+    private readonly parser: OrderParserService,
+    private readonly tableParser: TableParserService,
+  ) {}
 
-  /** AI 订单解析：文本/图片 → 结构化草稿 + 规则校验 + 低置信标红（确认建单复用 POST /orders） */
+  /** AI 订单解析：文本/图片/Excel(CSV) → 结构化草稿 + 规则校验 + 低置信标红（确认建单复用 POST /orders） */
   @Roles('admin', 'planner')
   @Post('parse')
   async parse(@Body() dto: ParseOrderDto) {
     try {
+      // 文件分支：图片 → 既有 vision 通道；xlsx/csv → 表格解析管线（.xls 给明确中文提示）
+      if (dto.file) {
+        const up = decodeUpload(dto.file, dto.fileName);
+        const kind = detectTableFileKind(up.name, up.mime);
+        if (kind === 'image') {
+          const dataUrl = up.mime ? `data:${up.mime};base64,${up.buffer.toString('base64')}` : `data:image/png;base64,${up.buffer.toString('base64')}`;
+          return await this.parser.parseAndResolve({ image: dataUrl, text: dto.text, stub: dto.stub as never });
+        }
+        const t = await this.tableParser.parseUpload({ buffer: up.buffer, fileName: up.name, mimeType: up.mime });
+        return await this.parser.parseAndResolve({
+          table: { rows: t.rows, source: t.kind === 'csv' ? 'csv' : 'excel' },
+          text: dto.text,
+          hint: dto.text,
+          stub: dto.stub as never,
+        });
+      }
       return await this.parser.parseAndResolve({
         text: dto.text,
         image: dto.image,
         stub: dto.stub as never,
       });
     } catch (e) {
+      if (e instanceof HttpException) throw e; // 表格解析的 400 中文提示原样透传
       const msg = (e as Error).message;
       if (msg.includes('AI_VISION_KEY')) {
         throw new HttpException({ message: msg, code: 'VISION_KEY_MISSING' }, HttpStatus.BAD_REQUEST);
