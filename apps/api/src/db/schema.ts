@@ -795,8 +795,12 @@ export type NewInvoiceOrder = typeof invoiceOrders.$inferInsert;
 //     是**服务端纯函数**，见 quotes/quote-pricing.ts —— 识单补价与 /api/quotes/lookup 共用同一实现。
 // ============================================================
 
-/** 报价来源：手工录入 / 批量导入 / 文档（.doc/.xls 采购单、报价单）提取 */
-export const QUOTE_SOURCES = ['manual', 'import', 'doc'] as const;
+/**
+ * 报价来源：手工录入 / 批量导入 / 文档（.doc/.xls 采购单、报价单）提取 / **合同成交价**。
+ * contract = 由「历史成交价」抽取脚本从合同（Excel 供需合同）批量导入的种子报价，
+ * 与 import（用户自己上传的报价表）区分开，便于在报价列表里按来源筛选与回溯。
+ */
+export const QUOTE_SOURCES = ['manual', 'import', 'doc', 'contract'] as const;
 export type QuoteSource = (typeof QUOTE_SOURCES)[number];
 
 /** 报价记录（Product Quote）：报价单的落库形态，价格会变 → 支持改价留痕 + 有效期生效 */

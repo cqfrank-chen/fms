@@ -48,14 +48,31 @@ export const QUOTE_IMPORT_FIELDS: QuoteFieldDef[] = [
   { field: 'currency', label: '币种', keywords: ['币种', '币别', '货币', 'currency'], kind: 'text' },
   { field: 'validFrom', label: '生效日期', keywords: ['生效日期', '生效日', '开始日期', '有效起', 'validfrom', 'valid from'], kind: 'date' },
   { field: 'validTo', label: '失效日期', keywords: ['失效日期', '失效日', '截止日期', '结束日期', '有效期至', 'validto', 'valid to'], kind: 'date' },
+  { field: 'source', label: '来源', keywords: ['报价来源', '来源', 'source'], kind: 'enum', hint: '可填：manual（手工）/ import（导入）/ doc（单据提取）/ contract（合同成交价），留空默认 import' },
   { field: 'remark', label: '备注', keywords: ['备注', '说明', 'remark', 'note', 'comment'], kind: 'text' },
 ];
 
+/** 「来源」列的取值词表（中文别名 → 枚举值）；与服务端 QUOTE_SOURCES 一一对应 */
+const QUOTE_SOURCE_VALUES: Record<string, string> = (() => {
+  const out: Record<string, string> = {};
+  for (const s of QUOTE_SOURCES) out[normalizeToken(s)] = s;
+  out[normalizeToken('手工')] = 'manual';
+  out[normalizeToken('手工录入')] = 'manual';
+  out[normalizeToken('导入')] = 'import';
+  out[normalizeToken('批量导入')] = 'import';
+  out[normalizeToken('单据提取')] = 'doc';
+  out[normalizeToken('文档提取')] = 'doc';
+  out[normalizeToken('合同')] = 'contract';
+  out[normalizeToken('合同成交价')] = 'contract';
+  out[normalizeToken('成交价')] = 'contract';
+  return out;
+})();
+
 /** 导入模板（中文表头 + 2 行示例） */
-const QUOTE_TEMPLATE_HEADERS = ['客户名称', '产品名称', '单价', '币种', '生效日期', '失效日期', '备注'];
+const QUOTE_TEMPLATE_HEADERS = ['客户名称', '产品名称', '单价', '币种', '生效日期', '失效日期', '来源', '备注'];
 const QUOTE_TEMPLATE_SAMPLES = [
-  ['安宝公司', '1-101 割嘴 00#', '9.68', 'CNY', '2026-01-01', '', '留空客户名 = 通用价'],
-  ['', 'ANM 1/32 乙炔', '12.50', 'CNY', '', '2026-12-31', '不限客户的通用价'],
+  ['安宝公司', '1-101 割嘴 00#', '9.68', 'CNY', '2026-01-01', '', 'import', '留空客户名 = 通用价'],
+  ['', 'ANM 1/32 乙炔', '12.50', 'CNY', '', '2026-12-31', 'import', '不限客户的通用价'],
 ];
 
 export interface QuoteListQuery {
@@ -441,6 +458,11 @@ export class QuotesService {
           const d = parseDateCell(text);
           if (!d) { reasons.push(f.label + '「' + text + '」不是有效日期'); continue; }
           data[f.field] = d;
+        } else if (f.kind === 'enum' && f.field === 'source') {
+          // 来源列（可选）：只认 QUOTE_SOURCES 词表，认不出就报错，不静默降级
+          const v = QUOTE_SOURCE_VALUES[normalizeToken(text)];
+          if (!v) { reasons.push(f.label + '「' + text + '」无法识别；' + (f.hint ?? '')); continue; }
+          data[f.field] = v;
         } else {
           data[f.field] = text;
         }
@@ -538,6 +560,8 @@ export class QuotesService {
           validFrom: (row.data.validFrom as string | null) ?? null,
           validTo: (row.data.validTo as string | null) ?? null,
           remark: (row.data.remark as string | null) ?? null,
+          // 来源列（可选）：contract = 合同成交价种子 / doc = 单据提取；留空沿用既有口径 import
+          source: (row.data.source as string | null) ?? null,
           sourceFile,
         };
         if (row.status === 'update' && row.existingId) {
@@ -546,7 +570,7 @@ export class QuotesService {
             currency: base.currency as string,
             productName: base.productName ?? null,
             remark: base.remark ?? null,
-            source: 'import',
+            source: (base.source as string | null) ?? 'import',
             sourceFile,
             updatedAt: new Date(),
             operatorId: currentOperatorId(),
@@ -611,6 +635,8 @@ export class QuotesService {
 
   /** 入参 → 落库值（create / update 共用）；skipSource = true 时不覆盖 source（编辑既有行） */
   private async buildValues(input: QuoteInput, sourceDefault?: QuoteSource, partial = false): Promise<Partial<NewProductQuote>> {
+    // 说明：source 的合法值由 QUOTE_SOURCES 词表约束（manual / import / doc / contract）
+
     const out: Partial<NewProductQuote> = {};
     if (!partial || input.customerId !== undefined) {
       const cid = input.customerId ?? null;
