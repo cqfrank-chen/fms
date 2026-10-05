@@ -2,6 +2,7 @@ import { Button, Card, Divider, Form, Input, Popconfirm, Space, Tag, Typography,
 import { useEffect, useState } from 'react'
 import CrudResource from '../components/CrudResource'
 import type { FieldConfig } from '../components/CrudResource'
+import MasterImportCard from '../components/MasterImportCard'
 import ProcessDictCard from '../components/ProcessDictCard'
 import ProcessRouteCard from '../components/ProcessRouteCard'
 import UpdateCard from '../components/UpdateCard'
@@ -127,6 +128,7 @@ export default function SetupPage() {
           initialValues={{ safetyStock: 0 }}
           onChanged={bumpData}
         />
+        <MasterImportCard target="products" title="产品目录 · 批量导入（Excel / CSV）" onChanged={bumpData} />
         <CrudResource<CustomerRow>
           title="客户档案"
           resource="customers"
@@ -135,6 +137,7 @@ export default function SetupPage() {
           initialValues={{ creditDays: 30 }}
           onChanged={bumpData}
         />
+        <MasterImportCard target="customers" title="客户档案 · 批量导入（Excel / CSV）" onChanged={bumpData} />
         <CrudResource<SupplierRow>
           title="供应商档案"
           resource="suppliers"

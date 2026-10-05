@@ -4,11 +4,13 @@ import { IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { db } from '../db';
 import { aiParseDrafts } from '../db/schema';
 import { Roles } from '../auth/decorators';
+import { decodeUpload } from '../common/upload';
 import { OrderParserService } from './order-parser.service';
 import { TableParserService, detectUploadKind } from './table-parser.service';
 
-/** 文件体积上限（与 main.ts 的 12mb JSON 上限留出余量） */
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
+// 上传协议（dataURL/纯 base64 + 8MB 护栏）已抽到 common/upload，主数据批量导入复用同一实现；
+// 这里保持对外导出，既有调用与测试不受影响。
+export { decodeUpload };
 
 class ParseOrderDto {
   @IsOptional()
@@ -38,25 +40,6 @@ class ParseOrderDto {
   @ValidateIf((o: ParseOrderDto) => !o.text && !o.image && !o.file && !o.stub)
   @IsString({ message: 'text / image / file / stub 至少提供一个' })
   _atLeastOne?: string;
-}
-
-/** dataURL 或纯 base64 → Buffer + MIME（解析失败给中文提示，不抛库原始错误） */
-export function decodeUpload(fileStr: string, fileName?: string): { buffer: Buffer; mime: string; name: string } {
-  const m = fileStr.match(/^data:([^;,]*)?(;base64)?,(.*)$/s);
-  const mime = (m?.[1] ?? '').trim();
-  const base64 = (m ? m[3] : fileStr).replace(/\s/g, '');
-  if (!base64) throw new BadRequestException('上传内容为空，请重新选择文件');
-  let buffer: Buffer;
-  try {
-    buffer = Buffer.from(base64, 'base64');
-  } catch {
-    throw new BadRequestException('上传内容不是合法文件（base64 解析失败），请重新选择文件');
-  }
-  if (!buffer.length) throw new BadRequestException('上传内容为空，请重新选择文件');
-  if (buffer.length > MAX_FILE_BYTES) {
-    throw new BadRequestException('文件超过 8MB，请精简表格后重试（或另存为 .csv）');
-  }
-  return { buffer, mime, name: (fileName ?? '').trim() };
 }
 
 @Controller('ai/orders')

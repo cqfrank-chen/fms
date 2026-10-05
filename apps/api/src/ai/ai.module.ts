@@ -16,6 +16,7 @@ import { RuleAlertService } from './rule-alerts.service';
   imports: [SchedulingModule, AccountingModule], // 复用排期 overdue 与利润取数口径
   controllers: [AiController, AiOrdersController, AiFeedbackController],
   providers: [AiConfigService, LlmGatewayService, OrderParserService, TableParserService, QaService, ReportSummaryService, RuleAlertService],
-  exports: [LlmGatewayService, OrderParserService],
+  // TableParserService 导出给主数据批量导入复用（同一套 .xls/.xlsx/csv 解析与表头规则）
+  exports: [LlmGatewayService, OrderParserService, TableParserService],
 })
 export class AiModule {}

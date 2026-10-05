@@ -359,13 +359,58 @@ const HEADER_KEYWORDS: Record<TableField, string[]> = {
 /** 规则映射「齐全」所需的四个关键列（缺任一 → 需要 LLM 兜底映射） */
 export const REQUIRED_TABLE_FIELDS: TableField[] = ['customer', 'productName', 'quantity', 'unitPrice'];
 
-/** 表头归一：全角→半角、大小写、去空白、去括号/冒号/星号/顿号等噪声（前后空格与「单价（元）」类写法都能命中） */
-const normHeader = (s: string) =>
-  (s ?? '')
+/**
+ * 通用文本归一（表头匹配 / 主数据枚举值匹配共用）：
+ * 全角→半角、小写、去空白、去括号/冒号/星号/顿号等噪声（前后空格与「单价（元）」类写法都能命中）。
+ */
+export function normalizeToken(s: string): string {
+  return (s ?? '')
     .replace(/[\uff01-\uff5e]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)) // 全角 → 半角
     .toLowerCase()
     .replace(/\s+/g, '')
     .replace(/[（）()：:*，,。、.．\-_/／【】\[\]「」'’“”"]/g, '');
+}
+
+/**
+ * 通用表头关键词映射（AI 订单表格与主数据批量导入共用同一套匹配规则，避免两套表头识别逻辑漂移）：
+ * 在前 maxScan 行内逐行打分——每列取「最长命中」的字段（避免「客户PO号」被「客户」抢先吃掉）；
+ * 取得分最高且 ≥ minHits 的行为表头，返回「字段 → 列下标」。
+ */
+export function mapHeaderFields(
+  rows: string[][],
+  keywords: Record<string, string[]>,
+  opts: { maxScan?: number; minHits?: number } = {},
+): { headerRowIndex: number; columns: Record<string, number>; hitCount: number; headerRow: string[] } {
+  const fields = Object.keys(keywords);
+  const scan = Math.min(rows.length, opts.maxScan ?? 8);
+  const minHits = opts.minHits ?? 2;
+  let best = { idx: -1, score: 0, columns: {} as Record<string, number> };
+  for (let r = 0; r < scan; r++) {
+    const columns: Record<string, number> = {};
+    let score = 0;
+    rows[r].forEach((cell, c) => {
+      const h = normalizeToken(cell);
+      if (!h) return;
+      let bestField: string | null = null;
+      let bestLen = 0;
+      for (const f of fields) {
+        for (const k of keywords[f]) {
+          const nk = normalizeToken(k);
+          if (nk && h.includes(nk) && nk.length > bestLen) { bestField = f; bestLen = nk.length; }
+        }
+      }
+      if (bestField && columns[bestField] === undefined) { columns[bestField] = c; score += 1; }
+    });
+    if (score > best.score) best = { idx: r, score, columns };
+  }
+  if (best.score < minHits) best = { idx: -1, score: 0, columns: {} };
+  return {
+    headerRowIndex: best.idx,
+    columns: best.columns,
+    hitCount: best.score,
+    headerRow: best.idx >= 0 ? rows[best.idx] : [],
+  };
+}
 
 export interface TableMapping {
   /** 命中表头所在行下标；-1 = 未识别出表头 */
@@ -387,41 +432,18 @@ export interface TableMapping {
  * 客户表格常见「抬头 2~3 行 + 表头 + 数据行」，逐行打分比「永远取第一行」稳。
  */
 export function mapHeader(rows: string[][]): TableMapping {
-  const scan = Math.min(rows.length, 8);
-  let best = { idx: -1, score: 0, columns: {} as Partial<Record<TableField, number>> };
-  for (let r = 0; r < scan; r++) {
-    const columns: Partial<Record<TableField, number>> = {};
-    let score = 0;
-    rows[r].forEach((cell, c) => {
-      const h = normHeader(cell);
-      if (!h) return;
-      // 取「最长命中的关键词」所属字段：避免「客户PO号」被「客户」抢先吃掉（应归 poNo）
-      let bestField: TableField | null = null;
-      let bestLen = 0;
-      for (const f of TABLE_FIELDS) {
-        for (const k of HEADER_KEYWORDS[f]) {
-          const nk = normHeader(k);
-          if (nk && h.includes(nk) && nk.length > bestLen) { bestField = f; bestLen = nk.length; }
-        }
-      }
-      if (bestField && columns[bestField] === undefined) { columns[bestField] = c; score += 1; }
-    });
-    if (score > best.score) best = { idx: r, score, columns };
-  }
-  if (best.score < 2) {
-    // 未识别出表头：全部字段视为缺失（交给 LLM 兜底）
-    best = { idx: -1, score: 0, columns: {} };
-  }
-  const missingRequired = REQUIRED_TABLE_FIELDS.filter((f) => best.columns[f] === undefined);
+  const m = mapHeaderFields(rows, HEADER_KEYWORDS, { maxScan: 8, minHits: 2 });
+  const columns = m.columns as Partial<Record<TableField, number>>;
+  const missingRequired = REQUIRED_TABLE_FIELDS.filter((f) => columns[f] === undefined);
   const requiredHits = REQUIRED_TABLE_FIELDS.length - missingRequired.length;
   return {
-    headerRowIndex: best.idx,
-    columns: best.columns,
+    headerRowIndex: m.headerRowIndex,
+    columns,
     requiredHits,
     hitRate: requiredHits / REQUIRED_TABLE_FIELDS.length,
-    sufficient: best.idx >= 0 && requiredHits === REQUIRED_TABLE_FIELDS.length,
+    sufficient: m.headerRowIndex >= 0 && requiredHits === REQUIRED_TABLE_FIELDS.length,
     missingRequired,
-    headerRow: best.idx >= 0 ? rows[best.idx] : [],
+    headerRow: m.headerRow,
   };
 }
 
