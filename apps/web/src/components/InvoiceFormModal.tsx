@@ -7,6 +7,7 @@ import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { INVOICE_PLACEHOLDER_PREFIX, INVOICE_TYPE_LABEL, TAX_RATE_OPTIONS } from '../lib/labels'
 import { fmtCents, fromCents, splitInclCents, taxCentsOf, toCents } from '../lib/money'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import type { Customer, Invoice, InvoiceType, Order } from '../lib/types'
 
 const { Text } = Typography
@@ -101,7 +102,8 @@ export default function InvoiceFormModal({
   // ---- 客户候选 ----
   useEffect(() => {
     if (!open || customersProp) return
-    loadOptions<Customer>('/customers', setCustomers, '客户档案')
+    // 甲方裁定 2：客户**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+    loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案')
   }, [open, customersProp])
 
   // ---- 订单候选（外部传入优先；否则按客户拉取） ----
@@ -199,7 +201,7 @@ export default function InvoiceFormModal({
           </Text>
           <Select style={{ width: '100%' }} value={customerId} disabled={editing || orderIds.length > 0} showSearch optionFilterProp="label"
             placeholder="选择客户" onChange={(v) => { setCustomerId(v); if (!ordersProp) setOrderIds([]) }}
-            options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+            options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} />
         </Col>
         <Col span={12}>
           <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>金额拆分（自动，只读）</Text>

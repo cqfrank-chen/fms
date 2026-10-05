@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Checkbox, InputNumber, Select, Space, Table, Tag, Typography, message } from 'antd'
 import { api, loadOptions } from '../lib/api'
 import { PRODUCT_TYPE_LABEL } from '../lib/labels'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 
 interface Product { id: number; name: string; type: string; safetyStock: number }
 interface ProcessDict { id: number; key: string; name: string; wcKey: string; wcName?: string | null; sortOrder: number }
@@ -42,7 +43,8 @@ export default function ProcessRouteCard({ reloadToken = 0 }: { reloadToken?: nu
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    loadOptions<Product>('/products', setProducts, '产品目录')
+    // 甲方裁定 2：产品**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+    loadOptions<Product>(optionsPath('/products'), setProducts, '产品目录')
     api<ProcessDict[]>('/products/processes').then(setDict).catch((e) => message.error('加载工序字典失败：' + (e as Error).message))
   }, [reloadToken])
 
@@ -136,7 +138,7 @@ export default function ProcessRouteCard({ reloadToken = 0 }: { reloadToken?: nu
           onChange={(v) => loadProduct(v ?? null)}
           options={products.map((p) => ({
             value: p.id,
-            label: `${p.name}（${PRODUCT_TYPE_LABEL[p.type] ?? p.type}）`,
+            label: `${optionLabel(p.name)}（${PRODUCT_TYPE_LABEL[p.type] ?? p.type}）`,
           }))}
         />
         <Button onClick={applyTemplate} disabled={!productId}>套用字典模板（全勾选）</Button>

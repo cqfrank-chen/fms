@@ -6,6 +6,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { api, loadOptions } from '../lib/api'
 import { IQC_LABEL, OQC_LABEL, OUTBOUND_STATUS_LABEL, RECEIPT_STATUS_LABEL } from '../lib/labels'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import type {
   Customer, GoodsReceipt, IncomingGoods, InventoryRow, Order, OrderLine,
   Outbound, Product, Stocktake, Supplier,
@@ -167,7 +168,8 @@ function ReceiptsTab() {
 
   const openManual = async () => {
     setManualOpen(true)
-    try { setProds(await api<Product[]>('/products')) } catch { /* 产品下拉失败不阻塞 */ }
+    // 甲方裁定 2：产品**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+    try { setProds(await api<Product[]>(optionsPath('/products'))) } catch { /* 产品下拉失败不阻塞 */ }
   }
   const saveManual = async () => {
     const v = await mForm.validateFields()
@@ -235,7 +237,7 @@ function ReceiptsTab() {
       <Modal title="无订单手动入库" open={manualOpen} onCancel={() => setManualOpen(false)} onOk={saveManual} okText="生成入库草稿" width={480}>
         <Form form={mForm} layout="vertical" style={{ marginTop: 8 }}>
           <Form.Item name="productId" label="产品" rules={[{ required: true, message: '请选择产品' }]}>
-            <Select placeholder="选择入库产品" options={prods.map((p) => ({ value: p.id, label: p.name }))} showSearch optionFilterProp="label" />
+            <Select placeholder="选择入库产品" options={prods.map((p) => ({ value: p.id, label: optionLabel(p.name) }))} showSearch optionFilterProp="label" />
           </Form.Item>
           <Form.Item name="quantity" label="数量（只）" rules={[{ required: true, message: '请输入数量' }]}>
             <InputNumber min={1} style={{ width: '100%' }} placeholder="正数" />
@@ -274,7 +276,8 @@ function OutboundTab() {
   }, [])
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    loadOptions<Customer>('/customers', setCustomers, '客户档案')
+    // 甲方裁定 2：客户**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+    loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案')
   }, [])
 
   async function openCreate() {
@@ -436,7 +439,8 @@ function IncomingTab() {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     loadOptions<Supplier>('/suppliers', setSuppliers, '供应商档案')
-    loadOptions<Product>('/products', setProducts, '产品目录')
+    // 甲方裁定 2：产品**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+    loadOptions<Product>(optionsPath('/products'), setProducts, '产品目录')
   }, [])
 
   async function create() {
@@ -501,7 +505,7 @@ function IncomingTab() {
           </Form.Item>
           <Form.Item name="materialName" label="物料" rules={[{ required: true, message: '必填' }]}>
             <Select showSearch placeholder="如 黄铜棒 φ20" options={[...new Set(['黄铜棒 φ20', '黄铜棒 φ25', '包装盒', '不干胶'].concat(products.map((p) => p.name)))]
-              .map((n) => ({ value: n, label: n }))} />
+              .map((n) => ({ value: n, label: optionLabel(n) }))} />
           </Form.Item>
           <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '必填' }]}>
             <InputNumber style={{ width: '100%' }} min={1} />

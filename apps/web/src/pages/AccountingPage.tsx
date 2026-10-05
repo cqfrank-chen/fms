@@ -7,6 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { COST_CATEGORY_LABEL, COST_CATEGORY_ORDER, SLIP_MODE_LABEL } from '../lib/labels'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import InvoicesPanel from '../components/InvoicesPanel'
 import type {
   CollectionSlip, Customer, MonthlyCost, Payable, PaymentSlip, ProfitView, Receivable,
@@ -52,7 +53,8 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
 
   useEffect(() => {
     if (!open) return
-    loadOptions<Customer | Supplier>(isCollect ? '/customers' : '/suppliers', setParties, isCollect ? '客户档案' : '供应商档案')
+    // 甲方裁定 2：客户**选择下拉**始终显示占位档案（显式带 includePlaceholders=1，不受开关影响）
+    loadOptions<Customer | Supplier>(isCollect ? optionsPath('/customers') : '/suppliers', setParties, isCollect ? '客户档案' : '供应商档案')
     setPartyId(undefined); setMode('settle'); setOpenDebts([]); setSel({}); setNote('')
   }, [open, isCollect])
 
@@ -110,7 +112,7 @@ function SlipModal({ open, direction, onClose }: { open: boolean; direction: 'co
         <div>
           <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>{isCollect ? '客户' : '供应商'}</Text>
           <Select style={{ width: '100%' }} value={partyId} onChange={pickParty} placeholder={isCollect ? '选择客户' : '选择供应商'} showSearch optionFilterProp="label"
-            options={(parties as any[]).map((p) => ({ value: p.id, label: p.name }))} />
+            options={(parties as any[]).map((p) => ({ value: p.id, label: optionLabel(p.name) }))} />
         </div>
         <div>
           <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>模式</Text>

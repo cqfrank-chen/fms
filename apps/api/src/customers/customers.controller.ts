@@ -28,7 +28,13 @@ export class CreateCustomerDto {
 export class CustomersController {
   constructor(private readonly service: CustomersService) {}
 
-  /** 列表：默认隐藏占位档案「（未建档客户·待补）」；includePlaceholders=1 显示（界面「显示占位档案」开关） */
+  /**
+   * 列表 / 选择下拉共用的选项接口：默认隐藏占位档案「（未建档客户·待补）」。
+   * - **列表页**：按界面「显示占位档案」开关决定是否带 includePlaceholders=1（默认隐藏）；
+   * - **选择下拉**（甲方裁定 2，2026-10-05）：一律显式带 includePlaceholders=1，让占位客户始终可选，
+   *   便于把订单**改指**到真实客户，或保留占位以维持待补状态；
+   *   该参数还会幂等地**保证占位客户存在**（干净库里下拉同样能选到，见 common/pending-entities.ts）。
+   */
   @Get()
   findAll(@Query('includePlaceholders') includePlaceholders?: string) {
     return this.service.findAll({ includePlaceholders });

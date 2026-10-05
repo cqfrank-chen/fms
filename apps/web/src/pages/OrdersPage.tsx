@@ -7,7 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
-import { PLACEHOLDER_HINT, useShowPlaceholders, withPlaceholders } from '../lib/placeholders'
+import { optionLabel, optionsPath, PLACEHOLDER_HINT, useShowPlaceholders } from '../lib/placeholders'
 import { fmtCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
@@ -99,13 +99,12 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
   const [products, setProducts] = useState<Product[]>([])
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
-  // I17 裁定②：建档下拉默认不含占位档案（否则会不小心把用户指到「（未建档客户·待补）」上）
-  const [showPlaceholders] = useShowPlaceholders()
-
+  // 甲方裁定 2（2026-10-05）：建档下拉**始终**显示两个占位档案，**不受**「显示占位档案」开关影响 ——
+  // 目的是让人工把订单/行**改指**到正确的客户或产品，或保留占位以维持待补状态。
   useEffect(() => {
-    loadOptions<Customer>(withPlaceholders('/customers', showPlaceholders), setCustomers, '客户档案')
-    loadOptions<Product>(withPlaceholders('/products', showPlaceholders), setProducts, '产品目录')
-  }, [showPlaceholders])
+    loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案')
+    loadOptions<Product>(optionsPath('/products'), setProducts, '产品目录')
+  }, [])
 
   // 编辑模式（I05 驳回重做闭环）：外部选定草稿订单 → 整单载入表单
   useEffect(() => {
@@ -367,7 +366,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
             style={{ marginBottom: 0 }}>
             <Select placeholder={unmatched ? `⚠ ${text}（未建档，见上方提示）` : '选择产品'}
               showSearch optionFilterProp="label" status={unmatched ? 'error' : undefined}
-              options={products.map((p) => ({ value: p.id, label: `${p.name}（${PRODUCT_TYPE_LABEL[p.type]}）` }))} />
+              options={products.map((p) => ({ value: p.id, label: `${optionLabel(p.name)}（${PRODUCT_TYPE_LABEL[p.type]}）` }))} />
           </Form.Item>
         )
       },
@@ -463,7 +462,7 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
         <Space wrap align="start" size={16}>
           <Form.Item name="customerId" label="客户档案 *" rules={[{ required: true, message: '必选客户' }]} style={{ minWidth: 220 }}>
             <Select placeholder="请选择客户" showSearch optionFilterProp="label"
-              options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+              options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} />
           </Form.Item>
           <Form.Item name="poNo" label="客户 PO 号" style={{ minWidth: 160 }}>
             <Input placeholder="选填" />
@@ -581,10 +580,10 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     } finally { setConfirmingId(null) }
   }
 
-  // 客户筛选下拉：默认不含占位客户（避免把「（未建档客户·待补）」当真实客户筛）
+  // 客户筛选下拉：与建档下拉同口径 —— **始终**含占位客户（甲方裁定 2），便于筛出挂在占位档案下的待补单
   useEffect(() => {
-    loadOptions<Customer>(withPlaceholders('/customers', showPlaceholders), setCustomers, '客户档案')
-  }, [showPlaceholders])
+    loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案')
+  }, [])
 
   async function fetchRows() {
     setLoading(true)
@@ -738,7 +737,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       <Select style={{ width: 130 }} value={status} onChange={setStatus} placeholder="全部状态"
         options={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))} allowClear />
       <Select style={{ width: 180 }} value={customerId} onChange={setCustomerId} placeholder="全部客户"
-        options={customers.map((c) => ({ value: c.id, label: c.name }))} allowClear />
+        options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} allowClear />
       <Input.Search placeholder="单号/PO号搜索" style={{ width: 200 }} allowClear
         onSearch={(v) => { setKw(v); fetchRows() }} />
       {/* I17：识单落草稿的单据可能缺价/缺交期/未建档 —— 一键筛出并逐项补全 */}

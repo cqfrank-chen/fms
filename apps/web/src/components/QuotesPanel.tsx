@@ -10,6 +10,7 @@ import type { UploadProps } from 'antd'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_LABEL, CURRENCY_OPTIONS } from '../lib/labels'
 import { fmtCents } from '../lib/money'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import { getToken } from '../lib/token'
 
 /**
@@ -52,7 +53,9 @@ interface LookupHit {
 }
 interface LookupResp { hit: LookupHit | null; evaluated: number; onDate: string; hint: string }
 
-const SOURCE_LABEL: Record<string, string> = { manual: '手工录入', import: '批量导入', doc: '文档提取' }
+const SOURCE_LABEL: Record<string, string> = {
+  manual: '手工录入', import: '批量导入', doc: '文档提取', contract: '合同成交价',
+}
 
 const fmtDt = (v?: string) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—')
 const fmtSpan = (r: QuoteRow) => (r.validFrom || r.validTo ? (r.validFrom ?? '不限') + ' ~ ' + (r.validTo ?? '不限') : '长期有效')
@@ -149,8 +152,9 @@ export default function QuotesPanel({ onChanged }: { onChanged?: () => void }) {
 
   useEffect(() => { void load() }, [load])
   useEffect(() => {
-    loadOptions<RefRow>('/customers', setCustomers, '客户')
-    loadOptions<RefRow>('/products', setProducts, '产品')
+    // 甲方裁定 2：客户/产品**选择下拉**始终显示占位档案（显式带 includePlaceholders=1，不受开关影响）
+    loadOptions<RefRow>(optionsPath('/customers'), setCustomers, '客户')
+    loadOptions<RefRow>(optionsPath('/products'), setProducts, '产品')
   }, [])
 
   const bump = () => { void load(); onChanged?.() }
@@ -271,12 +275,12 @@ export default function QuotesPanel({ onChanged }: { onChanged?: () => void }) {
       <Space wrap size={8} style={{ marginBottom: 10 }}>
         <Select
           allowClear showSearch optionFilterProp="label" placeholder="客户（含通用价）" style={{ width: 190 }}
-          options={customers.map((c) => ({ value: c.id, label: c.name }))}
+          options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))}
           value={fCustomer} onChange={(v) => { setPage(1); setFCustomer(v) }}
         />
         <Select
           allowClear showSearch optionFilterProp="label" placeholder="产品" style={{ width: 190 }}
-          options={products.map((c) => ({ value: c.id, label: c.name }))}
+          options={products.map((c) => ({ value: c.id, label: optionLabel(c.name) }))}
           value={fProduct} onChange={(v) => { setPage(1); setFProduct(v) }}
         />
         <Input
@@ -321,7 +325,7 @@ export default function QuotesPanel({ onChanged }: { onChanged?: () => void }) {
           <Space size={12} style={{ display: 'flex' }}>
             <Form.Item name="customerId" label="客户（留空 = 通用价）" style={{ flex: 1, minWidth: 220 }}>
               <Select allowClear showSearch optionFilterProp="label" placeholder="不限客户"
-                options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+                options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} />
             </Form.Item>
             <Form.Item name="currency" label="币种" style={{ width: 110 }}>
               {/* I17 裁定⑤：币种统一归一为 CNY —— 下拉只给规范值（RMB / 人民币 / ￥ / ¥ 等写法写入前自动归一为 CNY） */}
@@ -330,7 +334,7 @@ export default function QuotesPanel({ onChanged }: { onChanged?: () => void }) {
           </Space>
           <Form.Item name="productId" label="产品（可留空）">
             <Select allowClear showSearch optionFilterProp="label" placeholder="从产品目录选（留空则只按产品名文本匹配）"
-              options={products.map((c) => ({ value: c.id, label: c.name }))} />
+              options={products.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} />
           </Form.Item>
           <Form.Item name="productName" label="产品名文本（产品未建档时填这里）">
             <Input placeholder="如 1-101 割嘴 00#" />
@@ -366,8 +370,9 @@ export function QuoteLookupCard() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    loadOptions<RefRow>('/customers', setCustomers, '客户')
-    loadOptions<RefRow>('/products', setProducts, '产品')
+    // 甲方裁定 2：客户/产品**选择下拉**始终显示占位档案（显式带 includePlaceholders=1，不受开关影响）
+    loadOptions<RefRow>(optionsPath('/customers'), setCustomers, '客户')
+    loadOptions<RefRow>(optionsPath('/products'), setProducts, '产品')
   }, [])
 
   async function run() {
@@ -393,10 +398,10 @@ export function QuoteLookupCard() {
       </div>
       <Space wrap size={8}>
         <Select allowClear showSearch optionFilterProp="label" placeholder="客户" style={{ width: 190 }}
-          options={customers.map((c) => ({ value: c.id, label: c.name }))}
+          options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))}
           value={customerId} onChange={setCustomerId} />
         <Select allowClear showSearch optionFilterProp="label" placeholder="产品（可选）" style={{ width: 190 }}
-          options={products.map((c) => ({ value: c.id, label: c.name }))}
+          options={products.map((c) => ({ value: c.id, label: optionLabel(c.name) }))}
           value={productId} onChange={setProductId} />
         <Input placeholder="或直接填产品名文本" style={{ width: 200 }} value={productName} onChange={(e) => setProductName(e.target.value)} />
         <Button type="primary" size="small" loading={busy} onClick={run}>试算</Button>

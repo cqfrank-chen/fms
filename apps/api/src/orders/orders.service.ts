@@ -2,13 +2,14 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { and, desc, eq, inArray, like, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
-  customers, operators, orderLines, orders, outbounds, PENDING_CUSTOMER_NAME, PENDING_PRODUCT_NAME,
+  customers, operators, orderLines, orders, outbounds,
   planSheetLines, planSheets, products, receivables, ORDERS_DUE_DATE_TBD,
 } from '../db/schema';
 import type { Currency, NewOrderLine, OrderStatus, PendingItem } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
 import { normalizeCurrency } from '../common/currency';
 import { includePlaceholders } from '../common/placeholders';
+import { ensurePendingCustomer, ensurePendingProduct, findPendingCustomerId, findPendingProductId } from '../common/pending-entities';
 import { fromCents, sumLineCents, toCents } from '../common/money';
 import { InvoicesService } from '../invoices/invoices.service';
 import { orderInvoiceState } from '../invoices/invoice-stats';
@@ -207,8 +208,8 @@ export class OrdersService {
     // 例外：① 显式打开「显示占位档案」开关（includePlaceholders=1）→ 显示（排查用）；
     //       ② 按「有未补全项的草稿单」筛选 → 属于补全工作流，必须能看到这些草稿，否则无从补全。
     if (!includePlaceholders(q.includePlaceholders) && !hasPendingOnly) {
-      const pendingCustomerId = await this.findPendingCustomerId();
-      const pendingProductId = await this.findPendingProductId();
+      const pendingCustomerId = await findPendingCustomerId();
+      const pendingProductId = await findPendingProductId();
       if (pendingCustomerId != null) conds.push(ne(orders.customerId, pendingCustomerId));
       if (pendingProductId != null) {
         conds.push(sql`not exists (select 1 from order_lines ol where ol.order_id = ${orders.id} and ol.product_id = ${pendingProductId})`);
@@ -249,7 +250,7 @@ export class OrdersService {
   async update(id: number, dto: Partial<CreateOrderDto>) {
     const existing = await this.requireDraft(id);
     const tracked = Array.isArray(existing.pendingItems); // 只有识单落草稿的单据参与待补机制
-    const pendingProductId = tracked ? await this.findPendingProductId() : null;
+    const pendingProductId = tracked ? await findPendingProductId() : null;
     await db.transaction(async (tx) => {
       const dueDate = dto.dueDate ? new Date(dto.dueDate) : existing.dueDate;
       const patch: Record<string, unknown> = {
@@ -440,7 +441,7 @@ export class OrdersService {
       .leftJoin(products, eq(orderLines.productId, products.id))
       .where(eq(orderLines.orderId, orderId))
       .orderBy(orderLines.id);
-    const pendingProductId = await this.findPendingProductId();
+    const pendingProductId = await findPendingProductId();
     const targets = rows.filter((r) => (r.line.pendingItems ?? []).some((x) => x.code === PENDING_CODES.PRICE_MISSING));
     const label = (r: typeof rows[number]) => r.line.productNameText ?? r.productName ?? ('产品#' + r.line.productId);
     if (!targets.length) {
@@ -490,8 +491,8 @@ export class OrdersService {
     const [o] = await tx.select().from(orders).where(eq(orders.id, orderId));
     if (!o) return [];
     const lines = await tx.select().from(orderLines).where(eq(orderLines.orderId, orderId));
-    const pendingCustomerId = await this.findPendingCustomerId();
-    const pendingProductId = await this.findPendingProductId();
+    const pendingCustomerId = await findPendingCustomerId();
+    const pendingProductId = await findPendingProductId();
     const linePendings = lines.map((l: { pendingItems?: PendingItem[] | null; productId: number }) => {
       const own = Array.isArray(l.pendingItems) ? l.pendingItems : [];
       // 行上没标待补、但产品仍指着占位档案 → 补一条（防人工直接改库造成漏标）
@@ -531,7 +532,7 @@ export class OrdersService {
         throw new BadRequestException('客户「' + name + '」匹配到多个档案（' + cands.map((c) => c.name).join('、') + '），请先指定 customerId 再落草稿');
       }
     }
-    return { id: await this.ensurePendingCustomer(), filed: false, name: name || null };
+    return { id: await ensurePendingCustomer(), filed: false, name: name || null };
   }
 
   /** 落草稿时确定产品：命中目录用真实产品；未命中/多候选 → 占位产品 + 行级待补 */
@@ -550,7 +551,7 @@ export class OrdersService {
       const cands = all.filter((p) => nn && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
       if (cands.length === 1) return { id: cands[0].id, filed: true, name: cands[0].name };
     }
-    return { id: await this.ensurePendingProduct(), filed: false, name: name || null };
+    return { id: await ensurePendingProduct(), filed: false, name: name || null };
   }
 
   /** 交期归一：给不出合法 YYYY-MM-DD 就返回「待定」（哨兵日由调用方写入） */
@@ -566,40 +567,6 @@ export class OrdersService {
       if (!Number.isNaN(d2.getTime())) return { date: ymdDash(d2), tbd: false };
     }
     return { date: null, tbd: true };
-  }
-
-  /** 占位客户 id（不存在返回 null） */
-  private async findPendingCustomerId(): Promise<number | null> {
-    const [hit] = await db.select({ id: customers.id }).from(customers).where(eq(customers.name, PENDING_CUSTOMER_NAME));
-    return hit?.id ?? null;
-  }
-
-  /** 占位产品 id（不存在返回 null） */
-  private async findPendingProductId(): Promise<number | null> {
-    const [hit] = await db.select({ id: products.id }).from(products).where(eq(products.name, PENDING_PRODUCT_NAME));
-    return hit?.id ?? null;
-  }
-
-  /** 占位客户：**惰性创建**（只有真的落了「缺客户」的草稿才会出现这一行），名字显式标注「待补」 */
-  private async ensurePendingCustomer(): Promise<number> {
-    const hit = await this.findPendingCustomerId();
-    if (hit != null) return hit;
-    const [row] = await db.insert(customers).values({ name: PENDING_CUSTOMER_NAME, creditDays: 0 }).returning({ id: customers.id });
-    return row.id;
-  }
-
-  /**
-   * 占位产品：**惰性创建**。
-   * I17 甲方裁定：类型字段用**中立值 'tbd'（待定）**，不再借用 'uk_acetylene'。
-   * 该产品**永远不能进入生产**：引用它的订单一定带「产品未建档」待补项，
-   * confirmOrder 会直接拦截（见 plan-sheets.service）。已有占位产品数据由
-   * db/migrate.ts 的幂等数据修正统一刷成 'tbd'（迁移只新增枚举值，见 drizzle/0022_*）。
-   */
-  private async ensurePendingProduct(): Promise<number> {
-    const hit = await this.findPendingProductId();
-    if (hit != null) return hit;
-    const [row] = await db.insert(products).values({ name: PENDING_PRODUCT_NAME, type: 'tbd', safetyStock: 0 }).returning({ id: products.id });
-    return row.id;
   }
 
   /**

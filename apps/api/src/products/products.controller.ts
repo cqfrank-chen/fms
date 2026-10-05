@@ -38,7 +38,13 @@ interface RouteItem {
 export class ProductsController {
   constructor(private readonly service: ProductsService) {}
 
-  /** 列表：默认隐藏占位产品「（未建档产品·待补）」；includePlaceholders=1 显示（界面「显示占位档案」开关） */
+  /**
+   * 列表 / 选择下拉共用的选项接口：默认隐藏占位产品「（未建档产品·待补）」。
+   * - **列表页**：按界面「显示占位档案」开关决定是否带 includePlaceholders=1（默认隐藏）；
+   * - **选择下拉**（甲方裁定 2，2026-10-05）：一律显式带 includePlaceholders=1，让占位产品始终可选，
+   *   便于把订单行**改指**到真实产品，或保留占位以维持待补状态；
+   *   该参数还会幂等地**保证占位产品存在**（干净库里下拉同样能选到，见 common/pending-entities.ts）。
+   */
   @Get()
   findAll(@Query('includePlaceholders') includePlaceholders?: string) {
     return this.service.findAll({ includePlaceholders });

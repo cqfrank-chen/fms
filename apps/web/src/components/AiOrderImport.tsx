@@ -8,6 +8,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_OPTIONS } from '../lib/labels'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import type { Customer, Order, PackagingSpec, Product } from '../lib/types'
 import PackComboEditor from './PackComboEditor'
 
@@ -192,12 +193,13 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
   }
 
   useEffect(() => {
-    loadOptions<Customer>('/customers', setCustomers, '客户档案')
-    loadOptions<Product>('/products', setProducts, '产品目录')
+    // 甲方裁定 2：客户/产品**选择下拉**始终显示占位档案（显式带 includePlaceholders=1，不受开关影响）
+    loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案')
+    loadOptions<Product>(optionsPath('/products'), setProducts, '产品目录')
   }, [])
 
   const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.name}（${p.type}）` })),
+    () => products.map((p) => ({ value: p.id, label: `${optionLabel(p.name)}（${p.type}）` })),
     [products],
   )
 
@@ -585,7 +587,7 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
                   <Select
                     showSearch optionFilterProp="label" style={{ width: 240 }} placeholder="选择客户"
                     value={draft.customerId} onChange={(v) => setDraft({ ...draft, customerId: v, customerText: undefined })}
-                    options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                    options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))}
                   />
                 </div>
               )}

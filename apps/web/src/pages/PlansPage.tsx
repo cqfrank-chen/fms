@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_LABEL, PACK_LABEL, STATUS_LABEL } from '../lib/labels'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import type { Customer, Order, OrderLine, PlanSheet, ReportLog } from '../lib/types'
 
 const { Text } = Typography
@@ -54,7 +55,8 @@ function PlansPage() {
     }
   }
 
-  useEffect(() => { loadOptions<Customer>('/customers', setCustomers, '客户档案') }, [])
+  // 甲方裁定 2：客户**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+  useEffect(() => { loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案') }, [])
 
   async function fetchRows() {
     setLoading(true)
@@ -207,7 +209,7 @@ function PlansPage() {
       <Select style={{ width: 130 }} value={status} onChange={setStatus} placeholder="全部状态"
         options={PLAN_FILTER.map((value) => ({ value, label: STATUS_LABEL[value] ?? value }))} allowClear />
       <Select style={{ width: 180 }} value={customerId} onChange={setCustomerId} placeholder="全部客户"
-        options={customers.map((c) => ({ value: c.id, label: c.name }))} allowClear />
+        options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} allowClear />
       <Input.Search placeholder="计划单号搜索" style={{ width: 200 }} allowClear
         onSearch={(v) => { setKw(v); fetchRows() }} />
     </Space>

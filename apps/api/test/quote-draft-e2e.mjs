@@ -16,6 +16,9 @@
  * 环境变量：E2E_BASE（默认 http://127.0.0.1:3100/api）、E2E_PG_*（默认 localhost:15432）
  */
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:3100/api';
@@ -125,6 +128,25 @@ async function main() {
   ok('客户「安宝公司」已建档', !!customerId, customerId);
   ok('产品已建档（1-101 / PNM / 6290）', !!prod1 && !!prod2 && !!prod3, { prod1, prod2, prod3 });
 
+  // ---- 甲方裁定 2（2026-10-05）：客户/产品【选择下拉】始终显示两个占位档案 ----
+  // 此刻库里**还没有任何未建档草稿**（占位档案尚未被惰性创建）—— 选项接口必须自己保证它们存在，
+  // 否则下拉在干净库/新库里选不到占位档案，就无法「改指」或「保留占位」。
+  const earlyCustOpt = await req('GET', '/customers?includePlaceholders=1', undefined, token);
+  const earlyProdOpt = await req('GET', '/products?includePlaceholders=1', undefined, token);
+  ok('裁定2 选项接口（客户）在「尚无未建档草稿」时也保证占位客户存在（下拉可选项）',
+    earlyCustOpt.body.some((c) => c.name === '（未建档客户·待补）'), earlyCustOpt.body.map((c) => c.name));
+  ok('裁定2 选项接口（产品）在「尚无未建档草稿」时也保证占位产品存在（类型 tbd）',
+    earlyProdOpt.body.some((p) => p.name === '（未建档产品·待补）' && p.type === 'tbd'),
+    earlyProdOpt.body.filter((p) => p.name.includes('待补')).map((p) => ({ name: p.name, type: p.type })));
+  const PH_COUNT_SQL = `select (select count(*)::int from customers where name = '（未建档客户·待补）') as c,
+    (select count(*)::int from products where name = '（未建档产品·待补）') as p`;
+  const phCounts = await db.query(PH_COUNT_SQL);
+  eq('裁定2 SQL：两个占位档案各只有 1 行（幂等创建，不重复插入）', [phCounts.rows[0].c, phCounts.rows[0].p], [1, 1]);
+  await req('GET', '/customers?includePlaceholders=1', undefined, token);
+  await req('GET', '/products?includePlaceholders=1', undefined, token);
+  const phCounts2 = await db.query(PH_COUNT_SQL);
+  eq('裁定2 SQL：重复调用选项接口后占位档案仍各 1 行（幂等）', [phCounts2.rows[0].c, phCounts2.rows[0].p], [1, 1]);
+
   // ================= ① 报价记录 CRUD =================
   console.log('\n【① 报价记录】新增 / 取价试算 / 改价留痕 / 停用启用');
   const generic = await req('POST', '/quotes', { productId: prod1, productName: '1-101 割嘴 00#', unitPrice: 3.00, currency: 'CNY', validFrom: PAST, source: 'manual' }, token);
@@ -206,6 +228,35 @@ async function main() {
   eq('SQL：报价表行数 = 3 手工 + 1 过期 + 3 导入（upsert 改价不新增行）', cnt.rows[0].n, 7);
   const genericCnt = await db.query('select count(*)::int as n from product_quotes where customer_id is null');
   ok('SQL：通用价（customer_id 为空）已落库', genericCnt.rows[0].n >= 1, genericCnt.rows[0].n);
+
+  // ================= ②b 历史成交价种子导入（新增「来源」列） =================
+  // 口径：来源列取值 manual / import / doc / contract（contract = 合同成交价、doc = .doc 单据提取）；
+  //       留空沿用既有口径 import（向后兼容）；取值认不出 → 该行报错（不静默降级）。
+  console.log('\n【②b 报价导入·来源列】contract（合同成交价）/ doc（单据提取）');
+  const seedCust = await req('POST', '/customers', { name: '合同成交价种子客户', creditDays: 30 }, token);
+  const seedCsv = Buffer.from('\uFEFF' + [
+    '客户名称,产品名称,单价,币种,生效日期,失效日期,来源,备注',
+    '合同成交价种子客户,X-SEED-CONTRACT,8.50,CNY,2014-12-16,,contract,来源文件：ziliao/嵊州海田/229/工矿产品购销合同.doc',
+    '合同成交价种子客户,X-SEED-DOC,9.70,￥,2026-09-17,,doc,来源文件：ziliao/正恒公司/106D7镀铬采购单.doc',
+    '合同成交价种子客户,X-SEED-BAD,1.00,CNY,,,不认识的来源,来源列取值非法 → 应报错',
+  ].join('\r\n') + '\r\n', 'utf8');
+  const spv = await req('POST', '/quotes/import/preview', { ...uploadBody(seedCsv, '合同成交价种子.csv'), mode: 'insert-only' }, token);
+  eq('②b 预览返回 201', spv.status, 201);
+  eq('②b 预览：识别到「来源」列', spv.body.columns.source, 6);
+  eq('②b 预览：3 行 = 新增 2 + 错误 1', spv.body.summary.new, 2);
+  eq('②b 预览：来源取值非法 → 错误行', spv.body.summary.error, 1);
+  ok('②b 预览：错误原因指明「来源」取值',
+    spv.body.rows.find((r) => r.status === 'error').reasons.join('；').includes('来源'),
+    spv.body.rows.find((r) => r.status === 'error').reasons);
+  const scm = await req('POST', '/quotes/import/commit', { ...uploadBody(seedCsv, '合同成交价种子.csv'), mode: 'insert-only' }, token);
+  eq('②b 提交：新增 2 条（合同成交价 + 单据提取）', scm.body.summary.new, 2);
+  eq('②b 提交：来源非法行未入库', scm.body.summary.error, 1);
+  const srcRows = await db.query("select source, currency, unit_price_cents, valid_from::text as vf from product_quotes where customer_id = $1 order by source", [seedCust.body.id]);
+  eq('②b SQL：来源按 contract / doc 落库', srcRows.rows.map((r) => r.source), ['contract', 'doc']);
+  eq('②b SQL：￥ 写法归一到 CNY', srcRows.rows.map((r) => r.currency), ['CNY', 'CNY']);
+  eq('②b SQL：生效日取单据日期', srcRows.rows.map((r) => r.vf), ['2014-12-16', '2026-09-17']);
+  const tpl = await req('GET', '/quotes/template', undefined, token);
+  ok('②b 导入模板含「来源」列', String(tpl.body).includes('来源'), String(tpl.body).split('\r\n')[0]);
 
   // ================= ③ 识单补价 =================
   console.log('\n【③ 识单 × 报价】无单价 CSV → 自动补价 + priceFrom=quote');
@@ -422,6 +473,59 @@ async function main() {
   const ordPending = await req('GET', '/orders?hasPending=1', undefined, token);
   ok('裁定② 「仅看有未补全项的草稿单」不受开关限制（补全工作流必须能看到）',
     ordPending.body.some((o) => o.id === phDraft.body.id), ordPending.body.map((o) => o.id));
+
+  // ---- 甲方裁定 2（2026-10-05）：客户/产品的**选择下拉**始终显示两个占位档案 ----
+  // 下拉口径 = 选项接口**显式**带 includePlaceholders=1 放行（服务端默认隐藏）；
+  // 目的是让人工把订单/行**改指**到真实客户/产品，或保留占位以维持待补状态。
+  const optCust = await req('GET', '/customers?includePlaceholders=1', undefined, token);
+  const optProd = await req('GET', '/products?includePlaceholders=1', undefined, token);
+  const optPhCust = optCust.body.filter((c) => c.name === '（未建档客户·待补）');
+  const optPhProd = optProd.body.filter((p) => p.name === '（未建档产品·待补）');
+  ok('裁定2 选项接口（客户）带 includePlaceholders=1 → 含占位客户「（未建档客户·待补）」', optPhCust.length >= 1, optPhCust.map((c) => c.name));
+  ok('裁定2 选项接口（产品）带 includePlaceholders=1 → 含占位产品「（未建档产品·待补）」', optPhProd.length >= 1, optPhProd.map((p) => p.name));
+  ok('裁定2 选项接口带 includePlaceholders=1 → 两个占位档案齐备（下拉都能选到）',
+    optPhCust.length >= 1 && optPhProd.length >= 1, { 客户占位: optPhCust.length, 产品占位: optPhProd.length });
+  ok('裁定2 选项接口里占位产品的类型仍是「待定」tbd（改指/保留占位都不会被当成真实产品）',
+    optPhProd.every((p) => p.type === 'tbd'), optPhProd.map((p) => p.type));
+  // 下拉以外的口径（列表接口）默认隐藏，语义不变
+  ok('裁定2 列表接口（客户）默认不含占位档案',
+    !custDefault.body.some((c) => c.name === '（未建档客户·待补）'), custDefault.body.length);
+  ok('裁定2 列表接口（产品）默认不含占位档案',
+    !prodDefault.body.some((p) => p.name === '（未建档产品·待补）'), prodDefault.body.length);
+  ok('裁定2 开关（includePlaceholders=1）开启后列表含占位档案 —— 与下拉同一参数、同一口径',
+    custShow.body.some((c) => c.name === '（未建档客户·待补）') && prodShow.body.some((p) => p.name === '（未建档产品·待补）'),
+    { 客户: custShow.body.length, 产品: prodShow.body.length });
+
+  // ---- 裁定2 请求层（静态回归）：前端客户/产品**选择下拉**一律显式带 includePlaceholders=1 ----
+  // 下拉请求属于前端代码，HTTP 接口无法自证「调用方有没有带参数」，故直接核对仓库源码：
+  //   · 不允许存在「裸路径」的选项加载 loadOptions<X>('/customers' | '/products')
+  //   · 不允许选项加载走「显示占位档案」开关（withPlaceholders）—— 下拉不受开关影响
+  const webFiles = [];
+  (function walk(dir) {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(e.name)) webFiles.push(p);
+    }
+  })(fileURLToPath(new URL('../../web/src/', import.meta.url)));
+  const rawOptionLoad = [];
+  const switchedOptionLoad = [];
+  const rawOptionLabel = [];
+  for (const file of webFiles) {
+    const rel = basename(file);
+    readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+      if (/loadOptions<[^>]*>\(\s*'\/(customers|products)'/.test(line)) rawOptionLoad.push(rel + ':' + (i + 1));
+      if (/loadOptions/.test(line) && /withPlaceholders/.test(line)) switchedOptionLoad.push(rel + ':' + (i + 1));
+      if (/(customers|products|prods)\.map\(/.test(line) && /label:\s*[a-z]\.name/.test(line)) rawOptionLabel.push(rel + ':' + (i + 1));
+    });
+  }
+  const optCustPath = webFiles.reduce((n, f2) => n + (readFileSync(f2, 'utf8').match(/optionsPath\('\/customers'\)/g) ?? []).length, 0);
+  const optProdPath = webFiles.reduce((n, f2) => n + (readFileSync(f2, 'utf8').match(/optionsPath\('\/products'\)/g) ?? []).length, 0);
+  ok('裁定2 请求层：客户/产品选项加载不存在「裸路径」调用（必须显式带参数）', rawOptionLoad.length === 0, rawOptionLoad);
+  ok('裁定2 请求层：下拉选项加载不走「显示占位档案」开关（不受开关影响）', switchedOptionLoad.length === 0, switchedOptionLoad);
+  ok('裁定2 请求层：optionsPath 覆盖全部下拉调用（客户 ≥10 / 产品 ≥7）',
+    optCustPath >= 10 && optProdPath >= 7, { 客户下拉: optCustPath, 产品下拉: optProdPath });
+  ok('裁定2 展示层：下拉选项标签一律走 optionLabel（占位档案带「⚠ 」标识）', rawOptionLabel.length === 0, rawOptionLabel);
 
   // ---- 裁定④：.doc 切片管线口径（识单 → 落草稿 两跳，与 tools/ziliao/draft_orders_from_parse.mjs 一致） ----
   const docCsv = Buffer.from([

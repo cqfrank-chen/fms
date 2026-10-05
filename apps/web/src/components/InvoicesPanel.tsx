@@ -9,6 +9,7 @@ import type { Dayjs } from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { INVOICE_PLACEHOLDER_PREFIX, INVOICE_STATUS_LABEL, INVOICE_TYPE_LABEL, STATUS_LABEL } from '../lib/labels'
 import { fmtCents, fromCents, rateLabel } from '../lib/money'
+import { optionLabel, optionsPath } from '../lib/placeholders'
 import type {
   Customer, Invoice, InvoicePage, InvoiceStatus, InvoiceSummary, InvoiceType, Order, OrderInvoiceStatus,
 } from '../lib/types'
@@ -66,7 +67,8 @@ export default function InvoicesPanel() {
   const [orderLoading, setOrderLoading] = useState(false)
 
   useEffect(() => {
-    loadOptions<Customer>('/customers', setCustomers, '客户档案')
+    // 甲方裁定 2：客户**选择下拉**始终显示占位档案（不受「显示占位档案」开关影响）
+    loadOptions<Customer>(optionsPath('/customers'), setCustomers, '客户档案')
     loadOptions<Order>('/orders', setOrders, '订单列表')
   }, [])
 
@@ -255,7 +257,7 @@ export default function InvoicesPanel() {
           />
           <Select size="small" style={{ width: 170 }} allowClear showSearch optionFilterProp="label"
             placeholder="按客户筛选" value={customerId} onChange={(v) => { setCustomerId(v as number); setPage(1) }}
-            options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+            options={customers.map((c) => ({ value: c.id, label: optionLabel(c.name) }))} />
           <Select size="small" style={{ width: 120 }} allowClear placeholder="按状态筛选"
             value={status} onChange={(v) => { setStatus(v as InvoiceStatus); setPage(1) }}
             options={Object.entries(INVOICE_STATUS_LABEL).map(([value, label]) => ({ value, label }))} />
