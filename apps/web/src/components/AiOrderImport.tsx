@@ -33,10 +33,22 @@ export interface AiResolveResult {
   totalCents?: number
   /** 解析通道：text / image / table-rule（Excel/CSV 规则映射）/ table-llm（表格 LLM 兜底）/ stub */
   parseSource?: 'text' | 'image' | 'table-rule' | 'table-llm' | 'stub'
-  /** 表格映射诊断（仅 Excel/CSV）：命中率、缺失列、是否走了 LLM */
+  /** 表格映射诊断（仅 Excel/CSV）：命中率、缺失列、是否走了 LLM、数据行边界、抬头区 */
   table?: {
     headerRowIndex: number; hitRate: number; requiredHits: number
+    /** 本次口径的关键列总数（给了 folderCustomer → 3：客户列不再必填） */
+    requiredTotal?: number
     missingRequired: string[]; dataRowCount: number; usedLlm: boolean
+    /** 数据行终止原因（合计/大写金额/正唛/备注/合同条款/表尾） */
+    stopReason?: string
+    /** 被跳过的非产品行数（条款/大写金额/正唛/空行） */
+    skippedNoiseRows?: number
+    /** 抬头区 + 条款区扫描结果（合同编号/供方/需方/交货期限） */
+    headerArea?: { poNo?: string; dueDate?: string; customerName?: string; supplierName?: string; matches: string[] }
+    /** 客户由所属文件夹决定 */
+    folderCustomer?: string
+    /** 口径校验提示（如抬头需方与文件夹客户不一致） */
+    warnings?: string[]
   }
 }
 
@@ -480,9 +492,13 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
                 <Space size={8} wrap style={{ marginBottom: 4 }}>
                   <Text strong style={{ fontSize: 13 }}>📋 表格预览（识别结果）</Text>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    表头关键列命中 {result?.table?.requiredHits ?? 0}/4
+                    表头关键列命中 {result?.table?.requiredHits ?? 0}/{result?.table?.requiredTotal ?? 4}
+                    {result?.table?.folderCustomer ? '（客户取文件夹「' + result.table.folderCustomer + '」，不再要求表内客户列）' : ''}
                     {result?.table?.usedLlm ? '；已用 AI 语义映射兜底' : '；规则映射直接得出（未调用 AI）'}
                     {result?.table?.missingRequired?.length ? '；缺失列：' + result.table.missingRequired.join('、') : ''}
+                    {result?.table?.stopReason ? '；数据行终止：' + result.table.stopReason : ''}
+                    {result?.table?.skippedNoiseRows ? '；已跳过非产品行 ' + result.table.skippedNoiseRows + ' 行' : ''}
+                    {result?.table?.headerArea?.poNo ? '；合同号：' + result.table.headerArea.poNo : ''}
                     {'；共 ' + previewRows.length + ' 行明细，合计 ' + yuan(previewTotalCents) + ' 元'}
                   </Text>
                 </Space>

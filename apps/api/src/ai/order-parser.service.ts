@@ -5,7 +5,7 @@ import { lineCents, sumLineCents } from '../common/money';
 import { LlmGatewayService } from './llm-gateway.service';
 import type { LlmMessage } from './llm-gateway.service';
 import { matrixToCompactText, ruleMapMatrix } from './table-parser.service';
-import type { RuleMapResult } from './table-parser.service';
+import type { HeaderArea, RuleMapResult } from './table-parser.service';
 
 /**
  * 订单解析（I12 核心）：多模态/文本 → 结构化抽取 → 确定性规则校验 → 主数据匹配
@@ -19,6 +19,8 @@ import type { RuleMapResult } from './table-parser.service';
 
 export interface ParsedOrderLine {
   productName: string;
+  /** 产品编号（表内「产品编号/货号」列）：产品名称优先，编号另存，便于人工回溯与建档 */
+  productCode?: string;
   quantity?: number;
   unitPrice?: number;
   currency?: 'RMB' | 'USD';
@@ -68,14 +70,30 @@ export interface ResolveResult {
   totalCents: number;
   /** 实际使用的解析通道（便于前端/接口自测断言分支是否正确） */
   parseSource: ParseSource;
-  /** 表格映射诊断（仅 Excel/CSV 输入有值：命中率/缺失列/是否走了 LLM 兜底） */
+  /** 表格映射诊断（仅 Excel/CSV 输入有值：命中率/缺失列/是否走了 LLM 兜底/数据行边界/抬头区） */
   table?: {
     headerRowIndex: number;
     hitRate: number;
     requiredHits: number;
+    /** 本次口径的关键列总数（给了 folderCustomer → 3：客户列不再必填） */
+    requiredTotal: number;
     missingRequired: string[];
     dataRowCount: number;
     usedLlm: boolean;
+    /** 数据行终止原因（合计/大写金额/正唛/备注/合同条款/表尾） */
+    stopReason: string;
+    /** 被跳过的非产品行数（含条款/大写金额/正唛/空行） */
+    skippedNoiseRows: number;
+    /** 实际输出的产品行数（含缺数量/单价的残缺行） */
+    emittedRows: number;
+    /** 抬头区 + 条款区扫描结果（合同编号/供方/需方/交货期限） */
+    headerArea: HeaderArea;
+    /** productName 由产品编号列兜底（表里没有产品名称列） */
+    productNameFromCode: boolean;
+    /** 客户由文件所属文件夹决定（甲方裁定「文件夹=客户」） */
+    folderCustomer?: string;
+    /** 口径校验提示（如抬头需方与文件夹客户不一致）：只提示，不阻断 */
+    warnings: string[];
   };
 }
 
@@ -173,6 +191,11 @@ export class OrderParserService {
     image?: string;
     /** 表格矩阵（Excel/CSV 解析产物） */
     table?: { rows: string[][]; source?: 'excel' | 'csv' };
+    /**
+     * 文件所属的顶层客户文件夹名（甲方裁定：**以文件夹为识别主体，同一文件夹内的都是同一家**）。
+     * 给出后：客户直接取该文件夹名，表内不再要求客户列/需方行；若抬头区扫到需方，仅做一致性 warn。
+     */
+    folderCustomer?: string;
     /** 附加线索（随表格一起提交的文本，如客户邮件原文/粘贴的说明），仅在表格命中率不足时随表格一起喂给 LLM */
     hint?: string;
     stub?: ParsedOrder;
@@ -188,26 +211,43 @@ export class OrderParserService {
       parsed = await this.visionParse(input.image);
       parseSource = 'image';
     } else if (input.table?.rows?.length) {
-      const rule: RuleMapResult = ruleMapMatrix(input.table.rows);
+      const folder = input.folderCustomer?.trim() || undefined;
+      // 客户由文件夹决定：customer 不再计入必填列（见 requiredTableFields）
+      const rule: RuleMapResult = ruleMapMatrix(input.table.rows, { folderCustomer: folder });
       let usedLlm = false;
       if (rule.mapping.sufficient && rule.dataRowCount > 0) {
         parsed = rule.parsed; // 规则映射命中齐全：完全不调 LLM（可复现、离线可用）
       } else {
         usedLlm = true;
-        parsed = await this.tableLlmParse(input.table.rows, input.hint, rule);
+        parsed = await this.tableLlmParse(input.table.rows, input.hint, rule, folder);
         if (!parsed.lines.length && rule.parsed.lines.length) {
           // LLM 兜底也没出产品行 → 退回规则映射（至少人工能在预览里修正）
           parsed = { ...rule.parsed, notes: [...rule.parsed.notes, 'AI 语义映射未识别出产品行，已回退表头规则映射结果'] };
         }
+      }
+      // 甲方裁定「文件夹=客户」：客户名**一律以文件夹为准**（LLM 抽到的客户名同样被覆盖），
+      // 抬头区扫到的「需方」只做一致性校验（不一致给 warning，不报错）。
+      if (folder) {
+        parsed = { ...parsed, customerName: folder, notes: [...(parsed.notes ?? []), ...rule.warnings] };
+      } else if (rule.warnings.length) {
+        parsed = { ...parsed, notes: [...(parsed.notes ?? []), ...rule.warnings] };
       }
       parseSource = usedLlm ? 'table-llm' : 'table-rule';
       tableDiag = {
         headerRowIndex: rule.mapping.headerRowIndex,
         hitRate: rule.mapping.hitRate,
         requiredHits: rule.mapping.requiredHits,
+        requiredTotal: rule.mapping.requiredTotal,
         missingRequired: rule.mapping.missingRequired as string[],
         dataRowCount: rule.dataRowCount,
         usedLlm,
+        stopReason: rule.dataRows.stopReason,
+        skippedNoiseRows: rule.dataRows.skipped.length,
+        emittedRows: rule.dataRows.emittedRows,
+        headerArea: rule.headerArea,
+        productNameFromCode: !!rule.mapping.productNameFromCode,
+        folderCustomer: folder,
+        warnings: rule.warnings,
       };
     } else {
       parsed = await this.textParse(input.text ?? '');
@@ -219,10 +259,12 @@ export class OrderParserService {
   }
 
   /** 表格 → LLM 语义映射（命中率不足时）：紧凑文本 + 上下文线索，要求严格 JSON（与图片结构一致） */
-  private async tableLlmParse(rows: string[][], hint: string | undefined, rule: RuleMapResult): Promise<ParsedOrder> {
+  private async tableLlmParse(rows: string[][], hint: string | undefined, rule: RuleMapResult, folderCustomer?: string): Promise<ParsedOrder> {
     const compact = matrixToCompactText(rows, 40);
-    const head = '表头规则映射命中率 ' + rule.mapping.requiredHits + '/4'
-      + (rule.mapping.missingRequired.length ? '，缺失列：' + rule.mapping.missingRequired.join('、') : '') + '。';
+    const head = '表头规则映射命中率 ' + rule.mapping.requiredHits + '/' + rule.mapping.requiredTotal
+      + (rule.mapping.missingRequired.length ? '，缺失列：' + rule.mapping.missingRequired.join('、') : '') + '。'
+      + (folderCustomer ? '客户已由「文件所属文件夹」确定为「' + folderCustomer + '」，不要从表内另取客户名。' : '')
+      + (rule.headerArea.matches.length ? '抬头区已抽取：' + rule.headerArea.matches.join('；') + '。' : '');
     const user = '[订单表格逐行文本]\n' + compact + '\n[表格结束]\n'
       + (hint ? '[上下文线索]\n' + hint.slice(0, 2000) + '\n[线索结束]\n' : '')
       + '[提示]' + head;
@@ -358,6 +400,7 @@ export class OrderParserService {
       }
       lines.push({
         productName: name,
+        productCode: l.productCode || undefined,
         productId,
         match,
         quantity: l.quantity,

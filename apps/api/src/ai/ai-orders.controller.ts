@@ -33,6 +33,15 @@ class ParseOrderDto {
   @MaxLength(255)
   fileName?: string;
 
+  /**
+   * 文件所属顶层客户文件夹名（甲方裁定「以文件夹为识别主体，同一文件夹内的都是同一家」）。
+   * 给出后客户直接取该文件夹名，表内不再要求客户列；抬头区扫到的「需方」只做一致性 warn。
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  folderCustomer?: string;
+
   /** 仅 mock 模式（未配 AI_API_KEY）生效：直通 LLM 抽取结果，供验收/离线测试 */
   @IsOptional()
   stub?: Record<string, unknown>;
@@ -66,6 +75,7 @@ export class AiOrdersController {
         const t = await this.tableParser.parseUpload({ buffer: up.buffer, fileName: up.name, mimeType: up.mime });
         return await this.parser.parseAndResolve({
           table: { rows: t.rows, source: t.kind === 'csv' ? 'csv' : 'excel' },
+          folderCustomer: dto.folderCustomer,
           text: dto.text,
           hint: dto.text,
           stub: dto.stub as never,
@@ -74,6 +84,7 @@ export class AiOrdersController {
       return await this.parser.parseAndResolve({
         text: dto.text,
         image: dto.image,
+        folderCustomer: dto.folderCustomer,
         stub: dto.stub as never,
       });
     } catch (e) {

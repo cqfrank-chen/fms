@@ -335,9 +335,9 @@ export function normalizeMatrix(rows: string[][]): string[][] {
 
 // ============ 表头规则映射 ============
 
-/** 可映射字段（客户/PO/产品/数量/单价/币种/交期/备注/刻字/包装） */
+/** 可映射字段（客户/PO/产品名称/产品编号/数量/单价/币种/交期/备注/刻字/包装） */
 export const TABLE_FIELDS = [
-  'customer', 'poNo', 'productName', 'quantity', 'unitPrice',
+  'customer', 'poNo', 'productName', 'productCode', 'quantity', 'unitPrice',
   'currency', 'dueDate', 'note', 'engraving', 'packaging',
 ] as const;
 export type TableField = (typeof TABLE_FIELDS)[number];
@@ -347,8 +347,12 @@ const HEADER_KEYWORDS: Record<TableField, string[]> = {
   customer: ['客户名称', '客户简称', '客户全称', '客户名', '客户公司', '客户', 'customer', 'buyer', '客户单位', '需方'],
   poNo: ['客户po', '客户订单号', 'po号', 'pono', 'po no', '订单号', '订单编号', '采购订单号', '合同号', 'orderno', 'order no', 'p/o', 'po'],
   productName: ['产品名称', '产品型号', '物料名称', '品名', '型号', '产品', 'product', 'item', 'description', '规格'],
+  // 产品编号：**必须能压过 productName 的「产品」二字**（尤耐克族表头是 No/产品编号/产品名称/数量/单 价…，
+  // 旧规则里「产品编号」被「产品」抢先归到 productName → 真正的产品名称列被丢弃，见 ziliao-analysis.md §3.3 问题 4）。
+  productCode: ['产品编号', '产品编码', '产品代码', '物料编号', '物料编码', '产品货号', '货号', 'itemno', 'item no', 'itemcode', 'item code', 'productcode', 'product code'],
   quantity: ['订购数量', '订货数量', '数量', 'qty', 'quantity', 'pcs'],
-  unitPrice: ['含税单价', '单价', '价格', '出厂价', 'unitprice', 'unit price', 'price'],
+  // 不含税价/含税价：.doc 采购单族的真实表头是「不含税价」（嵊州海田 采购单.doc 实测）
+  unitPrice: ['不含税单价', '不含税价', '含税单价', '含税价', '单价', '价格', '出厂价', 'unitprice', 'unit price', 'price'],
   currency: ['币种', '币别', '货币', 'currency'],
   dueDate: ['交货日期', '交货时间', '交货期', '出货日期', '发货日期', '交期', 'delivery', 'duedate', 'due date', 'eta'],
   note: ['备注', '说明', 'remark', 'note', 'comment'],
@@ -358,6 +362,17 @@ const HEADER_KEYWORDS: Record<TableField, string[]> = {
 
 /** 规则映射「齐全」所需的四个关键列（缺任一 → 需要 LLM 兜底映射） */
 export const REQUIRED_TABLE_FIELDS: TableField[] = ['customer', 'productName', 'quantity', 'unitPrice'];
+
+/**
+ * 本次识单实际要求的关键列：**调用方给出 folderCustomer（客户由文件所属文件夹决定）时，
+ * customer 不再是必填列** —— 甲方裁定「以文件夹为识别主体」后，合同表内本来就没有客户列。
+ * 不传 folderCustomer 时与既有行为完全一致（4 列口径）。
+ */
+export function requiredTableFields(folderCustomer?: string): TableField[] {
+  return folderCustomer && folderCustomer.trim()
+    ? REQUIRED_TABLE_FIELDS.filter((x) => x !== 'customer')
+    : REQUIRED_TABLE_FIELDS;
+}
 
 /**
  * 通用文本归一（表头匹配 / 主数据枚举值匹配共用）：
@@ -375,6 +390,11 @@ export function normalizeToken(s: string): string {
  * 通用表头关键词映射（AI 订单表格与主数据批量导入共用同一套匹配规则，避免两套表头识别逻辑漂移）：
  * 在前 maxScan 行内逐行打分——每列取「最长命中」的字段（避免「客户PO号」被「客户」抢先吃掉）；
  * 取得分最高且 ≥ minHits 的行为表头，返回「字段 → 列下标」。
+ *
+ * 「同字段多列」的取舍（本轮修正，见 ziliao-analysis.md §3.3 问题 4）：
+ * 旧规则是「同一字段只记第一列」（左到右谁先命中谁占）；现在改为**按关键词长度优先、长度相同取靠左列**——
+ * 表头同时出现「产品」与「产品名称」时，productName 取命中「产品名称」的那一列，而不是最左边的「产品」列。
+ * 只影响「同一字段有多个候选列」的表，单候选表行为与旧规则完全一致。
  */
 export function mapHeaderFields(
   rows: string[][],
@@ -386,8 +406,8 @@ export function mapHeaderFields(
   const minHits = opts.minHits ?? 2;
   let best = { idx: -1, score: 0, columns: {} as Record<string, number> };
   for (let r = 0; r < scan; r++) {
-    const columns: Record<string, number> = {};
-    let score = 0;
+    // 先按列收集「该列最像哪个字段 + 命中关键词长度」，再按字段择优（长度优先、其次靠左）
+    const colBest: Record<string, { col: number; kwLen: number }> = {};
     rows[r].forEach((cell, c) => {
       const h = normalizeToken(cell);
       if (!h) return;
@@ -399,8 +419,13 @@ export function mapHeaderFields(
           if (nk && h.includes(nk) && nk.length > bestLen) { bestField = f; bestLen = nk.length; }
         }
       }
-      if (bestField && columns[bestField] === undefined) { columns[bestField] = c; score += 1; }
+      if (!bestField) return;
+      const prev = colBest[bestField];
+      if (!prev || bestLen > prev.kwLen) colBest[bestField] = { col: c, kwLen: bestLen };
     });
+    const columns: Record<string, number> = {};
+    let score = 0;
+    for (const [field, pick] of Object.entries(colBest)) { columns[field] = pick.col; score += 1; }
     if (score > best.score) best = { idx: r, score, columns };
   }
   if (best.score < minHits) best = { idx: -1, score: 0, columns: {} };
@@ -412,38 +437,59 @@ export function mapHeaderFields(
   };
 }
 
+/** 识单口径选项：folderCustomer = 文件所属的顶层客户文件夹名（甲方裁定「文件夹=客户」） */
+export interface OrderParseOptions {
+  folderCustomer?: string;
+}
+
 export interface TableMapping {
   /** 命中表头所在行下标；-1 = 未识别出表头 */
   headerRowIndex: number;
   /** 字段 → 列下标 */
   columns: Partial<Record<TableField, number>>;
-  /** 关键列命中数（满分 4） */
+  /** 关键列命中数 */
   requiredHits: number;
+  /** 本次口径的关键列总数（默认 4；给了 folderCustomer → 3，customer 不再必填） */
+  requiredTotal: number;
   hitRate: number;
   /** 关键列是否齐全（规则映射足够，无需 LLM） */
   sufficient: boolean;
   /** 缺失的关键列 */
   missingRequired: TableField[];
   headerRow: string[];
+  /** productName 是拿 productCode 列兜底来的（表里只有编号列、没有名称列） */
+  productNameFromCode?: boolean;
 }
 
 /**
  * 表头识别：在前 min(8, 行数) 行内挑选「命中关键词最多且 ≥2」的行作为表头。
  * 客户表格常见「抬头 2~3 行 + 表头 + 数据行」，逐行打分比「永远取第一行」稳。
+ *
+ * opts.folderCustomer 存在时，customer 列的缺席不再算「关键列缺失」（客户由文件夹决定），
+ * 规则映射因此能在**表内没有客户列**的合同上直接命中、不再降级到 LLM。
  */
-export function mapHeader(rows: string[][]): TableMapping {
+export function mapHeader(rows: string[][], opts: OrderParseOptions = {}): TableMapping {
   const m = mapHeaderFields(rows, HEADER_KEYWORDS, { maxScan: 8, minHits: 2 });
   const columns = m.columns as Partial<Record<TableField, number>>;
-  const missingRequired = REQUIRED_TABLE_FIELDS.filter((f) => columns[f] === undefined);
-  const requiredHits = REQUIRED_TABLE_FIELDS.length - missingRequired.length;
+  // 表里只有「产品编号」列、没有「产品名称」列时，用编号列兜底 productName —— 保住旧行为（仍能出产品行）
+  let productNameFromCode = false;
+  if (columns.productName === undefined && columns.productCode !== undefined) {
+    columns.productName = columns.productCode;
+    productNameFromCode = true;
+  }
+  const required = requiredTableFields(opts.folderCustomer);
+  const missingRequired = required.filter((x) => columns[x] === undefined);
+  const requiredHits = required.length - missingRequired.length;
   return {
     headerRowIndex: m.headerRowIndex,
     columns,
     requiredHits,
-    hitRate: requiredHits / REQUIRED_TABLE_FIELDS.length,
-    sufficient: m.headerRowIndex >= 0 && requiredHits === REQUIRED_TABLE_FIELDS.length,
+    requiredTotal: required.length,
+    hitRate: requiredHits / required.length,
+    sufficient: m.headerRowIndex >= 0 && requiredHits === required.length,
     missingRequired,
     headerRow: m.headerRow,
+    productNameFromCode,
   };
 }
 
@@ -496,20 +542,257 @@ function validDate(y: number, mo: number, d: number): string | undefined {
   return y + '-' + pad2(mo) + '-' + pad2(d);
 }
 
+// ============ 抬头区 / 条款区扫描器：合同编号 · 交货期限 · 供方需方 ============
+
+/**
+ * 抬头区标签（最长命中优先）。
+ * 取值的硬约束：标签必须出现在单元格**开头**（允许前面有「四、」「（三）」这类条款序号）——
+ * 否则条款正文里的「供方」「需方」二字会被误当成字段取值（如「若供方延迟交货导致需方客户索赔…」）。
+ */
+const HEADER_AREA_LABELS: Record<'poNo' | 'dueDate' | 'supplier' | 'customer', string[]> = {
+  poNo: ['合同编号', '购销合同号', '合同号', '采购订单号', '订单编号', '订单号', '客户po', 'po编号', 'po号'],
+  dueDate: ['交货期限', '交货时间', '交货日期', '出货日期', '发货日期', '交货期', '完成日期', '交期'],
+  supplier: ['供货方', '供应方', '供方', '卖方'],
+  customer: ['需方', '买方', '购货方', '订货方', '客户名称', '客户全称', '客户简称', '客户单位', '客户'],
+};
+
+export interface HeaderArea {
+  /** 抬头区扫描区间（表头行以上） */
+  fromIndex: number;
+  toIndex: number;
+  /** 抬头区里的「需方/买方/客户」（用于与文件夹客户做一致性校验） */
+  customerName?: string;
+  /** 抬头区里的「供方/供货方」（本厂，绝不进客户表） */
+  supplierName?: string;
+  poNo?: string;
+  dueDate?: string; // YYYY-MM-DD
+  dueDateRaw?: string;
+  /** 交期原文没有年份（如 .doc 计划单的「交货时间: 9/20」）→ 上层须提示人工确认年份 */
+  dueDateNoYear?: boolean;
+  /** 交期/合同号取自「抬头区」还是「表体之后的条款区」 */
+  dueDateSource?: 'header' | 'terms';
+  poNoSource?: 'header' | 'terms';
+  /** 命中的原始片段（便于人工核对） */
+  matches: string[];
+}
+
+/** 去掉条款序号前缀（「四、」「（三）」「1.」）便于判断标签是否位于单元格开头 */
+function stripClausePrefix(s: string): string {
+  return (s ?? '')
+    .replace(/^(?:[（(]?[一二三四五六七八九十]+[）)]?\s*[、.．])+\s*/, '')
+    .replace(/^[0-9]{1,2}\s*[、.．]\s*/, '');
+}
+
+/** 标签 → 值：标签在（去条款序号后的）单元格开头；值取「标签+冒号」之后的剩余文本，为空则取本行右侧第一个非空单元格 */
+function labelValue(cell: string, row: string[], col: number, labels: string[]): { label: string; value: string } | null {
+  const raw = (cell ?? '').trim();
+  if (!raw) return null;
+  const head = stripClausePrefix(raw);
+  const sorted = labels.slice().sort((a, b) => b.length - a.length);
+  for (const lab of sorted) {
+    // 标签字符之间允许空白（「供      方：」），冒号可有可无
+    const pattern = new RegExp('^' + lab.split('').map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*') + '\\s*[：:]?\\s*');
+    const m = head.match(pattern);
+    if (!m) continue;
+    const value = head.slice(m[0].length).trim();
+    if (value) return { label: lab, value };
+    for (let c2 = col + 1; c2 < row.length; c2++) {
+      const v = (row[c2] ?? '').trim();
+      if (v) return { label: lab, value: v };
+    }
+    return { label: lab, value: '' };
+  }
+  return null;
+}
+
+/** 是否像「公司名/人名」而不是噪声（纯数字、PO 号、过长正文一律不收） */
+function looksLikePartyName(v: string): boolean {
+  const s = (v ?? '').trim();
+  if (s.length < 2 || s.length > 40) return false;
+  if (/^[\d\s\-./:：#]+$/.test(s)) return false;
+  return /[\u4e00-\u9fa5A-Za-z]/.test(s);
+}
+
+/** 从自由文本里抠出日期：「三、交货期限： 2021年9月18日」「2025年04月23日。」「2021年9月18日」都能取到。
+ *  末段兜底接受**无年份**的两段式写法（「9/20」「9月20日」，见 .doc 计划单抬头）——年份由 parseDateCell 按当前年补，
+ *  调用方（scanContractHeader）会置 dueDateNoYear，由上层给出「请人工确认年份」的提示，不静默臆造。 */
+export function extractDateFromText(v: string): string | undefined {
+  const s = (v ?? '').trim();
+  if (!s) return undefined;
+  const m = s.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?/);
+  if (m) return parseDateCell(m[0]);
+  const m2 = s.match(/(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日/);
+  if (m2) return parseDateCell(m2[0]);
+  if (/^\d{1,2}\s*[-/.月]\s*\d{1,2}\s*日?$/.test(s)) return parseDateCell(s);
+  return undefined;
+}
+
+/**
+ * 扫描合同抬头区（表头行以上）与条款区（表体之后）：
+ * - 抬头区：合同编号 / 供方 / 需方（表头以上的抬头块）
+ * - 条款区：只补「合同编号」「交货期限」——交期与编号在这批合同里散落在「三、交货期限：…」这类条款句里
+ * 只补空缺，先命中者胜；不改写已经取到的值。
+ */
+export function scanContractHeader(rows: string[][], headerRowIndex: number, lastDataRowIndex: number): HeaderArea {
+  const fromIndex = 0;
+  const toIndex = headerRowIndex >= 0 ? headerRowIndex - 1 : Math.min(rows.length, 8) - 1;
+  const area: HeaderArea = { fromIndex, toIndex, matches: [] };
+
+  const apply = (r: number, source: 'header' | 'terms') => {
+    const row = rows[r] ?? [];
+    const fields: Array<'poNo' | 'dueDate' | 'supplier' | 'customer'> = source === 'terms'
+      ? ['poNo', 'dueDate']
+      : ['poNo', 'dueDate', 'supplier', 'customer'];
+    for (const fld of fields) {
+      if (fld === 'poNo' && area.poNo) continue;
+      if (fld === 'dueDate' && area.dueDate) continue;
+      if (fld === 'supplier' && area.supplierName) continue;
+      if (fld === 'customer' && area.customerName) continue;
+      for (let c = 0; c < row.length; c++) {
+        const hit = labelValue(row[c] ?? '', row, c, HEADER_AREA_LABELS[fld]);
+        if (!hit || !hit.value) continue;
+        if (fld === 'poNo') {
+          area.poNo = hit.value.slice(0, 60);
+          area.poNoSource = source;
+          area.matches.push('r' + r + ' ' + hit.label + '=' + area.poNo);
+        } else if (fld === 'dueDate') {
+          const d = extractDateFromText(hit.value);
+          if (!d) continue;
+          area.dueDate = d;
+          area.dueDateRaw = hit.value.slice(0, 60);
+          area.dueDateNoYear = !/\d{4}/.test(hit.value);
+          area.dueDateSource = source;
+          area.matches.push('r' + r + ' ' + hit.label + '=' + d);
+        } else if (fld === 'supplier') {
+          if (!looksLikePartyName(hit.value)) continue;
+          area.supplierName = hit.value.slice(0, 60);
+          area.matches.push('r' + r + ' ' + hit.label + '=' + area.supplierName);
+        } else {
+          if (!looksLikePartyName(hit.value)) continue;
+          area.customerName = hit.value.slice(0, 60);
+          area.matches.push('r' + r + ' ' + hit.label + '=' + area.customerName);
+        }
+        break; // 该字段已取到值，本行不再继续找
+      }
+    }
+  };
+
+  for (let r = fromIndex; r <= toIndex && r < rows.length; r++) apply(r, 'header');
+  for (let r = Math.max(lastDataRowIndex + 1, toIndex + 1); r < rows.length; r++) {
+    if (area.poNo && area.dueDate) break;
+    apply(r, 'terms');
+  }
+  return area;
+}
+
+/** 名称归一（仅用于「文件夹客户 ↔ 抬头需方」的一致性提示；**不做别名归一、不做合并**） */
+export function normPartyName(s: string): string {
+  return (s ?? '')
+    .replace(/\s+/g, '')
+    .replace(/(有限|责任)?公司$/, '')
+    .replace(/^(宁波市|宁波|奉化市|奉化)/, '')
+    .toLowerCase();
+}
+
+/** 文件夹客户 ↔ 抬头需方 的一致性校验：不一致只出 warn，不报错（甲方裁定：客户以文件夹为准） */
+export function folderCustomerWarning(folderCustomer?: string, scannedBuyer?: string): string | undefined {
+  const f = (folderCustomer ?? '').trim();
+  const b = (scannedBuyer ?? '').trim();
+  if (!f || !b) return undefined;
+  const nf = normPartyName(f);
+  const nb = normPartyName(b);
+  if (!nf || !nb) return undefined;
+  if (nf === nb || nb.includes(nf) || nf.includes(nb)) return undefined;
+  return '抬头区「需方：' + b + '」与文件所属文件夹客户「' + f + '」字面不一致，请人工确认归属'
+    + '（不阻断解析：客户仍按文件夹口径取「' + f + '」）';
+}
+
+// ============ 数据行边界：识别并跳过条款/大写金额/正唛/合计等噪声行 ============
+
+/** 表体噪声行规则（ziliao-analysis.md §3.3 问题 3：33 行多余数据全部来自合同下半部分） */
+const NOISE_RULES: { reason: string; re: RegExp }[] = [
+  { reason: '合计/大写金额', re: /^(合计|小计|总计|大写|大写金额|合计大写|人民币大写|总金额|金额合计)/ },
+  { reason: '备注', re: /^(备\s*注|合同备注|说明|注[：:])/ },
+  { reason: '正唛/侧唛', re: /^(正\s*唛|侧\s*唛|唛头)/ },
+  // 「一、…」「第X条…」，以及「六  包装要求：…」这种没有顿号的条款行（真实合同里两种写法都有）
+  { reason: '合同条款', re: /^(?:[（(]?[一二三四五六七八九十]+[）)]?[、.．]|第[一二三四五六七八九十]+条|[一二三四五六七八九十]+\s*(?:包装|质量|交货|运输|验收|结算|违约|解决|其他|担保|产品名称|备注)|若|如因|双方|按照|凡)/ },
+  { reason: '签署/盖章栏', re: /^(单位盖章|法定代表人|委托代表人|详细地址|开户银行|账号|帐号|电话|传真|供方|需方|供|需|方)/ },
+];
+
+export interface DataRowDiag {
+  /** 有效产品行数（产品列非空 + 数量 > 0 + 单价可解析） */
+  validRows: number;
+  /** 表体非空行数（表头之后，含噪声行） */
+  rawRows: number;
+  /** 数据区中间被跳过的噪声行（备注/单位/条款等） */
+  skipped: { rowIndex: number; reason: string; text: string }[];
+  /** 表体结束（最后一个有效行）之后的噪声行数 */
+  afterEndRows: number;
+  /** 停止原因：表体结束后第一个噪声行的类别（写入诊断） */
+  stopReason: string;
+  /** 产品列非空但数量/单价不全的行数（保留输出、标记待核） */
+  incomplete: number;
+  /** 实际输出的产品行数（= 完整行 + 残缺行） */
+  emittedRows: number;
+}
+
+/** 单行分类：noise（条款/大写金额/正唛/合计/备注/盖章等噪声行）· valid（完整产品行）· incomplete（有产品缺数量或单价）· empty */
+export function classifyDataRow(
+  row: string[],
+  columns: Partial<Record<TableField, number>>,
+): { kind: 'valid' | 'incomplete' | 'noise' | 'empty'; reason?: string; headText: string } {
+  const headText = row.find((c) => (c ?? '') !== '') ?? '';
+  for (const rule of NOISE_RULES) {
+    if (rule.re.test(headText.trim())) return { kind: 'noise', reason: rule.reason, headText };
+  }
+  const pick = (x: TableField) => {
+    const c = columns[x];
+    return c === undefined ? '' : (row[c] ?? '').trim();
+  };
+  const productName = pick('productName');
+  const productCode = pick('productCode');
+  const hasProductCol = columns.productName !== undefined || columns.productCode !== undefined;
+  if (!productName && !productCode) {
+    // 表里**根本没有产品列**（如只有 数量/单价 两列）：保持旧行为——每行仍产出，产品名留空待人工补，
+    // 只靠上面的噪声规则挡；否则按「产品列存在但该行为空」判定为空行跳过（这正是消噪的关键）。
+    if (hasProductCol) return { kind: 'empty', headText };
+    const q0 = parseNumberCell(pick('quantity'));
+    const p0 = parseNumberCell(pick('unitPrice'));
+    if (q0 !== undefined || p0 !== undefined) return { kind: 'incomplete', reason: '表内未映射到产品列', headText };
+    return { kind: 'empty', headText };
+  }
+  const quantity = parseNumberCell(pick('quantity'));
+  const unitPrice = parseNumberCell(pick('unitPrice'));
+  if (quantity && quantity > 0 && unitPrice !== undefined && unitPrice !== null && unitPrice >= 0) {
+    return { kind: 'valid', headText };
+  }
+  return { kind: 'incomplete', reason: '数量/单价不全', headText };
+}
+
 export interface RuleMapResult {
   parsed: ParsedOrder;
   mapping: TableMapping;
-  /** 数据行数（表头之后非空行） */
+  /** 有效产品行数（表头之后真正构成产品行的行数） */
   dataRowCount: number;
   notes: string[];
+  /** 抬头区/条款区扫描结果（合同编号·供方需方·交货期限） */
+  headerArea: HeaderArea;
+  /** 数据行边界诊断（终止原因、被跳过的噪声行） */
+  dataRows: DataRowDiag;
+  /** 口径提示（如抬头需方与文件夹客户不一致）：只提示，不阻断 */
+  warnings: string[];
 }
 
 /**
  * 规则映射：表头映射 + 逐行取数 → 与图片识别同构的 ParsedOrder（一张订单 + 多行明细）。
- * 单头字段（客户/PO/交期/备注）取「列内首个非空值」；每行可含不同产品/数量/单价。
+ * 单头字段（客户/PO/交期/备注）优先级：
+ *   客户 = opts.folderCustomer（文件夹=客户）> 抬头区「需方」> 表内客户列
+ *   PO   = 抬头区「合同编号」> 表内 PO 列
+ *   交期 = 抬头区「交货期限」> 表内交期列 > 条款区「三、交货期限：…」
+ * 表体只保留有效产品行；条款/大写金额/正唛/合计/备注等噪声行被跳过并把停止原因写进诊断。
  */
-export function ruleMapMatrix(rows: string[][]): RuleMapResult {
-  const mapping = mapHeader(rows);
+export function ruleMapMatrix(rows: string[][], opts: OrderParseOptions = {}): RuleMapResult {
+  const mapping = mapHeader(rows, opts);
   const columns = mapping.columns;
   const dataRows = mapping.headerRowIndex >= 0 ? rows.slice(mapping.headerRowIndex + 1) : rows;
   const pick = (row: string[], f: TableField): string => {
@@ -519,6 +802,7 @@ export function ruleMapMatrix(rows: string[][]): RuleMapResult {
   };
 
   const notes: string[] = [];
+  const warnings: string[] = [];
   let customerName = '';
   let poNo = '';
   let dueDateRaw = '';
@@ -526,13 +810,41 @@ export function ruleMapMatrix(rows: string[][]): RuleMapResult {
   let currency: 'RMB' | 'USD' | undefined;
 
   const lines: ParsedOrderLine[] = [];
-  let dataRowCount = 0;
-  for (const row of dataRows) {
-    if (!row.some((c) => c !== '')) continue;
-    dataRowCount += 1;
-    if (!customerName) customerName = pick(row, 'customer');
-    if (!poNo) poNo = pick(row, 'poNo');
-    if (!dueDateRaw) dueDateRaw = pick(row, 'dueDate');
+  const skipped: DataRowDiag['skipped'] = [];
+  let validRows = 0;
+  let rawRows = 0;
+  let incomplete = 0;
+  let firstValidRow = -1;
+  let lastValidRow = -1;
+
+  // 第一遍：分类 + 收集「噪声行的全部非空单元格文本」。
+  // 用途：Excel 合并单元格在 sheetToMatrix 里会把左上值回填到整个合并区，噪声行（如「正唛：ARMOUR-SHJ」）
+  // 的值会串到下一行，让下一行看起来像一条只有产品名的残缺产品行——按文本命中回填噪声可直接剔除。
+  const noiseTexts = new Set<string>();
+  dataRows.forEach((row) => {
+    if (!row.some((c) => c !== '')) return;
+    if (classifyDataRow(row, columns).kind !== 'noise') return;
+    for (const cell of row) { const v = (cell ?? '').trim(); if (v) noiseTexts.add(v); }
+  });
+
+  dataRows.forEach((row, idx) => {
+    if (!row.some((c) => c !== '')) return;
+    rawRows += 1;
+    const cls = classifyDataRow(row, columns);
+    if (cls.kind === 'noise' || cls.kind === 'empty') {
+      skipped.push({ rowIndex: idx, reason: cls.kind === 'noise' ? (cls.reason ?? '噪声行') : '空产品行', text: cls.headText.slice(0, 40) });
+      return;
+    }
+    if (cls.kind === 'incomplete') {
+      // 残缺行（无数量/单价）且产品文本命中噪声行的单元格 → 合并单元格回填出来的噪声，直接剔除
+      const productText = pick(row, 'productName') || pick(row, 'productCode');
+      if (productText && noiseTexts.has(productText)) {
+        skipped.push({ rowIndex: idx, reason: '合并单元格回填的噪声值', text: productText.slice(0, 40) });
+        return;
+      }
+      incomplete += 1;
+    }
+    else { validRows += 1; if (firstValidRow < 0) firstValidRow = idx; lastValidRow = idx; }
     if (!note) note = pick(row, 'note');
     if (!currency) {
       const cur = pick(row, 'currency').toUpperCase();
@@ -540,24 +852,77 @@ export function ruleMapMatrix(rows: string[][]): RuleMapResult {
       else if (cur.includes('RMB') || cur.includes('CNY') || cur.includes('￥') || cur.includes('¥') || cur.includes('元')) currency = 'RMB';
     }
     const productName = pick(row, 'productName');
+    const productCode = pick(row, 'productCode');
     const quantity = parseNumberCell(pick(row, 'quantity'));
     const unitPrice = parseNumberCell(pick(row, 'unitPrice'));
     const engraving = pick(row, 'engraving');
     const packagingText = pick(row, 'packaging') || pick(row, 'note');
     lines.push({
       productName,
+      // 产品编号另存（产品名称优先；只有编号列时 productName 已由编号兜底）
+      productCode: productCode && productCode !== productName ? productCode : undefined,
       quantity,
       unitPrice,
       currency,
       engraving: engraving || undefined,
       packagingText: packagingText || undefined,
     });
+  });
+
+  // 抬头区 / 条款区扫描：合同编号 · 供方需方 · 交货期限
+  const headerArea = scanContractHeader(rows, mapping.headerRowIndex, lastValidRow);
+  if (opts.folderCustomer && opts.folderCustomer.trim()) {
+    customerName = opts.folderCustomer.trim();
+  } else if (headerArea.customerName) {
+    customerName = headerArea.customerName;
+  } else {
+    for (const row of dataRows) {
+      const v = pick(row, 'customer');
+      if (v) { customerName = v; break; }
+    }
+  }
+  if (headerArea.poNo) poNo = headerArea.poNo;
+  else {
+    for (const row of dataRows) {
+      const v = pick(row, 'poNo');
+      if (v) { poNo = v; break; }
+    }
+  }
+  let dueDate = headerArea.dueDate;
+  if (!dueDate) {
+    for (const row of dataRows) {
+      const v = pick(row, 'dueDate');
+      if (v) { dueDateRaw = v; dueDate = parseDateCell(v); break; }
+    }
+    if (dueDateRaw && !dueDate) notes.push('交期「' + dueDateRaw + '」无法解析为日期，已留空待人工补填');
+  } else {
+    dueDateRaw = headerArea.dueDateRaw ?? dueDate;
+  }
+  if (!dueDate && headerArea.dueDateRaw && !dueDateRaw) dueDateRaw = headerArea.dueDateRaw;
+
+  const warn = folderCustomerWarning(opts.folderCustomer, headerArea.customerName);
+  if (warn) warnings.push(warn);
+  if (headerArea.dueDate && headerArea.dueDateNoYear) {
+    warnings.push('交期原文「' + (headerArea.dueDateRaw ?? '') + '」没有年份，已按当前年份归一为 ' + headerArea.dueDate + '，请人工确认年份');
+  }
+  if (headerArea.supplierName) {
+    warnings.push('抬头区识别到供方「' + headerArea.supplierName + '」（本厂）：按约定不写入客户表，仅作核对');
   }
 
-  const dueDate = dueDateRaw ? parseDateCell(dueDateRaw) : undefined;
-  if (dueDateRaw && !dueDate) notes.push('交期「' + dueDateRaw + '」无法解析为日期，已留空待人工补填');
+  // 停止原因：表体（最后一个有效行）之后第一个噪声行
+  const afterEnd = skipped.filter((s) => s.rowIndex > lastValidRow);
+  const stopReason = validRows === 0
+    ? (incomplete > 0
+      // 有产品行但缺数量或单价（.doc 计划单族没有单价列）→ 不能说「未找到有效数据行」
+      ? '未找到完整产品行（缺数量或单价），已保留 ' + incomplete + ' 行待人工补全'
+      : (skipped.length ? '未找到有效数据行（首个非空行即噪声：' + (skipped[0].reason) + '）' : '未找到有效数据行'))
+    : (afterEnd.length ? afterEnd[0].reason : '数据区正常结束（表尾）');
+
   if (mapping.missingRequired.length) {
     notes.push('表格缺少关键列（' + mapping.missingRequired.join('、') + '），已尝试语义映射');
+  }
+  if (skipped.length) {
+    notes.push('已跳过 ' + skipped.length + ' 行非产品行（' + Array.from(new Set(skipped.map((s) => s.reason))).join('、') + '）');
   }
 
   return {
@@ -571,8 +936,11 @@ export function ruleMapMatrix(rows: string[][]): RuleMapResult {
       notes,
     },
     mapping,
-    dataRowCount,
+    dataRowCount: validRows,
     notes,
+    headerArea,
+    dataRows: { validRows, rawRows, skipped, afterEndRows: afterEnd.length, stopReason, incomplete, emittedRows: lines.length },
+    warnings,
   };
 }
 
