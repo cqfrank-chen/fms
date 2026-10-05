@@ -1,0 +1,39 @@
+== 口径：文件夹=客户（甲方裁定）==
+客户（顶层文件夹）: 4 家
+  安宝公司  文件 1935  二级子文件夹 41  Excel 332  Word 321
+  嵊州海田  文件 1672  二级子文件夹 122  Excel 1  Word 795
+  尤耐克  文件 1439  二级子文件夹 45  Excel 264  Word 236
+  正恒公司  文件 727  二级子文件夹 38  Excel 0  Word 112
+
+二级条目（备查，不导入）: 328 个 = 二级子文件夹 246 + 客户目录直属文件 82
+  嵊州海田 二级子文件夹 122
+  尤耐克 二级子文件夹 45
+  安宝公司 二级子文件夹 41
+  正恒公司 二级子文件夹 38
+
+包装（唛头）模板候选: 146 条
+  安宝公司 50
+  尤耐克 38
+  嵊州海田 38
+  正恒公司 20
+
+== 供方（本厂）名称：绝不进客户表 ==
+  一洲 命中客户清单: 无 ✅
+  维克工具厂 命中客户清单: 无 ✅
+
+前 5 条模板：
+  ▸ 安宝公司-1-101,  GPN 唛头
+      内容: MEXICO        MEXICO / Item No:VI-BB-14-1          Item No:VI-BB-14-1 / Desc:VICTOR Tipo                Desc:V
+      来源: ziliao/安宝公司/INFAR不干胶/1-101,  GPN 唛头.doc
+  ▸ 安宝公司-6290,6290NX唛头
+      内容: MEXICO        MEXICO / Item No:6290-2              Item No:6290-2 / Desc:HARRIS Tipo                Desc:HARRI
+      来源: ziliao/安宝公司/INFAR不干胶/6290,6290NX唛头.doc
+  ▸ 安宝公司-A,SH唛头
+      内容: A.SH / MADE IN CHINA
+      来源: ziliao/安宝公司/A. SH  AIR - OXY 里卡多/A.SH/A,SH唛头.doc
+  ▸ 安宝公司-AB JP唛头
+      内容: AB JP    AB JP
+      来源: ziliao/安宝公司/旧订单资料/MUREX  PNME AB JP/MUREX(5排小字) PNME/AB JP唛头.doc
+  ▸ 安宝公司-AB17619 cutting torch g02-200 正唛侧唛
+      内容: 正唛									侧唛 / “YAMATO” / CUTTING TORCH / QTY: / N.W: / G.W: / MEAS: / MODEL: G02-200 / LOT NO: JH/1117
+      来源: ziliao/安宝公司/旧订单资料/YAMATO-200/AB17619 cutting torch g02-200 正唛侧唛.docx

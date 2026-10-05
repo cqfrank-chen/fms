@@ -41,10 +41,13 @@ zip ──extract_ziliao.py──► 解压目录 + _manifest.csv
 | **sync_folder_data.mjs** | 云端同步：客户走 master-data preview→commit，唛头走 /pack-templates；**幂等** | node sync_folder_data.mjs --customers customer_folders.csv --packs pack_template_candidates.csv [--dry-run] |
 | **doc_table.py** | Word97 表格切分层：.doc 表格 → 与 Excel 同构的矩阵 CSV（含抬头行「需方/合同号/交货时间」） | python doc_table.py --dir <客户目录> --tag <客户名> --out csv目录 --jsonl out.jsonl |
 | **ai_parse_doc_folder.mjs** | 把切片 CSV 送同一条识单管线（带 folderCustomer），覆盖嵊州海田/正恒 | node ai_parse_doc_folder.mjs --csvdir csv目录 --out 目录 |
+| **doc-text.mjs** | **纯 Node 零依赖** Word 正文抽取器（.doc Word97/CFB + .docx zip），与 doc_text.py 同口径 | node doc-text.mjs 某文件.doc [--json] |
+| **build_folder_lists.mjs** | **纯 Node 零依赖**生成客户清单 / 唛头模板候选（**不需要 python**），产出直接落到本目录 | node build_folder_lists.mjs [--root 解压目录] [--outdir 目录] |
 
 ## 环境变量（.mjs 脚本共用）
 
 | 变量 | 默认 | 说明 |
+| --- | --- | --- |
 | --- | --- | --- |
 | FMS_BASE | http://127.0.0.1:3100/api（**sync_folder_data.mjs 默认 http://127.0.0.1/api**） | FMS API 基址（云端部署时改成云端地址） |
 | FMS_TOKEN | 空 | 已有 JWT 时直接用（sync 脚本优先用它，不再登录） |
@@ -103,6 +106,20 @@ node tools/ziliao/sync_folder_data.mjs ^
 python tools/ziliao/doc_table.py --dir "D:\futures\ziliao-data\ziliao\嵊州海田" --tag 嵊州海田 ^
   --out D:\futures\_work\doc_csv_sz --jsonl D:\futures\_work\doc_slice_sz.jsonl
 node tools/ziliao/ai_parse_doc_folder.mjs --csvdir D:\futures\_work\doc_csv_sz --out D:\futures\_work\doc_parse
+
+# 13) 【推荐 · 纯 Node，不需要 python】生成客户清单 + 唛头模板候选，直接落到 tools/ziliao/ 固定文件名
+node tools/ziliao/build_folder_lists.mjs
+#    默认写入（与 python 版 build_folder_lists.py 输出**字节一致**）：
+#      tools/ziliao/customer_folders.csv            4 行
+#      tools/ziliao/pack_template_candidates.csv    146 行
+#      tools/ziliao/subfolder_reference.csv         328 行（备查，不导入）
+#      tools/ziliao/folder_lists_summary.txt
+
+# 14) 云端同步（FMS_BASE 指向云端；先 --dry-run 只预览）
+set FMS_BASE=https://<云端地址>/api
+node tools/ziliao/sync_folder_data.mjs ^
+  --customers tools/ziliao/customer_folders.csv ^
+  --packs tools/ziliao/pack_template_candidates.csv --dry-run
 ~~~
 
 ## 单独用 .doc 抽取器
