@@ -347,10 +347,17 @@ export type TableField = (typeof TABLE_FIELDS)[number];
 const HEADER_KEYWORDS: Record<TableField, string[]> = {
   customer: ['客户名称', '客户简称', '客户全称', '客户名', '客户公司', '客户', 'customer', 'buyer', '客户单位', '需方'],
   poNo: ['客户po', '客户订单号', 'po号', 'pono', 'po no', '订单号', '订单编号', '采购订单号', '合同号', 'orderno', 'order no', 'p/o', 'po'],
-  productName: ['产品名称', '产品型号', '物料名称', '品名', '型号', '产品', 'product', 'item', 'description', '规格'],
+  // 产品名称：安宝族合同里常见「客户需求产品描述」这一列（表头同时含「客户」与「产品描述」二字）。
+  // 旧规则里该列被 customer 的「客户」抢先吃掉（同为 2 字的「产品」不占优）→ 真正的产品列被丢弃，
+  // 只剩「侧唛品名」这类边角列可映射，实测 29 份合同 564 个产品行只认出 125 行（详见交付报告）。
+  // 修法沿用既有「最长关键词命中优先」规则：补上「产品描述」（4 字 > 「客户」2 字）即可稳定压过 customer。
+  productName: ['客户需求产品描述', '需求产品描述', '产品描述', '产品名称', '产品型号', '物料名称', '品名规格', '品名', '型号', '产品', 'product', 'item', 'description', '规格'],
   // 产品编号：**必须能压过 productName 的「产品」二字**（尤耐克族表头是 No/产品编号/产品名称/数量/单 价…，
   // 旧规则里「产品编号」被「产品」抢先归到 productName → 真正的产品名称列被丢弃，见 ziliao-analysis.md §3.3 问题 4）。
-  productCode: ['产品编号', '产品编码', '产品代码', '物料编号', '物料编码', '产品货号', '货号', 'itemno', 'item no', 'itemcode', 'item code', 'productcode', 'product code'],
+  // 裸「编号」也是产品编号：安宝族「Weldsolutions/INFAR 有重量」合同表头是 编号 / 客户需求产品描述 / 数量 …
+  // （实测 7 份），其中 2 份的「客户需求产品描述」列整列留空、产品标识只写在「编号」列 —— 不认这列就一行都出不来。
+  // 实测全部 596 份里表头出现裸「编号」的只有这 7 份（无「合同编号/订单编号/序号」列），无抢占风险。
+  productCode: ['产品编号', '产品编码', '产品代码', '物料编号', '物料编码', '产品货号', '货号', '编号', 'itemno', 'item no', 'itemcode', 'item code', 'productcode', 'product code'],
   quantity: ['订购数量', '订货数量', '数量', 'qty', 'quantity', 'pcs'],
   // 不含税价/含税价：.doc 采购单族的真实表头是「不含税价」（嵊州海田 采购单.doc 实测）
   unitPrice: ['不含税单价', '不含税价', '含税单价', '含税价', '单价', '价格', '出厂价', 'unitprice', 'unit price', 'price'],
@@ -902,8 +909,11 @@ export function ruleMapMatrix(rows: string[][], opts: OrderParseOptions = {}): R
       const cur = pick(row, 'currency').trim();
       if (cur) currency = normalizeCurrency(cur);
     }
-    const productName = pick(row, 'productName');
+    const rawName = pick(row, 'productName');
     const productCode = pick(row, 'productCode');
+    // 行级兜底：产品名称列为空、但产品编号列有值时用编号当名称 —— 实测「编号 / 客户需求产品描述 / 数量 …」
+    // 这一族合同里描述列有时整列留空（AB21323 / AB21403），不兜底就会出现「有数量单价、没有产品名」的空名行。
+    const productName = rawName || productCode;
     const quantity = parseNumberCell(pick(row, 'quantity'));
     const unitPrice = parseNumberCell(pick(row, 'unitPrice'));
     const engraving = pick(row, 'engraving');

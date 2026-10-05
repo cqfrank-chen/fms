@@ -339,3 +339,78 @@ describe('① 端到端：parseAndResolve 走 folderCustomer（不调 LLM）', (
     expect(r.table?.missingRequired).toContain('customer');
   });
 });
+
+describe('①d 产品列优先级：安宝族「客户需求产品描述」表头（实测 29 份合同被 customer 抢列）', () => {
+  /**
+   * 安宝族「出口产品供需合同」的真实表头：产品描述列叫「客户需求产品描述」——
+   * 同时含「客户」与「产品描述」二字。旧规则里 productName 的关键词只有 2 字的「产品」，
+   * 与 customer 的「客户」同长且 customer 先判 → 该列被 customer 抢走，真正的产品列丢失。
+   * 实测 596 份 Excel 里 29 份中招，修好后这些文件的有效产品行 +99 行、0 份变差（见交付报告）。
+   */
+  function anbaoContract(): string[][] {
+    return normalizeMatrix([
+      ['宁波安宝国际贸易有限公司购销合同', '', '', '', '', '', '', ''],
+      ['供方：奉化市一洲焊割工具有限公司', '', '', '', '', '合同编号：AB21647返单AB21546', '', ''],
+      ['需方：宁波安宝国际贸易有限公司', '', '', '', '', '签约时间：2021年7月26日', '', ''],
+      ['一、产品名称、商标、厂家、规格、数量、金额', '', '', '', '', '', '', ''],
+      ['编号', '客户需求产品描述', '数量/只', '单价/元', '金额/元', '产品图片', '图片', '侧唛品名要求'],
+      ['SC-50-A-0', 'smith 丙烷割嘴 SC-50-A-0 4154 93G', '750', '12.50 ', '9375.00 ', '', '', "Smith's tipo"],
+      ['SC-12-1', 'smith 乙炔割嘴 SC-12-1 4134 103G', '500', '13.50 ', '6750.00 ', '', '', "Smith's tipo"],
+      ['合计大写(人民币)：壹万陆仟壹佰贰拾伍元整', '', '', '', '16125.00', '', '', '该价格为含税价'],
+      ['四、交货时间及数量：2021年8月30日。', '', '', '', '', '', '', ''],
+    ]);
+  }
+
+  it('mapHeader：「客户需求产品描述」列归 productName（不再被 customer 抢走），裸「编号」列归 productCode', () => {
+    const m = mapHeader(anbaoContract(), { folderCustomer: '安宝公司' });
+    expect(m.columns.productName).toBe(1);
+    expect(m.columns.productCode).toBe(0);
+    expect(m.columns.customer).toBeUndefined(); // 表内本就没有客户列（客户来自文件夹）
+    expect(m.columns.quantity).toBe(2);
+    expect(m.columns.unitPrice).toBe(3);
+    expect(m.sufficient).toBe(true); // 3 个必填列（productName/quantity/unitPrice）齐全
+  });
+
+  it('ruleMapMatrix：产品行不再丢失，产品名与编号都取到，交期从条款区扫出', () => {
+    const r = ruleMapMatrix(anbaoContract(), { folderCustomer: '安宝公司' });
+    expect(r.dataRows.validRows).toBe(2);
+    expect(r.dataRows.emittedRows).toBe(2);
+    expect(r.parsed.lines[0].productName).toContain('smith 丙烷割嘴');
+    expect(r.parsed.lines[0].productCode).toBe('SC-50-A-0');
+    expect(r.parsed.lines[0].quantity).toBe(750);
+    expect(r.parsed.lines[0].unitPrice).toBe(12.5);
+    expect(r.parsed.lines[1].quantity).toBe(500);
+    expect(r.headerArea.poNo).toBe('AB21647返单AB21546');
+    expect(r.headerArea.dueDate).toBe('2021-08-30');
+  });
+
+  it('产品描述列整列留空时，行级用「编号」列兜底产品名（AB21323/AB21403 实测形态）', () => {
+    const rows = normalizeMatrix([
+      ['编号', '客户需求产品描述', '数量', '侧唛品名要求', '产品图片', '特殊要求', '单价（含税RMB)', '金额 （含税）'],
+      ['6290-6', '', '200', 'WS62906', '', '52G', '8.5', '1700'],
+      ['6290-NX-1', '', '200', 'WS6290NX1', '', '49G', '5.75', '1150'],
+      ['合计', '', '', '', '', '', '2850', ''],
+    ]);
+    const r = ruleMapMatrix(rows, { folderCustomer: '安宝公司' });
+    expect(r.mapping.columns.productName).toBe(1);
+    expect(r.mapping.columns.productCode).toBe(0);
+    expect(r.dataRows.validRows).toBe(2);
+    expect(r.parsed.lines[0].productName).toBe('6290-6'); // 描述列为空 → 用编号兜底
+    // 兜底后「名称 === 编号」，按既有口径 productCode 不重复另存（同名不冗余）
+    expect(r.parsed.lines[0].productCode).toBeUndefined();
+    expect(r.parsed.lines[0].quantity).toBe(200);
+    expect(r.parsed.lines[0].unitPrice).toBe(8.5);
+  });
+
+  it('回归：尤耐克族「产品编号 / 产品名称」两列并存时，productName 仍取名称列（编号另存）', () => {
+    const rows = normalizeMatrix([
+      ['No', '产品编号', '产品名称', '数量', '单 价'],
+      ['1', '1C001-0001 00#', '1-101 割嘴  00#', '200', '13.20 '],
+    ]);
+    const r = ruleMapMatrix(rows, { folderCustomer: '尤耐克' });
+    expect(r.mapping.columns.productName).toBe(2);
+    expect(r.mapping.columns.productCode).toBe(1);
+    expect(r.parsed.lines[0].productName).toBe('1-101 割嘴  00#');
+    expect(r.parsed.lines[0].productCode).toBe('1C001-0001 00#');
+  });
+});

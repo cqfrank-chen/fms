@@ -195,7 +195,35 @@ node tools/ziliao/import_products_cloud.mjs --in tools/ziliao/products_candidate
 # 19) 历史成交价导入（currency 归一到 CNY；幂等键 = 客户+产品+生效日期，默认 upsert 改价）
 node tools/ziliao/import_quotes_cloud.mjs --in tools/ziliao/contract_price_seeds.csv --dry-run
 node tools/ziliao/import_quotes_cloud.mjs --in tools/ziliao/contract_price_seeds.csv
+
+# 20) Excel 合同解析质量审计（离线；先 npm run build，用的是 dist 里那套识单代码）
+node tools/ziliao/excel_contract_audit.mjs ^
+  --dir "D:/futures/ziliao-data/ziliao/安宝公司" --dir "D:/futures/ziliao-data/ziliao/尤耐克" ^
+  --label AFTER --out D:/futures/_work/excel_audit_AFTER.json
+
+# 21) Excel 合同批量落草稿（先 --dry-run 看统计；本地默认 http://127.0.0.1:3100/api）
+node tools/ziliao/draft_orders_from_excel.mjs ^
+  --dir "D:/futures/ziliao-data/ziliao/安宝公司" --dir "D:/futures/ziliao-data/ziliao/尤耐克" --dry-run
+# 云端正式跑（FMS_BASE 指向云端 /api；加上 --resume 可断点续跑）
+$env:FMS_BASE = "https://<云端地址>/api"
+node tools/ziliao/draft_orders_from_excel.mjs --dir "<…>/安宝公司" --dir "<…>/尤耐克"
 ~~~
+
+## 新一轮新增脚本（Excel 合同批量落草稿 · 安宝公司 / 尤耐克）
+
+上一轮只把 **.doc**（嵊州海田 214 + 正恒公司 63 = 277 份）落了草稿，**Excel 合同只用于抽产品与成交价、从未落草稿** →
+这两家在订单列表里一份草稿都没有。本轮补齐这条通道。
+
+| 文件 | 作用 | 用法 |
+| --- | --- | --- |
+| **draft_orders_from_excel.mjs** | 批量落草稿（Excel 通道）：遍历 `--dir` 下 .xls/.xlsx → `POST /ai/orders/parse`（带 folderCustomer=顶层文件夹名）→ `POST /orders/draft`。**逐份打印进度**并同步写日志、jsonl 断点支持 `--resume`；>6MB 的大文件先本地转 CSV（绕开 8MB 上传护栏 / 12mb JSON 上限，矩阵口径与服务端一致）；非合同文件默认不落草稿但**逐份列清单** | node draft_orders_from_excel.mjs --dir <客户目录> [--dir …] [--dry-run] [--limit N] [--resume] |
+| **excel_contract_audit.mjs** | `--dry-run` 前的**解析质量审计**（离线、不发 HTTP、不写库）：直接调 `apps/api/dist` 的识单模块，统计表头族/产品列被抢、多工作表、大文件、含税族缺单价列等**共性解析问题** | node excel_contract_audit.mjs --dir <客户目录> --dir … --label BEFORE --out x.json |
+
+**合同口径（两条证据，任一成立即视为合同）**：
+① 表头族「带单价列合同」（与抽产品/报价同一口径，安宝 316 + 尤耐克 254 = 570 份）；
+② 文件名含「合同」且识别到合同号（补上安宝 6 份「含税」表头族 —— 单价列写作「含税 / 总金额」，关键词表认不出单价列，
+但合同号/需方/交期都在）。合计 576 份；其余 20 份为唛头/设计稿/生产要求等非合同文件（默认跳过并逐份列出，
+可用 `--include-noncontract` 强制落库）。
 
 ## 单独用 .doc 抽取器
 
