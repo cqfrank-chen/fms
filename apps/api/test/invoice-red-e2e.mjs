@@ -7,6 +7,9 @@
  *   B 待补票号：?missingNo=true 过滤 + summary.pendingNoCount + 补录票号后消失
  *   C 默认税率：GET/PUT /api/invoices/settings（仅 0/1%/6%/9%/13%）+ 非 0 默认税率下反解开票
  *   D 超开闸门：默认 400 阻止；allowOverInvoiced=true（高级勾选）放行并回 warning
+ *   G PO 号核对（I18）：一票合并两单（PO 不同）→ poNos 去重聚合 → 按 PO 模糊筛选（与 keyword 并存）→
+ *           同 PO 再开票回 warning（不阻断）→ allowDuplicatePo=true 跳过 → 已作废票不触发 → 无 PO 为空数组；
+ *           逐项与 SQL 核对（invoice_orders × orders.po_no）
  *   另：未登录 401 / workshop 403；净额与 SQL 复算（status <> 'voided' 求和）
  *
  * 前置：一个连到**空库**的 API 实例（自动建表 + 种子 admin/Fms@2026），例如：
@@ -75,6 +78,19 @@ const S = { customerId: null, productId: null, o1: null, o2: null, o3: null };
 async function createOrder(token, priceYuan, qty) {
   const res = await req('POST', '/orders', {
     customerId: S.customerId,
+    dueDate: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10),
+    lines: [{ productId: S.productId, quantity: qty, unitPrice: priceYuan / qty, currency: 'RMB' }],
+  }, token);
+  assert.equal(res.status, 201, '建单失败：' + JSON.stringify(res.body));
+  await req('POST', `/orders/${res.body.id}/confirm`, undefined, token);
+  return res.body.id;
+}
+
+/** 建单 + 确认，并带客户 PO 号（I18：PO 可空、可重复，仅用于对账核对） */
+async function createOrderWithPo(token, poNo, priceYuan, qty) {
+  const res = await req('POST', '/orders', {
+    customerId: S.customerId,
+    poNo,
     dueDate: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10),
     lines: [{ productId: S.productId, quantity: qty, unitPrice: priceYuan / qty, currency: 'RMB' }],
   }, token);
@@ -288,6 +304,103 @@ async function main() {
     eq(`订单 ${label} 净额：接口 = SQL`, api.body.invoicedCents, Number(sql.rows[0].incl));
     eq(`订单 ${label} 净额期望值（分）`, api.body.invoicedCents, expectCents);
   }
+
+
+  // ================= G. PO 号核对（I18） =================
+  console.log('\n【G PO 核对】多单多 PO 聚合 / 按 PO 筛选 / 重复开票 warning（不阻断）/ allowDuplicatePo 放行 / SQL 核对');
+  const poA = 'AB25 758';
+  const poB = 'UW250307093';
+  const oP1 = await createOrderWithPo(token, poA, 300, 300);
+  const oP2 = await createOrderWithPo(token, poB, 200, 200);
+  const oNoPo = await createOrder(token, 100, 100);
+  ok('已建 2 张带不同 PO 的订单 + 1 张无 PO 订单', !!oP1 && !!oP2 && !!oNoPo, [oP1, oP2, oNoPo]);
+
+  // G1. 一张票合并两张 PO 不同的订单 → 两个 PO 全部返回（去重、保序）
+  const invPo1 = await req('POST', '/invoices', {
+    invoiceNo: 'PO-INV-1', amountInclCents: 40000, issueDate: today(), orderIds: [oP1, oP2],
+  }, token);
+  eq('合并两单开票成功', invPo1.status, 201);
+  eq('发票聚合 PO（多单多 PO 全列出，按订单顺序）', invPo1.body.poNos, [poA, poB]);
+  eq('每个订单各自的 PO 也可取（逐单核对用）', invPo1.body.orderRefs.map((x) => x.poNo), [poA, poB]);
+
+  const gotPo1 = await req('GET', `/invoices/${invPo1.body.id}`, undefined, token);
+  eq('单票接口返回 poNos', gotPo1.body.poNos, [poA, poB]);
+  const listByNo = await req('GET', '/invoices?keyword=PO-INV-1', undefined, token);
+  eq('列表接口返回 poNos', listByNo.body.items[0]?.poNos, [poA, poB]);
+
+  // G2. 按 PO 号筛选（模糊匹配关联订单的 poNo；与 keyword 并存 = AND）
+  const byPo = await req('GET', `/invoices?poNo=${encodeURIComponent('AB25')}`, undefined, token);
+  eq('按 PO 模糊筛选：命中 1 张（即刚开的合并票）', [byPo.body.total, byPo.body.items[0]?.id], [1, invPo1.body.id]);
+  const byPoFull = await req('GET', `/invoices?poNo=${encodeURIComponent(poA)}`, undefined, token);
+  eq('按完整 PO（含空格）筛选命中', byPoFull.body.total, 1);
+  const byPoB = await req('GET', `/invoices?poNo=${encodeURIComponent('UW2503')}`, undefined, token);
+  eq('按另一单的 PO 前缀筛选同样命中该票', [byPoB.body.total, byPoB.body.items[0]?.id], [1, invPo1.body.id]);
+  const byPoMiss = await req('GET', '/invoices?poNo=NOT-A-PO', undefined, token);
+  eq('按不存在的 PO 筛选：0 张', [byPoMiss.body.total, byPoMiss.body.items.length], [0, 0]);
+  const byPoNoHit = await req('GET', '/invoices?poNo=PO-INV-1', undefined, token);
+  eq('PO 筛选不误伤票号（票号不参与 PO 匹配）', byPoNoHit.body.total, 0);
+  const byPoAndKw = await req('GET', `/invoices?poNo=${encodeURIComponent('AB25')}&keyword=PO-INV-1`, undefined, token);
+  eq('PO 筛选与 keyword 并存（同票同时命中 → 1）', byPoAndKw.body.total, 1);
+  const byPoAndKwMiss = await req('GET', `/invoices?poNo=${encodeURIComponent('AB25')}&keyword=RED-A`, undefined, token);
+  eq('PO 筛选与 keyword 并存（交叉不到 → 0）', byPoAndKwMiss.body.total, 0);
+  const allList = await req('GET', '/invoices', undefined, token);
+  const blankPo = await req('GET', '/invoices?poNo=%20%20', undefined, token);
+  eq('PO 筛选仅空白 = 不筛选（与不带该参数同口径）', blankPo.body.total, allList.body.total);
+
+  // G3. SQL 核对：接口聚合的 poNos 必须等于库里 invoice_orders × orders.po_no 的去重集合
+  const poSql = await db.query(
+    'select distinct o.po_no as po from invoice_orders io join orders o on o.id = io.order_id'
+    + ' where io.invoice_id = $1 and o.po_no is not null order by o.po_no', [invPo1.body.id]);
+  eq('SQL 核对：去重后的 PO 集合 = 接口 poNos（排序后比较）', [...gotPo1.body.poNos].sort(), poSql.rows.map((x) => x.po));
+  const poSql2 = await db.query(
+    'select o.po_no as po from invoice_orders io join orders o on o.id = io.order_id'
+    + ' where io.invoice_id = $1 order by io.id', [invPo1.body.id]);
+  eq('SQL 核对：逐单 PO（按关联顺序）', poSql2.rows.map((x) => x.po), [poA, poB]);
+  const poSql3 = await db.query(
+    "select count(*)::int as n from invoice_orders io join orders o on o.id = io.order_id join invoices i on i.id = io.invoice_id"
+    + " where i.invoice_no = 'PO-INV-1' and o.po_no = $1 and i.status <> 'voided'", [poA]);
+  eq('SQL 核对：该票未作废且确实挂在 PO 上', Number(poSql3.rows[0].n), 1);
+
+  // G4. 重复开票提示（不阻断）：同一 PO 再开一张
+  const dupPo = await req('POST', '/invoices', {
+    invoiceNo: 'PO-INV-2', amountInclCents: 30000, issueDate: today(), orderIds: [oP1], allowOverInvoiced: true,
+  }, token);
+  eq('同 PO 再开票：不阻断（201，票照开）', dupPo.status, 201);
+  ok('回 warning：列出 PO 与已存在的发票号（中文）', typeof dupPo.body.warning === 'string'
+    && dupPo.body.warning.includes('PO ' + poA + ' 已开过票')
+    && dupPo.body.warning.includes('发票号 PO-INV-1')
+    && dupPo.body.warning.includes('请确认是否重复开票'), dupPo.body.warning);
+  eq('SQL 核对：重复票确实落库（未作废）', Number((await db.query(
+    "select count(*)::int as n from invoices where invoice_no = 'PO-INV-2' and status <> 'voided'")).rows[0].n), 1);
+
+  // G5. allowDuplicatePo=true 跳过该提示（风格对齐「允许超开」）
+  const dupAllowed = await req('POST', '/invoices', {
+    invoiceNo: 'PO-INV-3', amountInclCents: 10000, issueDate: today(), orderIds: [oP2],
+    allowOverInvoiced: true, allowDuplicatePo: true,
+  }, token);
+  eq('allowDuplicatePo=true → 201', dupAllowed.status, 201);
+  ok('allowDuplicatePo=true 跳过「已开过票」提示', !String(dupAllowed.body.warning ?? '').includes('已开过票'), dupAllowed.body.warning);
+
+  // G6. 已作废发票不再触发提示（作废后重开不算重复）
+  const oPoVoid = await createOrderWithPo(token, 'VOID-PO-1', 100, 100);
+  const invPoV = await req('POST', '/invoices', {
+    invoiceNo: 'PO-INV-V', amountInclCents: 10000, issueDate: today(), orderIds: [oPoVoid],
+  }, token);
+  eq('首张票不提示（该 PO 尚未开过票）', [invPoV.status, invPoV.body.warning], [201, undefined]);
+  await req('POST', `/invoices/${invPoV.body.id}/void`, { reason: 'PO 核对：作废重开' }, token);
+  const invPoV2 = await req('POST', '/invoices', {
+    invoiceNo: 'PO-INV-V2', amountInclCents: 10000, issueDate: today(), orderIds: [oPoVoid],
+  }, token);
+  eq('只被已作废票占用的 PO → 不再触发重复开票提示', [invPoV2.status, invPoV2.body.warning], [201, undefined]);
+
+  // G7. 无 PO 订单：poNos = []（占位由前端渲染，服务端不发明占位字符串）
+  const invNoPo = await req('POST', '/invoices', {
+    invoiceNo: 'PO-INV-NOPO', amountInclCents: 10000, issueDate: today(), orderIds: [oNoPo],
+  }, token);
+  eq('无 PO 订单开票成功', invNoPo.status, 201);
+  eq('无 PO → poNos 为空数组', invNoPo.body.poNos, []);
+  eq('无 PO → orderRefs 里的 poNo 为 null', invNoPo.body.orderRefs[0]?.poNo, null);
+  eq('SQL 核对：无 PO 订单的 po_no 为空', (await db.query('select po_no from orders where id = $1', [oNoPo])).rows[0].po_no, null);
 
   await db.end();
   console.log('\n================ 结果 ================');

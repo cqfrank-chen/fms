@@ -11,6 +11,7 @@ import {
   alreadyVoidedMessage, amountImmutableMessage, invoiceNoConflictMessage, invoiceNoImmutableMessage,
   orderCustomerMismatchMessage, ordersMissingMessage, voidedImmutableMessage,
 } from './invoice-messages';
+import { aggregatePoNos, duplicatePoWarning, poFilterPattern } from './invoice-po';
 import { INVOICE_DEFAULT_TAX_RATE_KEY, normalizeDefaultTaxRate } from './invoice-settings';
 import {
   buildOrderInvoiceView, overInvoiceBlocked, redFlushedCents, redRemainCents, summarizeInvoices,
@@ -56,6 +57,11 @@ export interface CreateInvoiceDto {
    * 只有前端「高级」显式勾选才放行（放行后仍返回 warning 提示）。
    */
   allowOverInvoiced?: boolean;
+  /**
+   * 允许同 PO 重复开票（I18）：默认 false = 所选订单的 PO 已被未作废发票占用时回 warning（**不阻断**）；
+   * true 时跳过该提示（风格对齐「允许超开」：前端「高级」显式勾选才放行）。
+   */
+  allowDuplicatePo?: boolean;
 }
 
 /** 红冲入参（I16 红字发票）：金额为**正数红冲额**（缺省=全额红冲），服务端落库为负数金额 */
@@ -91,6 +97,8 @@ export interface InvoiceListQuery {
   from?: string;
   to?: string;
   keyword?: string;
+  /** 按客户 PO 号模糊筛选（I18）：匹配「关联订单」的 po_no，与 keyword 并存（AND） */
+  poNo?: string;
   orderId?: number;
   /** 只看待补票号（I16 收敛①）：票号为占位号「待补号-…」且未作废 */
   missingNo?: boolean;
@@ -182,6 +190,13 @@ export class InvoicesService {
     if (q.missingNo) {
       conds.push(and(eq(invoices.status, 'normal' as InvoiceStatus), like(invoices.invoiceNo, `${INVOICE_PLACEHOLDER_PREFIX}%`)));
     }
+    const poPattern = poFilterPattern(q.poNo);
+    if (poPattern) {
+      // 按 PO 号模糊筛选（I18）：发票本身不存 PO，一律穿透 invoice_orders → orders.po_no 判定
+      conds.push(
+        sql`exists (select 1 from ${invoiceOrders} io join ${orders} o on o.id = io.order_id where io.invoice_id = ${invoices.id} and o.po_no ilike ${poPattern})`,
+      );
+    }
     const kwRaw = (q.keyword ?? '').trim();
     if (kwRaw) {
       const kw = `%${kwRaw}%`;
@@ -197,19 +212,28 @@ export class InvoicesService {
     return conds.length ? and(...conds) : undefined;
   }
 
-  /** 发票 → 关联订单（多对多） */
+  /**
+   * 发票 → 关联订单（多对多）。
+   * I18：每项带上该订单**自己的** PO 号（poNo，可空）——发票侧视图据此逐单展示，
+   * 发票表不落 PO 冗余列，订单改了 PO 这里自动跟着变。
+   */
   private async orderRefs(invoiceIds: number[]) {
-    const map = new Map<number, Array<{ orderId: number; orderNo: string }>>();
+    const map = new Map<number, Array<{ orderId: number; orderNo: string; poNo: string | null }>>();
     if (!invoiceIds.length) return map;
     const rows = await db
-      .select({ invoiceId: invoiceOrders.invoiceId, orderId: invoiceOrders.orderId, orderNo: orders.orderNo })
+      .select({
+        invoiceId: invoiceOrders.invoiceId,
+        orderId: invoiceOrders.orderId,
+        orderNo: orders.orderNo,
+        poNo: orders.poNo,
+      })
       .from(invoiceOrders)
       .innerJoin(orders, eq(invoiceOrders.orderId, orders.id))
       .where(inArray(invoiceOrders.invoiceId, invoiceIds))
       .orderBy(asc(invoiceOrders.id));
     for (const r of rows) {
       const arr = map.get(r.invoiceId) ?? [];
-      arr.push({ orderId: r.orderId, orderNo: r.orderNo });
+      arr.push({ orderId: r.orderId, orderNo: r.orderNo, poNo: r.poNo ?? null });
       map.set(r.invoiceId, arr);
     }
     return map;
@@ -257,7 +281,7 @@ export class InvoicesService {
 
   private toItem(
     row: { inv: typeof invoices.$inferSelect; customerName?: string | null; operatorName?: string | null; voidOperatorName?: string | null },
-    refs: Array<{ orderId: number; orderNo: string }>,
+    refs: Array<{ orderId: number; orderNo: string; poNo?: string | null }>,
     red?: { redFlushOfNo: string | null; redFlushNos: string[]; redFlushedCents: number; redRemainCents: number },
   ) {
     return {
@@ -267,6 +291,8 @@ export class InvoicesService {
       voidOperatorName: row.voidOperatorName ?? null,
       orderRefs: refs,
       orderNos: refs.map((r) => r.orderNo),
+      // I18：PO 号从关联订单**动态聚合**（去重 + 保序 + 丢弃空值），无 PO 为 []，发票表不落冗余列
+      poNos: aggregatePoNos(refs),
       redFlushOfNo: red?.redFlushOfNo ?? null,
       redFlushNos: red?.redFlushNos ?? [],
       redFlushedCents: red?.redFlushedCents ?? 0,
@@ -503,6 +529,10 @@ export class InvoicesService {
       }
     }
 
+    // 重复开票提示（I18，对账安全，**不阻断**）：在插入前先算，否则本次新票会被当成「已存在的发票」。
+    // allowDuplicatePo=true（高级勾选）时跳过该提示。
+    const duplicatePo = await this.duplicatePoWarningForOrders(orderIds, dto.allowDuplicatePo);
+
     // 超开闸门（I16 收敛⑤）：默认阻止；只有「高级」显式勾选 allowOverInvoiced 才放行（放行后仍回 warning）
     if (orderIds.length && !dto.allowOverInvoiced) {
       const totals = await this.ordersInvoiceTotals(orderIds);
@@ -560,8 +590,9 @@ export class InvoicesService {
       });
 
     const item = await this.findOne(created.id);
-    const warning = await this.overInvoiceWarning(orderIds);
-    return warning ? { ...item, warning } : item;
+    // 两类提示都只回传、不阻断：重复 PO（I18） + 超额开票（I16）；同时命中用「；」连接
+    const warnings = [duplicatePo, await this.overInvoiceWarning(orderIds)].filter((w): w is string => !!w);
+    return warnings.length ? { ...item, warning: warnings.join('；') } : item;
   }
 
   // ==================== 编辑（非金额关键字段） ====================
@@ -869,6 +900,30 @@ export class InvoicesService {
     if (mismatch.length) {
       throw new BadRequestException(orderCustomerMismatchMessage(mismatch.map((o) => o.orderNo), customerId));
     }
+  }
+
+  /**
+   * 重复开票提示（I18，不阻断）：所选订单的 PO 若已被**未作废**发票占用，返回中文提示。
+   * 判定穿透 invoice_orders × orders（发票不存 PO）：PO 允许在不同订单上重复，因此
+   * 「别的订单用同一个 PO 开过票」同样命中——这正是要防的对账风险。
+   * allow=true（对应 allowDuplicatePo）直接跳过；已在 create 内于**插入前**调用。
+   */
+  private async duplicatePoWarningForOrders(orderIds: number[], allow?: boolean): Promise<string | undefined> {
+    if (allow || !orderIds.length) return undefined;
+    const selected = await db.select({ poNo: orders.poNo }).from(orders).where(inArray(orders.id, orderIds));
+    const pos = aggregatePoNos(selected);
+    if (!pos.length) return undefined;
+    const rows = await db
+      .select({ poNo: orders.poNo, invoiceNo: invoices.invoiceNo })
+      .from(invoiceOrders)
+      .innerJoin(orders, eq(invoiceOrders.orderId, orders.id))
+      .innerJoin(
+        invoices,
+        and(eq(invoiceOrders.invoiceId, invoices.id), ne(invoices.status, 'voided' as InvoiceStatus)),
+      )
+      // 与 aggregatePoNos 同口径：按去空白后的 PO 比较，历史脏数据（带首尾空格）也能命中
+      .where(sql`btrim(${orders.poNo}) in (${sql.join(pos.map((p) => sql`${p}`), sql`, `)})`);
+    return duplicatePoWarning(rows);
   }
 
   /** 超额开票提示（不阻断）：逐个订单实时聚合后拼提示 */

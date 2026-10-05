@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Checkbox, Col, Collapse, DatePicker, Descriptions, Input, InputNumber, Modal, Row, Select, Space, Typography, message,
+  Alert, Checkbox, Col, Collapse, DatePicker, Descriptions, Input, InputNumber, Modal, Row, Select, Space, Tag, Typography, message,
 } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
@@ -11,6 +11,23 @@ import { optionLabel, optionsPath } from '../lib/placeholders'
 import type { Customer, Invoice, InvoiceType, Order } from '../lib/types'
 
 const { Text } = Typography
+
+/**
+ * 所选订单的 PO 号（I18 开票前核对，只读展示）：去重 + 保序 + 丢弃空值。
+ * 与后端 invoice-po.ts 的 aggregatePoNos 同口径 —— 这里只用于「开票前」预览，
+ * 落库后发票返回的 poNos 才是权威值（订单改了 PO，发票视图自动跟着变）。
+ */
+function poNosOfOrders(orders: Array<{ poNo?: string | null }>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const o of orders) {
+    const v = String(o?.poNo ?? '').trim()
+    if (!v || seen.has(v)) continue
+    seen.add(v)
+    out.push(v)
+  }
+  return out
+}
 
 /** 快捷开票带入的预填项（订单行「开发票」按钮） */
 export interface InvoicePrefill {
@@ -57,6 +74,8 @@ export default function InvoiceFormModal({
   const [saving, setSaving] = useState(false)
   /** 允许超开（I16 收敛⑤）：默认阻止；只有「高级」显式勾选才放行 */
   const [allowOver, setAllowOver] = useState(false)
+  /** I18：允许同 PO 重复开票（跳过「该 PO 已开过票」提示；默认只提示、不阻断） */
+  const [allowDupPo, setAllowDupPo] = useState(false)
   /** 设置页配置的开票默认税率（未配置 = 0） */
   const [defaultTaxRate, setDefaultTaxRate] = useState(0)
 
@@ -84,6 +103,7 @@ export default function InvoiceFormModal({
       setRemark('')
       setAmountTouched(false)
       setAllowOver(false)
+      setAllowDupPo(false)
     }
   }, [open, edit]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -120,6 +140,8 @@ export default function InvoiceFormModal({
 
   const selected = orders.filter((o) => orderIds.includes(o.id))
   const remainCents = selected.reduce((s, o) => s + Math.max(0, o.uninvoicedCents ?? 0), 0)
+  /** I18：所选订单的 PO 号（去重聚合）——开票前只读核对，多单多 PO 全部列出 */
+  const selectedPos = poNosOfOrders(selected)
 
   /**
    * 关联订单变化：自动带出「剩余未开票金额合计」并锁定客户（未手改金额时）。
@@ -167,6 +189,7 @@ export default function InvoiceFormModal({
           invoiceType, customerId, amountInclCents: inclCents, taxRate,
           issueDate: issueDate.format('YYYY-MM-DD'), orderIds, remark,
           ...(allowOver ? { allowOverInvoiced: true } : {}),
+          ...(allowDupPo ? { allowDuplicatePo: true } : {}),
         }
       const res = await api<Invoice>(editing ? `/invoices/${edit!.id}` : '/invoices', { method: editing ? 'PUT' : 'POST', body })
       if (res?.warning) message.warning(res.warning)
@@ -222,6 +245,12 @@ export default function InvoiceFormModal({
           <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
             不勾选时：所选订单未开票余额不足会被拒绝（中文提示）；勾选后放行，仅在返回里给 warning 说明超出金额。
           </Text>
+          <Checkbox style={{ marginTop: 6 }} checked={allowDupPo} onChange={(e) => setAllowDupPo(e.target.checked)}>
+            允许同 PO 重复开票（跳过「该 PO 已开过票」提示；默认只提示、不阻断）
+          </Checkbox>
+          <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+            不勾选时：所选订单的 PO 若已被未作废发票开过（含在其它订单上开过），开票照常成功，但会在返回里给 warning 列出已存在的发票号，供对账确认。
+          </Text>
         </div>
       )}
     </Space>
@@ -250,10 +279,28 @@ export default function InvoiceFormModal({
             }))}
           />
           {!!selected.length && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              所选订单未开票合计 {fmtCents(remainCents)} 元
-              {remainCents === 0 ? '（已开完，继续开票会超额但不会被阻断）' : ''}
-            </Text>
+            <>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                所选订单未开票合计 {fmtCents(remainCents)} 元
+                {remainCents === 0 ? '（已开完，继续开票会超额但不会被阻断）' : ''}
+              </Text>
+              {/* I18：开票前只读核对 —— 所选订单的客户 PO 号（去重聚合 + 逐单对应，多单多 PO 全列出） */}
+              <div style={{ marginTop: 6 }}>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>
+                  客户 PO 号（只读 · 开票前核对）
+                </Text>
+                {selectedPos.length
+                  ? (
+                    <Space size={4} wrap>
+                      {selectedPos.map((p) => <Tag key={p} color="orange" style={{ marginInlineEnd: 0 }}>{p}</Tag>)}
+                    </Space>
+                  )
+                  : <Text type="secondary" style={{ fontSize: 12 }}>所选订单均未填客户 PO 号（开票后无法与客户采购单核对）</Text>}
+                <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
+                  {selected.map((o) => `${o.orderNo}：${String(o.poNo ?? '').trim() || '无 PO'}`).join('；')}
+                </Text>
+              </div>
+            </>
           )}
         </div>
 

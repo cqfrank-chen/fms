@@ -352,7 +352,8 @@ export type InvoiceStatus = 'normal' | 'voided' | 'red_flushed'
 /** 订单开票状态：未开票 / 部分开票 / 已开完 */
 export type InvoiceState = 'none' | 'partial' | 'done'
 
-export interface InvoiceOrderRef { orderId: number; orderNo: string }
+/** 发票关联订单（I18：带上该订单自己的客户 PO 号，可空） */
+export interface InvoiceOrderRef { orderId: number; orderNo: string; poNo?: string | null }
 
 /** 发票（金额一律「分」） */
 export interface Invoice {
@@ -378,6 +379,8 @@ export interface Invoice {
   updatedAt?: string
   orderRefs: InvoiceOrderRef[]
   orderNos: string[]
+  /** 客户 PO 号（I18：由关联订单**动态聚合**——去重、多单多 PO 全列出；无 PO 为 []） */
+  poNos: string[]
   /** 红冲：本票是红字发票时指向的原票 id / 原票号 */
   redFlushOf?: number | null
   redFlushOfNo?: string | null

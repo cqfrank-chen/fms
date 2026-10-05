@@ -44,6 +44,11 @@ class ListInvoicesDto {
   @IsString()
   keyword?: string;
 
+  /** 按客户 PO 号模糊筛选（I18）：匹配关联订单的 po_no，与 keyword 并存（AND） */
+  @IsOptional()
+  @IsString({ message: 'PO 号（poNo）须为字符串' })
+  poNo?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: '订单 ID（orderId）须为整数' })
@@ -122,6 +127,11 @@ class CreateInvoiceDto implements CreateInvoiceBody {
   @IsOptional()
   @IsBoolean({ message: 'allowOverInvoiced 须为布尔值' })
   allowOverInvoiced?: boolean;
+
+  /** 允许同 PO 重复开票（I18，高级区显式勾选）：默认返回重复开票 warning（不阻断），勾选后跳过该提示 */
+  @IsOptional()
+  @IsBoolean({ message: 'allowDuplicatePo 须为布尔值' })
+  allowDuplicatePo?: boolean;
 }
 
 /** 红冲入参：红字票必须有自己的真实票号 + 冲红原因；金额为正数红冲额（缺省=全额） */
@@ -203,7 +213,7 @@ class VoidInvoiceDto {
 export class InvoicesController {
   constructor(private readonly svc: InvoicesService) {}
 
-  /** 列表：分页 + 客户/状态/开票日期区间/关键字（票号、备注、客户名、关联订单号） */
+  /** 列表：分页 + 客户/状态/开票日期区间/关键字（票号、备注、客户名、关联订单号）+ PO 号（I18） */
   @Get()
   list(@Query() q: ListInvoicesDto) {
     return this.svc.list(q);

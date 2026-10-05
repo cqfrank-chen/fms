@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert, Button, Card, Col, Collapse, DatePicker, Descriptions, Empty, Input, Modal,
-  Row, Select, Space, Statistic, Switch, Table, Tag, Tabs, Typography, message,
+  Row, Select, Space, Statistic, Switch, Table, Tag, Tabs, Tooltip, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -48,6 +48,8 @@ export default function InvoicesPanel() {
   const [status, setStatus] = useState<InvoiceStatus | undefined>()
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [keyword, setKeyword] = useState('')
+  /** I18：按客户 PO 号筛选（模糊匹配关联订单的 poNo，与 keyword 并存 = AND） */
+  const [poNo, setPoNo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [data, setData] = useState<InvoicePage>({ items: [], total: 0, page: 1, pageSize: 10 })
@@ -88,6 +90,7 @@ export default function InvoicesPanel() {
       if (customerId) p.set('customerId', String(customerId))
       if (status) p.set('status', status)
       if (keyword.trim()) p.set('keyword', keyword.trim())
+      if (poNo.trim()) p.set('poNo', poNo.trim())
       if (missingNo) p.set('missingNo', 'true')
       const [list, sum] = await Promise.all([
         api<InvoicePage>('/invoices?' + p.toString()),
@@ -98,7 +101,7 @@ export default function InvoicesPanel() {
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
     } finally { setLoading(false) }
-  }, [rangeParams, page, pageSize, customerId, status, keyword, missingNo])
+  }, [rangeParams, page, pageSize, customerId, status, keyword, poNo, missingNo])
 
   useEffect(() => { load() }, [load])
 
@@ -155,6 +158,21 @@ export default function InvoicesPanel() {
           </Space>
         )
         : <Text type="secondary" style={{ fontSize: 12 }}>未关联订单</Text>),
+    },
+    {
+      // I18：PO 号列 —— 由关联订单动态聚合（去重、多单多 PO 全部展示），无 PO 显示占位
+      title: 'PO号', key: 'poNos', width: 170,
+      render: (_, r) => (r.poNos?.length
+        ? (
+          <Space size={4} wrap>
+            {r.poNos.map((p) => <Tag key={p} color="orange" style={{ marginInlineEnd: 0 }}>{p}</Tag>)}
+          </Space>
+        )
+        : (
+          <Tooltip title="关联订单均未填客户 PO 号（或未关联订单）：开票做账时无法与客户采购单核对">
+            <Text type="secondary">—</Text>
+          </Tooltip>
+        )),
     },
     {
       title: '状态', dataIndex: 'status', width: 150,
@@ -263,6 +281,9 @@ export default function InvoicesPanel() {
             options={Object.entries(INVOICE_STATUS_LABEL).map(([value, label]) => ({ value, label }))} />
           <Input.Search size="small" style={{ width: 200 }} allowClear placeholder="票号/客户/订单号/备注"
             onSearch={(v) => { setKeyword(v); setPage(1) }} />
+          {/* I18：按客户 PO 号筛选（模糊匹配关联订单的 poNo，可与上面的关键字叠加） */}
+          <Input.Search size="small" style={{ width: 170 }} allowClear placeholder="按 PO 号筛选"
+            onSearch={(v) => { setPoNo(v); setPage(1) }} />
           <Button size="small" onClick={() => load()}>刷新</Button>
           <Text type="secondary" style={{ fontSize: 12 }}>
             共 {data.total} 张（含已作废与红字票）｜本期净额 {summary?.count ?? 0} 张 / {fmtCents(summary?.amountInclCents ?? 0)} 元
@@ -270,8 +291,26 @@ export default function InvoicesPanel() {
           </Text>
         </Space>
 
+        {/* I18：展开行 = 该票**每个订单各自的 PO 号**（合并开票时逐单核对，避免只看聚合值看不出是哪一单） */}
         <Table<Invoice> rowKey="id" size="small" loading={loading} columns={columns} dataSource={data.items}
-          scroll={{ x: showDetailCols ? 1560 : 1180 }}
+          scroll={{ x: showDetailCols ? 1730 : 1350 }}
+          expandable={{
+            expandedRowRender: (r) => (
+              <Table<Invoice['orderRefs'][number]>
+                rowKey="orderId" size="small" pagination={false} dataSource={r.orderRefs}
+                columns={[
+                  { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string) => <Text strong>{v}</Text> },
+                  {
+                    title: '客户 PO 号', dataIndex: 'poNo', width: 240,
+                    render: (v?: string | null) => (String(v ?? '').trim()
+                      ? <Tag color="orange" style={{ marginInlineEnd: 0 }}>{String(v).trim()}</Tag>
+                      : <Text type="secondary">无 PO</Text>),
+                  },
+                ]} />
+            ),
+            rowExpandable: (r) => !!r.orderRefs?.length,
+            columnWidth: 36,
+          }}
           pagination={{
             current: data.page, pageSize: data.pageSize, total: data.total, showSizeChanger: true,
             showTotal: (t) => `共 ${t} 张`,

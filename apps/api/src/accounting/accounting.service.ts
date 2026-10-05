@@ -7,6 +7,8 @@ import {
 } from '../db/schema';
 import { toCents, fromCents, round2, MONEY_EPS, centsEq, remainOf } from '../common/money';
 import { currentOperatorId } from '../common/operator-context';
+// I18：PO 号一律「去首尾空白」后比较/展示，复用发票侧同一口径（纯函数，无副作用）
+import { normalizePoNo } from '../invoices/invoice-po';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
@@ -38,27 +40,33 @@ const owing = (r: { amount: number; settledAmount: number }) => fromCents(toCent
 @Injectable()
 export class AccountingService {
   // ==================== 应收/应付 ====================
-  /** 应收来源 → 订单号解析：order 来源直接关联订单；outbound 历史数据（旧规则出货生成）经出库单中转 */
-  private async resolveOrderNos(recvs: Array<{ sourceType: string | null; sourceId: number | null }>) {
-    const map = new Map<number, string>();
+  /**
+   * 应收来源 → 订单号 + 客户 PO 号解析（I18：对账导出带 PO）：
+   * order 来源直接关联订单；outbound 历史数据（旧规则出货生成）经出库单中转。
+   * PO 从订单**动态取**（不落冗余列），无 PO 统一为空串，导出/列表显示占位由调用方决定。
+   */
+  private async resolveOrderRefs(recvs: Array<{ sourceType: string | null; sourceId: number | null }>) {
+    const empty = { orderNo: '', poNo: '' };
+    const map = new Map<number, { orderNo: string; poNo: string }>();
     const orderIds = new Set<number>();
     const outIds = new Set<number>();
     for (const r of recvs) {
       if (r.sourceType === 'order' && r.sourceId != null) orderIds.add(r.sourceId);
       else if (r.sourceType === 'outbound' && r.sourceId != null) outIds.add(r.sourceId);
     }
-    const ordRows = orderIds.size
-      ? await db.select({ id: orders.id, no: orders.orderNo }).from(orders).where(inArray(orders.id, [...orderIds]))
-      : [];
-    for (const o of ordRows) map.set(o.id, o.no);
     const obRows = outIds.size
       ? await db.select({ id: outbounds.id, orderId: outbounds.orderId }).from(outbounds).where(inArray(outbounds.id, [...outIds]))
       : [];
-    const mid = obRows.length
-      ? await db.select({ id: orders.id, no: orders.orderNo }).from(orders).where(inArray(orders.id, obRows.map((x) => x.orderId)))
+    const allOrderIds = [...new Set([...orderIds, ...obRows.map((x) => x.orderId)])];
+    const ordRows = allOrderIds.length
+      ? await db
+        .select({ id: orders.id, no: orders.orderNo, po: orders.poNo })
+        .from(orders)
+        .where(inArray(orders.id, allOrderIds))
       : [];
-    const noByOrder = new Map(mid.map((o) => [o.id, o.no]));
-    for (const ob of obRows) map.set(ob.id, noByOrder.get(ob.orderId) ?? '');
+    const byOrder = new Map(ordRows.map((o) => [o.id, { orderNo: o.no, poNo: normalizePoNo(o.po) ?? '' }]));
+    for (const id of orderIds) map.set(id, byOrder.get(id) ?? empty);
+    for (const ob of obRows) map.set(ob.id, byOrder.get(ob.orderId) ?? empty);
     return map;
   }
 
@@ -97,13 +105,14 @@ export class AccountingService {
       .leftJoin(customers, eq(receivables.customerId, customers.id))
       .leftJoin(outbounds, and(eq(outbounds.id, receivables.sourceId), eq(receivables.sourceType, 'outbound')))
       .orderBy(desc(receivables.id));
-    const orderNoBy = await this.resolveOrderNos(rows.map((x) => x.r));
-    return rows.map(({ r, ...rest }) =>
-      this.decorateReceivable(r, rest.customerName, rest.shipNo, orderNoBy.get(r.sourceId) ?? ''),
-    );
+    const refs = await this.resolveOrderRefs(rows.map((x) => x.r));
+    return rows.map(({ r, ...rest }) => {
+      const ref = refs.get(r.sourceId) ?? { orderNo: '', poNo: '' };
+      return this.decorateReceivable(r, rest.customerName, rest.shipNo, ref.orderNo, ref.poNo);
+    });
   }
 
-  private decorateReceivable(r: any, customerName?: string | null, shipNo?: string | null, orderNo?: string) {
+  private decorateReceivable(r: any, customerName?: string | null, shipNo?: string | null, orderNo?: string, poNo?: string) {
     const remain = remainOf(r.amount, r.settledAmount);
     const ageDays = r.dueDate ? Math.floor((Date.now() - new Date(r.dueDate).getTime()) / 86400000) : 0;
     const bucket = ageDays <= 0 ? 'current' : ageDays <= 30 ? 'd30' : ageDays <= 60 ? 'd60' : ageDays <= 90 ? 'd90' : 'd90p';
@@ -112,6 +121,8 @@ export class AccountingService {
       customerName: customerName ?? '',
       shipNo: shipNo ?? '',
       orderNo: orderNo ?? '',
+      /** I18：客户 PO 号（来自订单，动态派生；无 PO 为空串） */
+      poNo: poNo ?? '',
       remain,
       overDue: ageDays > 0 && remain > 0,
       ageDays: Math.max(0, ageDays),
@@ -155,11 +166,11 @@ export class AccountingService {
       .leftJoin(receivables, eq(collectionSlipLines.receivableId, receivables.id))
       .where(inArray(collectionSlipLines.slipId, ids))
       .orderBy(collectionSlipLines.id);
-    const orderNoBy = await this.resolveOrderNos(lines);
+    const orderRefs = await this.resolveOrderRefs(lines);
     const byId = new Map<number, any[]>();
     for (const row of lines) {
       const arr = byId.get(row.l.slipId) ?? [];
-      arr.push({ ...row.l, recvNo: row.recvNo, orderNo: orderNoBy.get(row.sourceId ?? -1) ?? '' });
+      arr.push({ ...row.l, recvNo: row.recvNo, orderNo: orderRefs.get(row.sourceId ?? -1)?.orderNo ?? '' });
       byId.set(row.l.slipId, arr);
     }
     return rows.map(({ s, customerName, operatorName }) => ({ ...s, customerName, operatorName: operatorName ?? null, lines: byId.get(s.id) ?? [] }));
@@ -545,7 +556,8 @@ export class AccountingService {
     const line = (row: unknown[]) => row.map(esc).join(',') + '\n';
     if (kind === 'outbounds') {
       const rows = await this.recvExportRows();
-      const csv = line(['应收号', '日期', '客户', '出库单号', '金额', '币种', '到期日']) + rows.map(line).join('');
+      // I18：出库明细=有效发票，是给外部做账的对账底稿 —— 带上「客户 PO 号」才能与客户采购单逐条核对
+      const csv = line(['应收号', '日期', '客户', '出库单号', '客户PO号', '金额', '币种', '到期日']) + rows.map(line).join('');
       return { name: `出库明细-${ymd(new Date())}.csv`, csv };
     }
     if (kind === 'incoming') {
@@ -572,7 +584,7 @@ export class AccountingService {
     return recvs
       .filter((r: any) => r.status !== 'voided')
       .map((r: any) => [
-        r.recvNo, this.day(r.createdAt), r.customerName, r.shipNo, r.amount, r.currency,
+        r.recvNo, this.day(r.createdAt), r.customerName, r.shipNo, r.poNo ?? '', r.amount, r.currency,
         r.dueDate ? this.day(r.dueDate) : '',
       ]);
   }
