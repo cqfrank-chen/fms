@@ -11,6 +11,12 @@ export type PackagingSpec = Partial<Record<PackType, string>>
 export type OrderStatus = 'draft' | 'confirmed' | 'production' | 'completed' | 'cancelled'
 export type PlanStatus = 'draft' | 'confirmed' | 'production' | 'completed' | 'cancelled'
 
+/** 待补项（I17）：识单落草稿时缺价/缺数量/产品未建档等逐项留痕，message 为中文诊断（界面直接展示） */
+export interface PendingItem {
+  code: string
+  message: string
+}
+
 export interface OrderLine {
   id?: number
   productId: number
@@ -20,6 +26,12 @@ export interface OrderLine {
   currency: 'RMB' | 'USD'
   engraving?: string | null
   packaging?: PackagingSpec | null
+  /** 行级待补项；null = 普通订单行（不参与待补机制） */
+  pendingItems?: PendingItem[] | null
+  /** 单价来源：'quote' = 由报价记录自动补全（来源可追溯） */
+  priceSource?: string | null
+  /** 产品未建档时识别到的产品原文 */
+  productNameText?: string | null
 }
 
 export interface Order {
@@ -31,6 +43,14 @@ export interface Order {
   customerName?: string
   poNo?: string | null
   dueDate: string
+  /** 交期待定（I17）：true 时 dueDate 是哨兵日 2099-12-31，界面应显示「待定」 */
+  dueDateTbd?: boolean
+  /** 未建档客户的识别原名（customerId 指向占位档案） */
+  draftCustomerName?: string | null
+  /** 单头待补项；null = 普通订单（不参与待补机制），[] = 识单落草稿且已补全 */
+  pendingItems?: PendingItem[] | null
+  /** 单头待补项的中文汇总（列表「待补」列直接用） */
+  pendingText?: string
   note?: string | null
   status: OrderStatus
   createdAt: string

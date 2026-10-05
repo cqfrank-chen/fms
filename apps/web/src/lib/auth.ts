@@ -59,6 +59,8 @@ export const PAGE_ROLES: Record<PageKey, UserRole[]> = {
   schedule: ['admin', 'planner', 'workshop'],
   warehouse: ['admin', 'planner', 'warehouse'],
   accounting: ['admin', 'accounting'],
+  // 报价记录（I17）：计划员维护价格、账务可只读查看（与后端 @Roles('admin','planner') 写权限对齐）
+  quotes: ['admin', 'planner', 'accounting'],
   ai: ['admin', 'planner', 'accounting'],
   setup: ['admin'],
 }

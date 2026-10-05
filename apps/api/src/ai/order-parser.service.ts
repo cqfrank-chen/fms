@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { db } from '../db';
 import { customers, products } from '../db/schema';
-import { lineCents, sumLineCents } from '../common/money';
+import { fromCents, lineCents, sumLineCents } from '../common/money';
 import { LlmGatewayService } from './llm-gateway.service';
 import type { LlmMessage } from './llm-gateway.service';
 import { matrixToCompactText, ruleMapMatrix } from './table-parser.service';
 import type { HeaderArea, RuleMapResult } from './table-parser.service';
+import { QuotesService } from '../quotes/quotes.service';
+import { currencyToOrderEnum, describeHit } from '../quotes/quote-pricing';
+import type { PriceHit, PriceRule } from '../quotes/quote-pricing';
 
 /**
  * 订单解析（I12 核心）：多模态/文本 → 结构化抽取 → 确定性规则校验 → 主数据匹配
@@ -51,6 +54,12 @@ export interface ResolvedLine extends ParsedOrderLine {
   issues: Issue[];
   /** 行金额（分）：数量 × 单价，按 common/money 定点计算（金额一律以「分」为准） */
   amountCents: number;
+  /** 单价来源（I17）：'quote' = 该行缺价，由报价记录自动补全（来源可追溯）；缺省 = 原始单据自带 */
+  priceFrom?: 'quote';
+  /** 命中的报价记录 id 与规则（priceFrom='quote' 时给出，便于人工回溯到具体报价单） */
+  quoteId?: number;
+  quoteRule?: PriceRule;
+  quoteRuleText?: string;
 }
 
 export interface ResolveResult {
@@ -70,6 +79,8 @@ export interface ResolveResult {
   totalCents: number;
   /** 实际使用的解析通道（便于前端/接口自测断言分支是否正确） */
   parseSource: ParseSource;
+  /** 报价自动补价的行数（I17：缺 unitPrice 的行按报价记录补价；0 = 未补价或无可命中报价） */
+  quoteFilledCount: number;
   /** 表格映射诊断（仅 Excel/CSV 输入有值：命中率/缺失列/是否走了 LLM 兜底/数据行边界/抬头区） */
   table?: {
     headerRowIndex: number;
@@ -171,15 +182,19 @@ export function packTextToSpec(text?: string): { packaging?: Record<string, stri
   };
 }
 
-/** 名称归一化：小写/去空格/去常见公司后缀（用于模糊匹配） */
-const normName = (s: string) =>
+/** 名称归一化：小写/去空格/去常见公司后缀（用于模糊匹配）；也供订单落草稿的客户/产品建档比对复用 */
+export const normName = (s: string) =>
   s.toLowerCase().replace(/\s+/g, '').replace(/(公司|有限公司|co\.?|ltd\.?|inc\.?|llc|gmbh)$/g, '');
 
 @Injectable()
 export class OrderParserService {
   private readonly logger = new Logger(OrderParserService.name);
 
-  constructor(private readonly llm: LlmGatewayService) {}
+  /** quotes 可选：单测里直接 new OrderParserService(llm) 时不做报价补价（行为与改造前一致） */
+  constructor(
+    private readonly llm: LlmGatewayService,
+    @Optional() private readonly quotes?: QuotesService,
+  ) {}
 
   /** 主入口：文本 / 图片(dataURL) / 表格矩阵 → 解析 + 规则校验 + 主数据匹配
    *  stub：仅 mock（未配 AI_API_KEY）时用于验收/离线测试直通 LLM 输出；真 key 环境忽略
@@ -199,6 +214,11 @@ export class OrderParserService {
     /** 附加线索（随表格一起提交的文本，如客户邮件原文/粘贴的说明），仅在表格命中率不足时随表格一起喂给 LLM */
     hint?: string;
     stub?: ParsedOrder;
+    /**
+     * 是否用报价记录补价（I17，默认 true）。**向后兼容**：库里没有可命中的报价时结果与改造前完全一致；
+     * 显式传 false 可关闭（离线复现旧口径用）。
+     */
+    quotePricing?: boolean;
   }): Promise<ResolveResult> {
     let parsed: ParsedOrder;
     let parseSource: ParseSource = 'text';
@@ -254,7 +274,7 @@ export class OrderParserService {
       parseSource = 'text';
     }
 
-    const resolved = await this.resolve(parsed, parseSource);
+    const resolved = await this.resolve(parsed, parseSource, { quotePricing: input.quotePricing });
     return { ...resolved, table: tableDiag };
   }
 
@@ -310,7 +330,7 @@ export class OrderParserService {
   }
 
   /** 确定性校验 + 主数据匹配（学习闭环的规则热追加点）；parseSource 由调用方按实际通道传入。 */
-  async resolve(parsed: ParsedOrder, parseSource: ParseSource = 'text'): Promise<ResolveResult> {
+  async resolve(parsed: ParsedOrder, parseSource: ParseSource = 'text', opts: { quotePricing?: boolean } = {}): Promise<ResolveResult> {
     const issues: Issue[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -353,19 +373,18 @@ export class OrderParserService {
       issues.push({ path: 'dueDate', level: 'error', message: `交期 ${dueDate} 早于今天，请确认` });
     }
 
-    // ---- 产品行匹配 + 行校验 ----
+    // ---- 第一遍：产品行匹配（先定 productId，报价补价才能按「客户+产品」精确取价） ----
     const allProducts = await db.select({ id: products.id, name: products.name }).from(products);
-    const lines: ResolvedLine[] = [];
     if (!parsed.lines.length) {
       issues.push({ path: 'lines', level: 'error', message: '未识别到任何产品行' });
     }
-    parsed.lines.forEach((l, i) => {
-      const lineIssues: Issue[] = [];
+    const lineMeta = parsed.lines.map((l) => {
       const name = l.productName?.trim() ?? '';
       let productId: number | null = null;
       let match: 'exact' | 'none' = 'none';
+      let productIssue: Issue | null = null;
       if (!name) {
-        lineIssues.push({ path: `lines[${i}].product`, level: 'error', message: '行缺少产品型号' });
+        productIssue = { path: '', level: 'error', message: '行缺少产品型号' };
       } else {
         const exact = allProducts.find((p) => p.name.trim() === name);
         if (exact) {
@@ -378,20 +397,63 @@ export class OrderParserService {
             productId = cands[0].id;
             match = 'exact';
           } else {
-            lineIssues.push({
-              path: `lines[${i}].product`,
+            productIssue = {
+              path: '',
               level: 'error',
               message: cands.length > 1
                 ? `「${name}」匹配到多个产品（${cands.slice(0, 3).map((p) => p.name).join('、')}…），请选择`
                 : `产品「${name}」不在目录中（请先到设置建档或改选）`,
-            });
+            };
           }
         }
       }
+      return { name, productId, match, productIssue };
+    });
+
+    // ---- 第二遍：缺价行按「报价记录」补价（I17） ----
+    // 规则：按「文件夹客户 + 该行产品」取价（客户+产品 > 客户+产品名文本 > 通用价），
+    // 命中则补价并标注 priceFrom='quote'（来源可追溯）；未命中**保持缺价待补**，绝不编造价格。
+    const quoteHits: Array<PriceHit | null> = new Array(parsed.lines.length).fill(null);
+    const quoteNotes: string[] = [];
+    if (opts.quotePricing !== false && this.quotes) {
+      const needIdx = parsed.lines
+        .map((l, i) => ({ l, i }))
+        .filter((x) => x.l.unitPrice === undefined || x.l.unitPrice === null)
+        .map((x) => x.i);
+      if (needIdx.length) {
+        try {
+          const hits = await this.quotes.lookupMany(needIdx.map((i) => ({
+            customerId,
+            productId: lineMeta[i].productId,
+            productName: lineMeta[i].name || null,
+          })));
+          needIdx.forEach((i, k) => {
+            const h = hits[k];
+            if (!h) return;
+            quoteHits[i] = h; // 命中：补价 + 标注来源（第 3 遍装配行时写入）
+            quoteNotes.push('第 ' + (i + 1) + ' 行「' + (lineMeta[i].name || '未命名') + '」缺单价，已按报价记录补价：' + describeHit(h));
+          });
+        } catch (e) {
+          // 报价取价失败不阻断识单：如实告警并保持缺价待补（人工补填）
+          quoteNotes.push('报价取价失败，本单按缺价处理：' + (e as Error).message);
+        }
+      }
+    }
+
+    // ---- 第三遍：装配行（问题顺序与改造前完全一致：产品 → 数量 → 单价 → 包装） ----
+    const lines: ResolvedLine[] = [];
+    parsed.lines.forEach((l, i) => {
+      const lineIssues: Issue[] = [];
+      const { name, productId, match, productIssue } = lineMeta[i];
+      if (productIssue) lineIssues.push({ ...productIssue, path: `lines[${i}].product` });
       if (!l.quantity || l.quantity <= 0) {
         lineIssues.push({ path: `lines[${i}].quantity`, level: 'error', message: '行缺少有效数量' });
       }
-      if (l.unitPrice === undefined || l.unitPrice === null || l.unitPrice < 0) {
+      const hit = quoteHits[i];
+      // 报价补价后的单价/币种（未命中时保持原值 —— 缺价仍标 error 待补）
+      const unitPrice = hit ? fromCents(hit.unitPriceCents) : l.unitPrice;
+      const currency = hit ? currencyToOrderEnum(hit.currency) : l.currency;
+      if (unitPrice === undefined || unitPrice === null || unitPrice < 0) {
         lineIssues.push({ path: `lines[${i}].unitPrice`, level: 'error', message: '未识别到单价（须人工补填价格）' });
       }
       const { packaging, residual } = packTextToSpec(l.packagingText);
@@ -404,16 +466,17 @@ export class OrderParserService {
         productId,
         match,
         quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        currency: l.currency,
+        unitPrice,
+        currency,
         engraving: l.engraving || undefined,
         packagingText: l.packagingText,
         packaging,
         issues: lineIssues,
         // 行金额（分）：定点计算，避免浮点尾差（金额口径统一走 common/money）
-        amountCents: l.quantity && l.unitPrice !== undefined && l.unitPrice !== null
-          ? lineCents(l.quantity, l.unitPrice)
+        amountCents: l.quantity && unitPrice !== undefined && unitPrice !== null
+          ? lineCents(l.quantity, unitPrice)
           : 0,
+        ...(hit ? { priceFrom: 'quote' as const, quoteId: hit.quoteId, quoteRule: hit.rule, quoteRuleText: hit.ruleText } : {}),
       });
     });
 
@@ -422,16 +485,18 @@ export class OrderParserService {
     const directPass = !hasError && !!customerId && lines.length > 0 && lines.every((l) => l.productId != null && l.quantity && l.quantity > 0);
     // 订单合计（分）：与前端展示/落库口径一致（各行 amountCents 已定点）
     const totalCents = sumLineCents(lines.map((l) => ({ quantity: l.quantity ?? 0, unitPrice: l.unitPrice ?? 0 })));
+    const quoteFilledCount = quoteHits.filter((h) => !!h).length;
     return {
       customerId, customerName, customerMatch,
       poNo: parsed.poNo, dueDate, note: parsed.note,
       lines,
       issues: allIssues,
       confidence: hasError ? 'low' : parsed.confidence,
-      notes: parsed.notes,
+      notes: [...(parsed.notes ?? []), ...quoteNotes],
       directPass,
       totalCents,
       parseSource,
+      quoteFilledCount,
     };
   }
 }

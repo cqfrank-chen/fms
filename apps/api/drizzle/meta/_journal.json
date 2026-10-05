@@ -148,6 +148,13 @@
       "when": 1791204957601,
       "tag": "0020_invoice_no_active_uq",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791210962437,
+      "tag": "0021_quotes_and_pending",
+      "breakpoints": true
     }
   ]
 }

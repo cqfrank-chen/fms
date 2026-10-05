@@ -1,12 +1,22 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { customers, operators, orderLines, orders, outbounds, planSheetLines, planSheets, products, receivables } from '../db/schema';
-import type { OrderStatus } from '../db/schema';
+import {
+  customers, operators, orderLines, orders, outbounds, PENDING_CUSTOMER_NAME, PENDING_PRODUCT_NAME,
+  planSheetLines, planSheets, products, receivables, ORDERS_DUE_DATE_TBD,
+} from '../db/schema';
+import type { NewOrderLine, OrderStatus, PendingItem } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
 import { fromCents, sumLineCents, toCents } from '../common/money';
 import { InvoicesService } from '../invoices/invoices.service';
 import { orderInvoiceState } from '../invoices/invoice-stats';
+import { QuotesService } from '../quotes/quotes.service';
+import { describeHit } from '../quotes/quote-pricing';
+import { normName } from '../ai/order-parser.service';
+import { computeLinePending, computeOrderPending, PENDING_CODES, pendingText } from './pending-items';
+
+/** 事务句柄类型（drizzle transaction callback 参数） */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface OrderLineDto {
   productId: number;
@@ -29,6 +39,38 @@ export interface OrderListQuery {
   status?: OrderStatus;
   customerId?: number;
   kw?: string;
+  /** '1' = 只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
+  hasPending?: string;
+}
+
+/** 落草稿的单行入参（识单结果一行；数量/单价可空 = 原始单据本来就没有） */
+export interface DraftOrderLineDto {
+  productId?: number | null;
+  /** 产品原文（productId 为空/未建档时用于建档比对与占位留痕） */
+  productName?: string | null;
+  quantity?: number | null;
+  unitPrice?: number | null;
+  currency?: 'RMB' | 'USD';
+  engraving?: string;
+  packaging?: Record<string, string>;
+  /** 单价来源（识单补价时为 'quote'，用于「补价成功的行不再算缺价」判定） */
+  priceFrom?: 'quote' | null;
+  quoteId?: number | null;
+}
+
+/**
+ * 「落草稿订单」入参：识单结果（含 .doc 管线结果）→ 草稿订单。
+ * 缺价/缺交期/缺客户/产品未建档都不再阻断落库，改为**逐行标记待补**（见 orders/pending-items.ts）。
+ */
+export interface CreateDraftOrderDto {
+  customerId?: number | null;
+  customerName?: string | null;
+  /** 文件夹客户（甲方裁定「文件夹=客户」）：优先于 customerName */
+  folderCustomer?: string | null;
+  poNo?: string | null;
+  dueDate?: string | null;
+  note?: string | null;
+  lines: DraftOrderLineDto[];
 }
 
 /** 单头+行+关联名的返回结构（前端直接消费） */
@@ -46,11 +88,17 @@ export interface OrderWithLines {
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
+/** 紧凑年月日（单号用：SO-YYYYMMDD-NN） */
 const ymd = (d: Date) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+/** 带分隔符的业务日 YYYY-MM-DD（交期等日期字段一律用它，勿与单号口径 ymd 混用） */
+const ymdDash = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly invoices: InvoicesService) {}
+  constructor(
+    private readonly invoices: InvoicesService,
+    private readonly quotes: QuotesService,
+  ) {}
 
   /** 生成单号 SO-YYYYMMDD-NN（当天最大序号+1；count 在删除后会复用旧号，改 max 根治） */
   private async nextOrderNo(now: Date): Promise<string> {
@@ -137,6 +185,10 @@ export class OrdersService {
       const kw = `%${q.kw}%`;
       conds.push(or(like(orders.orderNo, kw), like(orders.poNo, kw)));
     }
+    // 只看有未补全项的草稿单：pending_items 非空数组（null = 不参与待补机制的普通订单，不算）
+    if (q.hasPending === '1' || q.hasPending === 'true') {
+      conds.push(sql`jsonb_array_length(coalesce(${orders.pendingItems}, '[]'::jsonb)) > 0`);
+    }
     const base = db
       .select({
         order: orders,
@@ -164,37 +216,312 @@ export class OrdersService {
     return r;
   }
 
-  /** 编辑（仅草稿；单头字段+行整体替换） */
+  /**
+   * 编辑（仅草稿；单头字段+行整体替换）。
+   * I17：识单落草稿的单据（pending_items 非 null）在编辑后**重算待补项**——
+   * 补全的项自动消失，未补的继续标记；人工改交期/客户后「待定」「未建档」标记同步清除。
+   */
   async update(id: number, dto: Partial<CreateOrderDto>) {
     const existing = await this.requireDraft(id);
+    const tracked = Array.isArray(existing.pendingItems); // 只有识单落草稿的单据参与待补机制
+    const pendingProductId = tracked ? await this.findPendingProductId() : null;
     await db.transaction(async (tx) => {
       const dueDate = dto.dueDate ? new Date(dto.dueDate) : existing.dueDate;
-      await tx
-        .update(orders)
-        .set({
-          customerId: dto.customerId ?? existing.customerId,
-          poNo: dto.poNo !== undefined ? (dto.poNo ?? null) : existing.poNo,
-          dueDate,
-          note: dto.note !== undefined ? (dto.note ?? null) : existing.note,
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, id));
+      const patch: Record<string, unknown> = {
+        customerId: dto.customerId ?? existing.customerId,
+        poNo: dto.poNo !== undefined ? (dto.poNo ?? null) : existing.poNo,
+        dueDate,
+        note: dto.note !== undefined ? (dto.note ?? null) : existing.note,
+        updatedAt: new Date(),
+      };
+      // 人工给出交期 → 清掉「待定」哨兵标记（dueDateTbd 与哨兵日必须成对）
+      if (dto.dueDate) patch.dueDateTbd = false;
+      await tx.update(orders).set(patch).where(eq(orders.id, id));
       if (dto.lines) {
+        // 保留「占位产品行」的原始产品名（识别原文），便于人工建档时对照；按行序对齐（整单替换，UI 顺序不变）
+        const oldTexts = tracked
+          ? (await tx.select({ t: orderLines.productNameText }).from(orderLines)
+              .where(eq(orderLines.orderId, id)).orderBy(orderLines.id)).map((r) => r.t)
+          : [];
         await tx.delete(orderLines).where(eq(orderLines.orderId, id));
         await tx.insert(orderLines).values(
-          dto.lines.map((l) => ({
-            orderId: id,
-            productId: l.productId,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            currency: l.currency ?? 'RMB',
-            engraving: l.engraving ?? null,
-            packaging: l.packaging ?? null,
-          })),
+          dto.lines.map((l, i) => {
+            const isPlaceholder = tracked && l.productId === pendingProductId;
+            const pending = tracked
+              ? computeLinePending({
+                  productId: isPlaceholder ? null : l.productId,
+                  productName: oldTexts[i] ?? null,
+                  quantity: l.quantity,
+                  unitPrice: l.unitPrice,
+                  priceFrom: null,
+                })
+              : [];
+            return {
+              orderId: id,
+              productId: l.productId,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              currency: l.currency ?? 'RMB',
+              engraving: l.engraving ?? null,
+              packaging: l.packaging ?? null,
+              pendingItems: pending.length ? pending : null,
+              productNameText: isPlaceholder ? (oldTexts[i] ?? null) : null,
+            };
+          }),
         );
       }
+      if (tracked) await this.recomputeOrderPending(tx, id);
     });
     return this.findOne(id);
+  }
+
+  // ============ I17 识单落草稿 + 待补标记 ============
+
+  /**
+   * 落草稿订单：识单结果（含 .doc 管线结果）→ 订单（status='draft'）。
+   *
+   * 与既有 POST /orders 的区别：**不再因为缺价/缺交期/未建档而拒绝**，
+   * 而是逐行/逐单写入中文「待补」诊断（pending_items），后续人工在订单列表按「有未补全项的草稿单」
+   * 筛选并逐项补全；补价可一键从报价记录取价（fillQuotePrices）。
+   *
+   * NOT NULL 约束的处理（不改既有表结构，详见 db/schema.ts 的常量注释）：
+   *   · 缺交期 → due_date 写哨兵日 ORDERS_DUE_DATE_TBD + due_date_tbd=true（界面显示「待定」）；
+   *   · 缺客户 → customer_id 指向**惰性创建**的占位客户「（未建档客户·待补）」，原名记 draft_customer_name；
+   *   · 缺产品 → product_id 指向占位产品「（未建档产品·待补）」，原文记 order_lines.product_name_text；
+   *   · 缺数量/缺价 → 存 0（数量/单价列 NOT NULL）并标待补，**确认前必须补齐**（confirmOrder 会拦截）。
+   */
+  async createDraftFromParse(dto: CreateDraftOrderDto) {
+    const headName = (dto.folderCustomer ?? dto.customerName ?? '').trim() || null;
+    const customer = await this.resolveDraftCustomer(dto.customerId ?? null, headName);
+    const due = this.resolveDraftDueDate(dto.dueDate ?? null);
+
+    const values: Array<Omit<NewOrderLine, 'orderId'>> = [];
+    const linePendings: PendingItem[][] = [];
+    for (const line of dto.lines ?? []) {
+      const product = await this.resolveDraftProduct(line.productId ?? null, line.productName ?? null);
+      const qtyOk = line.quantity != null && String(line.quantity).trim() !== ''
+        && Number.isFinite(Number(line.quantity)) && Number(line.quantity) > 0;
+      const priceOk = line.unitPrice != null && String(line.unitPrice).trim() !== ''
+        && Number.isFinite(Number(line.unitPrice)) && Number(line.unitPrice) >= 0;
+      const quantity = qtyOk ? Math.round(Number(line.quantity)) : 0;
+      const unitPrice = priceOk ? Number(line.unitPrice) : 0;
+      const priceFrom = priceOk && line.priceFrom === 'quote' ? ('quote' as const) : null;
+      const pending = computeLinePending({
+        productId: product.filed ? product.id : null,
+        productName: product.name,
+        quantity: qtyOk ? quantity : null,
+        unitPrice: priceOk ? unitPrice : null,
+        priceFrom,
+      });
+      linePendings.push(pending);
+      values.push({
+        productId: product.id,
+        quantity,
+        unitPrice,
+        currency: line.currency ?? 'RMB',
+        engraving: line.engraving ?? null,
+        packaging: line.packaging ?? null,
+        pendingItems: pending.length ? pending : null,
+        priceSource: priceFrom,
+        productNameText: product.filed ? null : (product.name ?? line.productName ?? null),
+      });
+    }
+
+    const orderPending = computeOrderPending({
+      customerId: customer.filed ? customer.id : null,
+      customerName: customer.name,
+      dueDate: due.tbd ? null : due.date,
+    }, linePendings);
+
+    const now = new Date();
+    const orderNo = await this.nextOrderNo(now);
+    const created = await db.transaction(async (tx) => {
+      const [order] = await tx.insert(orders).values({
+        orderNo,
+        customerId: customer.id,
+        poNo: dto.poNo ? String(dto.poNo) : null,
+        dueDate: new Date(due.tbd ? ORDERS_DUE_DATE_TBD : (due.date as string)),
+        dueDateTbd: due.tbd,
+        draftCustomerName: customer.filed ? null : (customer.name ?? '(未提供客户名)'),
+        pendingItems: orderPending,
+        note: dto.note ? String(dto.note) : null,
+        status: 'draft',
+        operatorId: currentOperatorId(),
+      }).returning();
+      if (values.length) await tx.insert(orderLines).values(values.map((v) => ({ ...v, orderId: order.id })));
+      return order;
+    });
+    return this.findOne(created.id);
+  }
+
+  /**
+   * 一键从报价记录补价（I17）：对**所有标了「缺单价」的行**按报价规则取价，
+   * 命中则写回单价 + priceSource='quote'（来源可追溯）并清掉该行的缺价标记；未命中保持待补。
+   */
+  async fillQuotePrices(orderId: number) {
+    const order = await this.requireDraft(orderId);
+    const rows = await db
+      .select({ line: orderLines, productName: products.name })
+      .from(orderLines)
+      .leftJoin(products, eq(orderLines.productId, products.id))
+      .where(eq(orderLines.orderId, orderId))
+      .orderBy(orderLines.id);
+    const pendingProductId = await this.findPendingProductId();
+    const targets = rows.filter((r) => (r.line.pendingItems ?? []).some((x) => x.code === PENDING_CODES.PRICE_MISSING));
+    const label = (r: typeof rows[number]) => r.line.productNameText ?? r.productName ?? ('产品#' + r.line.productId);
+    if (!targets.length) {
+      return { order: await this.findOne(orderId), filled: [], missed: [], message: '该订单没有「缺单价」的行，无需补价' };
+    }
+    const hits = await this.quotes.lookupMany(targets.map((r) => ({
+      customerId: order.customerId,
+      productId: r.line.productId === pendingProductId ? null : r.line.productId,
+      productName: r.line.productNameText ?? r.productName ?? null,
+    })));
+
+    const filled: Array<{ lineId: number; productName: string; unitPrice: number; quoteId: number; ruleText: string; message: string }> = [];
+    const missed: Array<{ lineId: number; productName: string; message: string }> = [];
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < targets.length; i++) {
+        const r = targets[i];
+        const h = hits[i];
+        const name = label(r);
+        if (!h) {
+          missed.push({ lineId: r.line.id, productName: name, message: '未命中有效报价（客户+产品 / 客户+产品名文本 / 通用价 都无有效记录），仍标待补' });
+          continue;
+        }
+        const price = fromCents(h.unitPriceCents);
+        const remain = (r.line.pendingItems ?? []).filter((x) => x.code !== PENDING_CODES.PRICE_MISSING);
+        await tx.update(orderLines).set({
+          unitPrice: price,
+          priceSource: 'quote',
+          pendingItems: remain.length ? remain : null,
+        }).where(eq(orderLines.id, r.line.id));
+        filled.push({ lineId: r.line.id, productName: name, unitPrice: price, quoteId: h.quoteId, ruleText: h.ruleText, message: describeHit(h) });
+      }
+      await this.recomputeOrderPending(tx, orderId);
+    });
+    return {
+      order: await this.findOne(orderId),
+      filled,
+      missed,
+      message: '补价完成：命中 ' + filled.length + ' 行，未命中 ' + missed.length + ' 行'
+        + (missed.length ? '（未命中行仍标待补，可先录入报价记录后重试）' : ''),
+    };
+  }
+
+  /** 单头待补重算（编辑/补价后调用）：读库内最新行状态 → 覆盖 orders.pending_items */
+  private async recomputeOrderPending(tx: Tx, orderId: number): Promise<PendingItem[]> {
+    const [o] = await tx.select().from(orders).where(eq(orders.id, orderId));
+    if (!o) return [];
+    const lines = await tx.select().from(orderLines).where(eq(orderLines.orderId, orderId));
+    const pendingCustomerId = await this.findPendingCustomerId();
+    const pendingProductId = await this.findPendingProductId();
+    const linePendings = lines.map((l: { pendingItems?: PendingItem[] | null; productId: number }) => {
+      const own = Array.isArray(l.pendingItems) ? l.pendingItems : [];
+      // 行上没标待补、但产品仍指着占位档案 → 补一条（防人工直接改库造成漏标）
+      return l.productId === pendingProductId && !own.some((x) => x.code === PENDING_CODES.PRODUCT_NOT_FILED)
+        ? [...own, ...computeLinePending({ productId: null, productName: null })]
+        : own;
+    });
+    const items = computeOrderPending({
+      customerId: o.customerId === pendingCustomerId ? null : o.customerId,
+      customerName: o.draftCustomerName ?? null,
+      dueDate: o.dueDateTbd ? null : ymdDash(new Date(o.dueDate)),
+    }, linePendings);
+    await tx.update(orders).set({
+      pendingItems: items,
+      draftCustomerName: o.customerId === pendingCustomerId ? (o.draftCustomerName ?? null) : null,
+      updatedAt: new Date(),
+    }).where(eq(orders.id, orderId));
+    return items;
+  }
+
+  /** 落草稿时确定客户：命中档案用真实档案；未命中 → 占位客户 + 待补（不臆造客户、不合并别名） */
+  private async resolveDraftCustomer(customerId: number | null, nameRaw: string | null) {
+    if (customerId != null) {
+      const [c] = await db.select().from(customers).where(eq(customers.id, Number(customerId)));
+      if (!c) throw new BadRequestException('客户 #' + customerId + ' 不存在');
+      return { id: c.id, filed: true, name: c.name };
+    }
+    const name = (nameRaw ?? '').trim();
+    if (name) {
+      const all = await db.select({ id: customers.id, name: customers.name }).from(customers);
+      const exact = all.find((c) => c.name.trim() === name);
+      if (exact) return { id: exact.id, filed: true, name: exact.name };
+      const nn = normName(name);
+      const cands = all.filter((c) => nn && (nn.includes(normName(c.name)) || normName(c.name).includes(nn)));
+      if (cands.length === 1) return { id: cands[0].id, filed: true, name: cands[0].name };
+      if (cands.length > 1) {
+        throw new BadRequestException('客户「' + name + '」匹配到多个档案（' + cands.map((c) => c.name).join('、') + '），请先指定 customerId 再落草稿');
+      }
+    }
+    return { id: await this.ensurePendingCustomer(), filed: false, name: name || null };
+  }
+
+  /** 落草稿时确定产品：命中目录用真实产品；未命中/多候选 → 占位产品 + 行级待补 */
+  private async resolveDraftProduct(productId: number | null, nameRaw: string | null) {
+    if (productId != null) {
+      const [p] = await db.select().from(products).where(eq(products.id, Number(productId)));
+      if (!p) throw new BadRequestException('产品 #' + productId + ' 不存在');
+      return { id: p.id, filed: true, name: p.name };
+    }
+    const name = (nameRaw ?? '').trim();
+    if (name) {
+      const all = await db.select({ id: products.id, name: products.name }).from(products);
+      const exact = all.find((p) => p.name.trim() === name);
+      if (exact) return { id: exact.id, filed: true, name: exact.name };
+      const nn = normName(name);
+      const cands = all.filter((p) => nn && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
+      if (cands.length === 1) return { id: cands[0].id, filed: true, name: cands[0].name };
+    }
+    return { id: await this.ensurePendingProduct(), filed: false, name: name || null };
+  }
+
+  /** 交期归一：给不出合法 YYYY-MM-DD 就返回「待定」（哨兵日由调用方写入） */
+  private resolveDraftDueDate(dueDate: string | null): { date: string | null; tbd: boolean } {
+    const s = (dueDate ?? '').trim();
+    if (s) {
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) {
+        const d = new Date(s.length > 10 ? s : s + 'T00:00:00Z');
+        if (!Number.isNaN(d.getTime())) return { date: m[1] + '-' + m[2] + '-' + m[3], tbd: false };
+      }
+      const d2 = new Date(s);
+      if (!Number.isNaN(d2.getTime())) return { date: ymdDash(d2), tbd: false };
+    }
+    return { date: null, tbd: true };
+  }
+
+  /** 占位客户 id（不存在返回 null） */
+  private async findPendingCustomerId(): Promise<number | null> {
+    const [hit] = await db.select({ id: customers.id }).from(customers).where(eq(customers.name, PENDING_CUSTOMER_NAME));
+    return hit?.id ?? null;
+  }
+
+  /** 占位产品 id（不存在返回 null） */
+  private async findPendingProductId(): Promise<number | null> {
+    const [hit] = await db.select({ id: products.id }).from(products).where(eq(products.name, PENDING_PRODUCT_NAME));
+    return hit?.id ?? null;
+  }
+
+  /** 占位客户：**惰性创建**（只有真的落了「缺客户」的草稿才会出现这一行），名字显式标注「待补」 */
+  private async ensurePendingCustomer(): Promise<number> {
+    const hit = await this.findPendingCustomerId();
+    if (hit != null) return hit;
+    const [row] = await db.insert(customers).values({ name: PENDING_CUSTOMER_NAME, creditDays: 0 }).returning({ id: customers.id });
+    return row.id;
+  }
+
+  /**
+   * 占位产品：**惰性创建**。products.type 是 NOT NULL 枚举（无 unknown 取值），
+   * 这里填 'uk_acetylene' 只是满足约束 —— 该产品**永远不能进入生产**：
+   * 引用它的订单一定带「产品未建档」待补项，confirmOrder 会直接拦截（见 plan-sheets.service）。
+   */
+  private async ensurePendingProduct(): Promise<number> {
+    const hit = await this.findPendingProductId();
+    if (hit != null) return hit;
+    const [row] = await db.insert(products).values({ name: PENDING_PRODUCT_NAME, type: 'uk_acetylene', safetyStock: 0 }).returning({ id: products.id });
+    return row.id;
   }
 
   /**
@@ -256,6 +583,8 @@ export class OrdersService {
         ...order,
         customerName,
         operatorName: operatorName ?? null,
+        // I17：单头待补项的中文汇总（列表「待补」列直接展示；空串 = 无待补）
+        pendingText: pendingText(order.pendingItems),
         totalAmount: fromCents(totalCents),
         totalAmountCents: totalCents,
         invoicedCents,

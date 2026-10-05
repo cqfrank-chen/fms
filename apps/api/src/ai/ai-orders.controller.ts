@@ -42,6 +42,13 @@ class ParseOrderDto {
   @MaxLength(64)
   folderCustomer?: string;
 
+  /**
+   * 是否用报价记录给缺价行补价（I17，默认 true）。
+   * 向后兼容：库里没有可命中的报价时结果与改造前完全一致；传 false 可关闭（离线复现旧口径用）。
+   */
+  @IsOptional()
+  quotePricing?: boolean;
+
   /** 仅 mock 模式（未配 AI_API_KEY）生效：直通 LLM 抽取结果，供验收/离线测试 */
   @IsOptional()
   stub?: Record<string, unknown>;
@@ -70,7 +77,7 @@ export class AiOrdersController {
         const kind = detectUploadKind(up.buffer, up.name, up.mime);
         if (kind === 'image') {
           const dataUrl = up.mime ? `data:${up.mime};base64,${up.buffer.toString('base64')}` : `data:image/png;base64,${up.buffer.toString('base64')}`;
-          return await this.parser.parseAndResolve({ image: dataUrl, text: dto.text, stub: dto.stub as never });
+          return await this.parser.parseAndResolve({ image: dataUrl, text: dto.text, stub: dto.stub as never, quotePricing: dto.quotePricing });
         }
         const t = await this.tableParser.parseUpload({ buffer: up.buffer, fileName: up.name, mimeType: up.mime });
         return await this.parser.parseAndResolve({
@@ -79,6 +86,7 @@ export class AiOrdersController {
           text: dto.text,
           hint: dto.text,
           stub: dto.stub as never,
+          quotePricing: dto.quotePricing,
         });
       }
       return await this.parser.parseAndResolve({
@@ -86,6 +94,7 @@ export class AiOrdersController {
         image: dto.image,
         folderCustomer: dto.folderCustomer,
         stub: dto.stub as never,
+        quotePricing: dto.quotePricing,
       });
     } catch (e) {
       if (e instanceof HttpException) throw e; // 表格解析的 400 中文提示原样透传

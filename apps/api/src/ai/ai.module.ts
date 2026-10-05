@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AccountingModule } from '../accounting/accounting.module';
+import { QuotesModule } from '../quotes/quotes.module';
 import { SchedulingModule } from '../scheduling/scheduling.module';
 import { AiConfigService } from './ai-config.service';
 import { AiController } from './ai.controller';
@@ -13,7 +14,9 @@ import { ReportSummaryService } from './report-summary.service';
 import { RuleAlertService } from './rule-alerts.service';
 
 @Module({
-  imports: [SchedulingModule, AccountingModule], // 复用排期 overdue 与利润取数口径
+  // SchedulingModule / AccountingModule：复用排期 overdue 与利润取数口径
+  // QuotesModule：识单缺价时按报价记录补价（I17，取价规则与 /api/quotes/lookup 同一实现）
+  imports: [SchedulingModule, AccountingModule, QuotesModule],
   controllers: [AiController, AiOrdersController, AiFeedbackController],
   providers: [AiConfigService, LlmGatewayService, OrderParserService, TableParserService, QaService, ReportSummaryService, RuleAlertService],
   // TableParserService 导出给主数据批量导入复用（同一套 .xls/.xlsx/csv 解析与表头规则）

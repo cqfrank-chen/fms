@@ -397,6 +397,54 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
     } finally { setSaving(false) }
   }
 
+  /**
+   * 落草稿（I17）：识单结果 → **草稿订单 + 逐项待补标记**。
+   * 与「生成草稿订单」的区别：不再要求客户/产品/数量/单价全部就绪 ——
+   * 缺的项由服务端写成中文待补（缺价/缺交期/缺数量/产品未建档/客户未建档），
+   * 之后到订单列表按「仅看有未补全项的草稿单」筛选并逐项补全（补价可一键取报价记录）。
+   * 待补未清空前订单不能确认（服务端拦截），因此对下游没有脏数据风险。
+   */
+  async function createPendingDraft() {
+    if (!draft || !result) return
+    setSaving(true)
+    try {
+      // 客户优先用选中档案（customerId），否则用识别/文件夹客户名（未建档时服务端挂占位档案并标待补）
+      const folder = (result.table?.folderCustomer as string | undefined) || undefined
+      const created = await api<Order>('/orders/draft', {
+        method: 'POST',
+        body: {
+          customerId: draft.customerId ?? null,
+          customerName: draft.customerId ? null : (draft.customerText || null),
+          folderCustomer: folder ?? null,
+          poNo: draft.poNo || null,
+          dueDate: draft.dueDate || null,
+          note: draft.note || null,
+          lines: draft.lines.map((l) => ({
+            productId: l.productId ?? null,
+            productName: l.productId ? null : (l.productName || null),
+            quantity: l.quantity ?? null,
+            unitPrice: l.unitPrice ?? null,
+            currency: l.currency,
+            engraving: l.engraving || undefined,
+            packaging: (l.packaging && Object.keys(l.packaging).length ? l.packaging : undefined),
+          })),
+        },
+      })
+      const pending = Array.isArray(created.pendingItems) ? created.pendingItems.length : 0
+      message.success('已落草稿订单 ' + created.orderNo
+        + (pending ? '（' + pending + ' 项待补：到订单列表按「仅看有未补全项的草稿单」筛选后补全）' : '（无待补项，可直接确认）'))
+      api('/ai/feedback', {
+        method: 'POST',
+        body: { source: isTable ? 'excel_import_draft' : 'ai_import_draft', parsed: result, corrected: null, directPass: false },
+      }).catch(() => {})
+      api('/ai/orders/draft', { method: 'DELETE' }).catch(() => {})
+      setSaved(null); setResult(null); setDraft(null)
+      onDraftCreated?.()
+    } catch (err) {
+      message.error('落草稿失败：' + (err as Error).message)
+    } finally { setSaving(false) }
+  }
+
   const unmatchedCount = draft?.lines.filter((l) => l._unmatched).length ?? 0
   const customerUnmatched = !!draft?.customerText && !draft.customerId
 
@@ -465,6 +513,9 @@ export default function AiOrderImport({ onReviewDone, onDraftCreated }: Props) {
             </Text>
             <Button onClick={cancelReview}>取消</Button>
             <Button loading={saving} onClick={confirmFill}>按识别结果填入新建订单</Button>
+            <Button loading={saving} disabled={!draft?.lines.length} onClick={createPendingDraft}>
+              存为草稿（缺项标待补）
+            </Button>
             <Button type="primary" loading={saving} disabled={!draftReady} onClick={createDraftOrder}>
               生成草稿订单
             </Button>

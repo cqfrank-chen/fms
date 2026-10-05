@@ -16,6 +16,7 @@ import { OperatorsModule } from './operators/operators.module';
 import { OrdersModule } from './orders/orders.module';
 import { PlanSheetsModule } from './plan-sheets/plan-sheets.module';
 import { ProductsModule } from './products/products.module';
+import { QuotesModule } from './quotes/quotes.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { UpdateModule } from './update/update.module';
@@ -29,6 +30,7 @@ import { OperatorInterceptor } from './common/operator.interceptor';
     AiModule,
     DashboardModule,
     ProductsModule,
+    QuotesModule,
     CustomersModule,
     SuppliersModule,
     OperatorsModule,

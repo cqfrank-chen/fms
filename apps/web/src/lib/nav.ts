@@ -6,5 +6,6 @@ export type PageKey =
   | 'schedule'
   | 'warehouse'
   | 'accounting'
+  | 'quotes'
   | 'ai'
   | 'setup'

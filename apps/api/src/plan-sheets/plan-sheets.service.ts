@@ -58,6 +58,13 @@ export class PlanSheetsService {
       if (order.status !== 'draft')
         throw new BadRequestException(`仅草稿订单可确认（当前：${order.status}）`);
 
+      // I17 待补闸门：识单落草稿的单据（pending_items 非空）缺价/缺交期/未建档时禁止确认，
+      // 否则脏数据会直接流到计划单与应收。（pending_items 为 null/[] 的普通订单不受影响）
+      const pending = Array.isArray(order.pendingItems) ? order.pendingItems : [];
+      if (pending.length) {
+        throw new BadRequestException('订单存在待补项，请先在订单列表补全后再确认：' + pending.map((x) => x.message).join('；'));
+      }
+
       const existing = await tx
         .select()
         .from(planSheets)

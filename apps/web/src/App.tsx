@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Badge, Layout, Menu, Space, Typography } from 'antd'
 import {
   AccountBookOutlined, AppstoreOutlined, DashboardOutlined, DatabaseOutlined, ProfileOutlined,
-  RobotOutlined, ScheduleOutlined, SettingOutlined, ShoppingCartOutlined,
+  RobotOutlined, ScheduleOutlined, SettingOutlined, ShoppingCartOutlined, TagOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import type { ReactNode } from 'react'
@@ -16,6 +16,7 @@ import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
+import QuotesPage from './pages/QuotesPage'
 import SchedulingPage from './pages/SchedulingPage'
 import SetupPage from './pages/SetupPage'
 import WarehousePage from './pages/WarehousePage'
@@ -38,6 +39,7 @@ const MENU_DEF: { key: PageKey; icon: ReactNode; label: string }[] = [
   { key: 'schedule', icon: <ScheduleOutlined />, label: '排程看板' },
   { key: 'warehouse', icon: <DatabaseOutlined />, label: '仓储管理' },
   { key: 'accounting', icon: <AccountBookOutlined />, label: '账目统计' },
+  { key: 'quotes', icon: <TagOutlined />, label: '报价记录' },
   { key: 'ai', icon: <RobotOutlined />, label: 'AI 助手' },
 ]
 const SETUP_MENU = { key: 'setup' as PageKey, icon: <SettingOutlined />, label: '设置 · 主数据' }
@@ -50,6 +52,7 @@ const PAGE_TITLE: Record<PageKey, string> = {
   schedule: '排程看板',
   warehouse: '仓储管理',
   accounting: '账目统计',
+  quotes: '报价记录',
   ai: 'AI 助手',
   setup: '设置 · 主数据',
 }
@@ -177,6 +180,7 @@ export default function App() {
               {page === 'schedule' && <SchedulingPage />}
               {page === 'warehouse' && <WarehousePage />}
               {page === 'accounting' && <AccountingPage />}
+              {page === 'quotes' && <QuotesPage />}
               {page === 'ai' && <AiPage />}
               {page === 'setup' && <SetupPage />}
             </>

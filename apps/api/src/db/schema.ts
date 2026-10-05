@@ -102,6 +102,26 @@ export type PackType = (typeof PACK_TYPES)[number];
 /** 包装要求快照：{ box?: '包装盒×50', carton?: '纸箱×4盒', ... } */
 export type PackagingSpec = Partial<Record<PackType, string>>;
 
+/**
+ * 待补项（I17）：识单结果落草稿时，缺价/缺交期/产品未建档/客户未建档等逐项留痕。
+ * 中文诊断（message）直接给界面展示；code 供程序判定与去重（见 orders/pending-items.ts）。
+ */
+export interface PendingItem {
+  code: string;
+  message: string;
+}
+
+/**
+ * 「交期待定」哨兵日：orders.due_date 是 NOT NULL（I04 既有约束，本轮不改结构），
+ * 识单结果没有交期时用它占位，同时把 due_date_tbd 置 true —— 二者必须成对出现：
+ *   · 只看 due_date 的老代码不会崩（拿到一个合法日期）；
+ *   · 新代码/界面按 due_date_tbd 判定「待定」，绝不把这个假日期当成真实交期（见 ORDERS_DUE_DATE_TBD）。
+ */
+export const ORDERS_DUE_DATE_TBD = '2099-12-31';
+/** 未建档客户/产品占位档案名（惰性创建：只有真的落了缺客户/缺产品的草稿才会出现这两行） */
+export const PENDING_CUSTOMER_NAME = '（未建档客户·待补）';
+export const PENDING_PRODUCT_NAME = '（未建档产品·待补）';
+
 /** 订单（Order）：客户下达的生产需求单据 */
 export const orders = pgTable('orders', {
   id: serial('id').primaryKey(),
@@ -111,6 +131,12 @@ export const orders = pgTable('orders', {
     .references(() => customers.id), // 客户档案
   poNo: text('po_no'), // 客户 PO 号
   dueDate: timestamp('due_date', { withTimezone: true }).notNull(), // 交期
+  /** 交期待定（I17）：true 时 due_date 是哨兵日 ORDERS_DUE_DATE_TBD，界面显示「待定」 */
+  dueDateTbd: boolean('due_date_tbd').default(false).notNull(),
+  /** 客户未建档时识别到的客户名（customerId 指向占位档案 PENDING_CUSTOMER_NAME） */
+  draftCustomerName: text('draft_customer_name'),
+  /** 单头待补项（缺交期/客户未建档…）；null = 非识单落草稿的普通订单（向后兼容，不参与待补拦截） */
+  pendingItems: jsonb('pending_items').$type<PendingItem[]>(),
   note: text('note'), // 备注
   status: orderStatusEnum('status').default('draft').notNull(), // 五态
   /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
@@ -133,6 +159,12 @@ export const orderLines = pgTable('order_lines', {
   currency: currencyEnum('currency').default('RMB').notNull(), // 币种（出海预留）
   engraving: text('engraving'), // 刻字需求
   packaging: jsonb('packaging').$type<PackagingSpec>(), // 包装要求（复合，JSONB）
+  /** 行级待补项（I17）：缺数量/缺单价/产品未建档…；null = 普通订单行（向后兼容） */
+  pendingItems: jsonb('pending_items').$type<PendingItem[]>(),
+  /** 单价来源（I17）：'quote' = 该单价由报价记录自动补全（可追溯）；null = 原始单据自带 */
+  priceSource: text('price_source'),
+  /** 产品未建档时识别到的产品原文（productId 指向占位产品 PENDING_PRODUCT_NAME） */
+  productNameText: text('product_name_text'),
 });
 
 /** 包装模板库：整行包装要求保存/复用 + 样式图（I04） */
@@ -721,4 +753,51 @@ export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type InvoiceOrder = typeof invoiceOrders.$inferSelect;
 export type NewInvoiceOrder = typeof invoiceOrders.$inferInsert;
+
+// ============================================================
+// 报价记录（I17）—— 报价单是**独立单据**，不进订单域五态
+// 设计要点（甲方裁定）：
+//   · 报价「方便更新」是第一诉求 → 本表可改可停用，改价留 updatedAt/operatorId，历史行不删；
+//   · customer_id 可空 = 通用价（不限客户）；product_id 可空 = 只按 product_name 文本匹配；
+//   · 有效期 valid_from / valid_to 可空（空 = 不设边界），enabled 停用后不参与取价；
+//   · 取价规则（客户+产品 > 客户+产品名文本 > 通用价，同一档内取 valid_from 最新且有效的一条）
+//     是**服务端纯函数**，见 quotes/quote-pricing.ts —— 识单补价与 /api/quotes/lookup 共用同一实现。
+// ============================================================
+
+/** 报价来源：手工录入 / 批量导入 / 文档（.doc/.xls 采购单、报价单）提取 */
+export const QUOTE_SOURCES = ['manual', 'import', 'doc'] as const;
+export type QuoteSource = (typeof QUOTE_SOURCES)[number];
+
+/** 报价记录（Product Quote）：报价单的落库形态，价格会变 → 支持改价留痕 + 有效期生效 */
+export const productQuotes = pgTable('product_quotes', {
+  id: serial('id').primaryKey(),
+  /** 客户档案；**可空 = 通用价（不限客户）** */
+  customerId: integer('customer_id').references(() => customers.id),
+  /** 产品目录；**可空 = 只有产品名文本（尚未建档也允许报价）** */
+  productId: integer('product_id').references(() => products.id),
+  /** 产品名文本兜底（productId 为空时按它做文本匹配；有 productId 时作为冗余展示） */
+  productName: text('product_name'),
+  /** 单价（分）：金额一律以「分」为准，写入/比较走 common/money.ts */
+  unitPriceCents: bigint('unit_price_cents', { mode: 'number' }).notNull(),
+  /** 币种：默认 CNY（与订单行 currency 枚举 RMB/USD 的换算见 quotes/quote-pricing.ts） */
+  currency: text('currency').default('CNY').notNull(),
+  /** 生效日（含）；空 = 不设起始边界 */
+  validFrom: date('valid_from'),
+  /** 失效日（含）；空 = 不设到期边界；过期后不参与取价 */
+  validTo: date('valid_to'),
+  /** 来源：manual / import / doc */
+  source: text('source').default('manual').notNull(),
+  /** 来源文件名（导入 / 文档提取时留痕，便于回溯） */
+  sourceFile: text('source_file'),
+  remark: text('remark'),
+  /** 停用后不参与取价（保留历史行，不物理删除） */
+  enabled: boolean('enabled').default(true).notNull(),
+  /** 留痕：经办操作人（免登录，取自「当前操作人」PC 绑定请求头 ×-operator-id） */
+  operatorId: integer('operator_id').references(() => operators.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ProductQuote = typeof productQuotes.$inferSelect;
+export type NewProductQuote = typeof productQuotes.$inferInsert;
 

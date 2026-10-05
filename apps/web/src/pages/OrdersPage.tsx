@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Button, Card, DatePicker, Form, Input, InputNumber,
-  Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography, message,
+  Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -11,6 +11,7 @@ import { fmtCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
 import OrderDetailModal from '../components/OrderDetailModal'
+import DraftFillModal from '../components/DraftFillModal'
 import AiOrderImport from '../components/AiOrderImport'
 import InvoiceFormModal from '../components/InvoiceFormModal'
 import type { AiFillPayload, AiResolveResult } from '../components/AiOrderImport'
@@ -109,7 +110,8 @@ function OrderCreateCard({ editOrder, onEdited, onCancelEdit }: {
     form.setFieldsValue({
       customerId: editOrder.customerId,
       poNo: editOrder.poNo || undefined,
-      dueDate: editOrder.dueDate ? dayjs(editOrder.dueDate) : undefined,
+      // 交期待定的识单草稿：不要把哨兵日 2099-12-31 预填成真实交期，留空让人工选
+      dueDate: editOrder.dueDate && !editOrder.dueDateTbd ? dayjs(editOrder.dueDate) : undefined,
       note: editOrder.note || undefined,
       lines: editOrder.lines.map((l) => ({
         productId: l.productId,
@@ -541,6 +543,9 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [status, setStatus] = useState<string>('')
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [kw, setKw] = useState('')
+  /** I17：只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
+  const [pendingOnly, setPendingOnly] = useState(false)
+  const [fillFor, setFillFor] = useState<Order | null>(null)
   const [detail, setDetail] = useState<Order | null>(null)
   /** 快捷开票目标订单（带入剩余未开票金额；I16 交互简化） */
   const [invoiceFor, setInvoiceFor] = useState<Order | null>(null)
@@ -580,12 +585,13 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       else if (status) params.set('status', status)
       if (customerId) params.set('customerId', String(customerId))
       if (kw.trim()) params.set('kw', kw.trim())
+      if (pendingOnly) params.set('hasPending', '1')
       setRows(await api<Order[]>(`/orders?${params.toString()}`))
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
     } finally { setLoading(false) }
   }
-  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick, pendingOnly]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 取消订单（五态收敛）：未投产可取消，未开工计划单与未核销应收同步冲销 */
   async function doCancel(r: Order) {
@@ -637,7 +643,26 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         </Space>
       ),
     },
-    { title: '交期', dataIndex: 'dueDate', width: 110, render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
+    {
+      title: '交期', dataIndex: 'dueDate', width: 110,
+      render: (v: string, r: Order) => (r.dueDateTbd
+        ? <Tag color="error">待定</Tag>
+        : dayjs(v).format('YYYY-MM-DD')),
+    },
+    {
+      // I17 待补列：识单落草稿的单据在此一眼看出还缺什么（中文诊断，悬停看全部）
+      title: '待补', key: 'pending', width: 130,
+      render: (_: unknown, r: Order) => {
+        const items = r.pendingItems
+        if (!Array.isArray(items)) return <Text type="secondary">—</Text>
+        if (!items.length) return <Tag color="success">已补全</Tag>
+        return (
+          <Tooltip title={<div style={{ maxWidth: 420 }}>{items.map((x, i) => <div key={i}>· {x.message}</div>)}</div>}>
+            <Tag color="error" style={{ cursor: 'help' }}>待补 {items.length} 项</Tag>
+          </Tooltip>
+        )
+      },
+    },
     {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
@@ -650,6 +675,9 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         <Space size={4}>
           {r.status === 'draft' && (
             <>
+              {!!r.pendingItems?.length && (
+                <Button size="small" danger onClick={() => setFillFor(r)}>补全（{r.pendingItems.length}）</Button>
+              )}
               {onEdit && <Button size="small" onClick={() => onEdit(r)}>编辑</Button>}
               <Button type="primary" size="small" loading={confirmingId === r.id} onClick={() => doConfirm(r)}>确认</Button>
               <Popconfirm
@@ -686,7 +714,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         </Space>
       ),
     },
-  ], [confirmingId, deletingId, cancelingId, setInvoiceFor])
+  ], [confirmingId, deletingId, cancelingId, setInvoiceFor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filterBar = !archived && (
     <Space wrap style={{ marginBottom: 12 }}>
@@ -696,6 +724,11 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         options={customers.map((c) => ({ value: c.id, label: c.name }))} allowClear />
       <Input.Search placeholder="单号/PO号搜索" style={{ width: 200 }} allowClear
         onSearch={(v) => { setKw(v); fetchRows() }} />
+      {/* I17：识单落草稿的单据可能缺价/缺交期/未建档 —— 一键筛出并逐项补全 */}
+      <Space size={4}>
+        <Switch size="small" checked={pendingOnly} onChange={setPendingOnly} />
+        <Text style={{ fontSize: 12 }}>仅看有未补全项的草稿单</Text>
+      </Space>
       <Button onClick={fetchRows}>查询</Button>
     </Space>
   )
@@ -711,6 +744,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       <Table<Order> rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
         pagination={{ pageSize: 10, showSizeChanger: false }} />
       <OrderDetailModal order={detail} open={!!detail} onClose={() => setDetail(null)} />
+      {/* I17 补全面板：列出待补项，支持「一键从报价记录取价」 */}
+      <DraftFillModal order={fillFor} onClose={() => setFillFor(null)} onChanged={fetchRows} onEdit={onEdit} />
       {/* 快捷开票：关联订单已带入且锁定，开票金额默认 = 价格 − 已开票，点「确定开票」即结清 */}
       <InvoiceFormModal
         open={!!invoiceFor}
