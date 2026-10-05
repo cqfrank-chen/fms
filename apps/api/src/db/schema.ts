@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, date, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, index, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 // ============================================================
@@ -45,6 +45,19 @@ export const SETTLEMENTS = [
 export type Settlement = (typeof SETTLEMENTS)[number];
 export const settlementEnum = pgEnum('settlement', SETTLEMENTS);
 
+/**
+ * 目录气体类型（2026 官方产品目录更正）：LPG = 液化石油气（丙烷）；ACETYLENE = 乙炔。
+ * 注意：这是**目录的**气体口径，与产品表既有的 product_type 枚举（英式/美式 × 乙炔/丙烷）不是一回事 ——
+ * 目录按「款式」分组（美式/日式/英式/法式/澳式/巴西式），既有枚举只覆盖英式/美式两族，
+ * 所以目录锚定结果写在新增的 series / gas_type 列里，**不改动既有 type 列**（迁移只新增，见 drizzle/0023）。
+ */
+export const CATALOG_GAS_TYPES = ['LPG', 'ACETYLENE'] as const;
+export type CatalogGasType = (typeof CATALOG_GAS_TYPES)[number];
+
+/** 目录锚定状态：matched = 型号与尺寸都锚定到目录；unmatched = 锚定不到（保持现状并标记，绝不臆造） */
+export const CATALOG_ANCHOR_STATUSES = ['matched', 'unmatched'] as const;
+export type CatalogAnchorStatus = (typeof CATALOG_ANCHOR_STATUSES)[number];
+
 /** 产品目录（Product Catalog）：订单与计划单产品信息唯一来源 */
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
@@ -53,9 +66,23 @@ export const products = pgTable('products', {
   defaultPackaging: text('default_packaging'), // 默认包装描述（如：包装盒×50+纸箱）
   defaultRouting: text('default_routing'), // 默认工序路线文本（结构化工序主数据后续票补）
   safetyStock: integer('safety_stock').default(0).notNull(), // 安全库存（低于标红）
+  // ---- 官方产品目录锚定字段（2026 目录更正；迁移**只新增**，见 drizzle/0023_catalog_anchor.sql）----
+  // 口径：型号 = 基础型号 + size。**不同 size 仍是独立产品档案**（不合并），只是各自带上这两列。
+  catalogModel: text('catalog_model'), // 目录基础型号（1-101 / GPN / 6290NX…）；null = 未锚定
+  sizeSpec: text('size_spec'), // 目录 size setting（000 / 00 / 0 / 1…，**前导零原样**）；null = 名称未写尺寸
+  series: text('series'), // 系列 / 款式（AMERICAN STYLE CUTTING TIP 等）
+  gasType: text('gas_type'), // 目录气体类型 LPG（丙烷）/ ACETYLENE（乙炔）
+  orificeMm: numeric('orifice_mm'), // 切割孔径(mm)，取自目录该型号该 size 行（保留目录写法）
+  thicknessRange: text('thickness_range'), // 切割厚度范围(mm)，取自目录，如 '6-10'
+  catalogAnchor: text('catalog_anchor'), // matched / unmatched（未锚定的保持现状并标记）
+  catalogNote: text('catalog_note'), // 锚定说明 / 未锚定原因（人工复核用）
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
-});
+}, (t) => [
+  // 目录锚定检索索引：与 0023_catalog_anchor.sql 已建的同名索引对齐
+  // （此前只写在迁移与快照里、未在 schema 声明，导致 drizzle-kit 认为要删掉它）
+  index('products_catalog_model_size_idx').on(t.catalogModel, t.sizeSpec),
+]);
 
 /** 客户档案（Customer）：订单与应收归集主体 */
 export const customers = pgTable('customers', {
@@ -835,4 +862,62 @@ export const productQuotes = pgTable('product_quotes', {
 
 export type ProductQuote = typeof productQuotes.$inferSelect;
 export type NewProductQuote = typeof productQuotes.$inferInsert;
+
+// ============================================================
+// 不干胶库存（I18）—— 图片识别建档 + 数量维护
+// ------------------------------------------------------------
+// 设计要点：
+//   · 一条记录 = 一种不干胶（品牌 × 样式/系列 × 规格 的描述性标题），一个客户一份库存；
+//   · 图片存**挂载卷目录**，库里只存**相对路径**（绝不把大图 base64 存库），见 stickers/sticker-storage.ts；
+//   · 标题由 stickers/sticker-title.ts 的**纯函数**生成：品牌 + 样式/系列 + 规格 组合、
+//     缺项自动省略并在备注里说明缺什么，**绝不臆造**图中没有的信息；
+//   · AI 提取的原文存 raw_text，便于人工复核「识别结果 vs 原图」；
+//   · 数量变动不改历史：每次调整写一条 sticker_adjustments 流水（变动前/变动量/变动后 + 操作人 + 备注）。
+// ============================================================
+
+/** 数量调整方向词表（入库 / 领用）—— 前端下拉与服务端口径一致 */
+export const STICKER_ADJUST_KINDS = ['in', 'out'] as const;
+export type StickerAdjustKind = (typeof STICKER_ADJUST_KINDS)[number];
+
+/** 不干胶库存主表 */
+export const stickers = pgTable('stickers', {
+  id: serial('id').primaryKey(),
+  /** 库存标题：由「品牌 + 样式/系列 + 规格」自动生成（用户可改），见 sticker-title.ts */
+  title: text('title').notNull(),
+  brand: text('brand'), // 品牌（如 GLOOR / VICTOR / INFRA）
+  style: text('style'), // 样式 / 系列（如 白盒贴、正唛、6290NX）
+  sizeSpec: text('size_spec'), // 规格 / 尺寸（如 20×30mm）
+  qty: integer('qty').default(0).notNull(), // 库存数量（默认 0；识别到数量时用识别值，用户可改）
+  unit: text('unit').default('张').notNull(), // 单位（默认 张；卷装可改 卷）
+  customer: text('customer'), // 所属客户 / 文件夹名（可空 = 通用）
+  /** 图片相对路径（相对 STICKER_UPLOAD_DIR，形如 2026/10/xxxx.jpg）；空 = 无图记录 */
+  imagePath: text('image_path'),
+  /** AI 识别原文（视觉通道返回的 rawText），人工复核追溯用 */
+  rawText: text('raw_text'),
+  remark: text('remark'), // 备注（含「缺项说明」：标题生成时哪几项没识别到）
+  /** 留痕：建档/最后编辑的操作人（免登录，取登录用户绑定操作人，回退 X-Operator-Id） */
+  operatorId: integer('operator_id').references(() => operators.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** 不干胶数量流水（入库/领用）：只增不改不删，出入库留痕可审计 */
+export const stickerAdjustments = pgTable('sticker_adjustments', {
+  id: serial('id').primaryKey(),
+  stickerId: integer('sticker_id')
+    .notNull()
+    .references(() => stickers.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // in（入库）/ out（领用）
+  qtyBefore: integer('qty_before').notNull(), // 变动前数量
+  qtyDelta: integer('qty_delta').notNull(), // 变动量（入库为正、领用为负，**带符号**原样留痕）
+  qtyAfter: integer('qty_after').notNull(), // 变动后数量（服务端算好写死，便于核对）
+  remark: text('remark'), // 本次调整备注
+  operatorId: integer('operator_id').references(() => operators.id), // 留痕：经办人
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type Sticker = typeof stickers.$inferSelect;
+export type NewSticker = typeof stickers.$inferInsert;
+export type StickerAdjustment = typeof stickerAdjustments.$inferSelect;
+export type NewStickerAdjustment = typeof stickerAdjustments.$inferInsert;
 

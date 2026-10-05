@@ -444,3 +444,71 @@ export interface OrderInvoiceStatus {
   unreceivedCents: number
   invoices: Invoice[]
 }
+
+// ===== 不干胶库存（I18）=====
+export interface Sticker {
+  id: number
+  title: string
+  brand?: string | null
+  style?: string | null
+  sizeSpec?: string | null
+  qty: number
+  unit: string
+  customer?: string | null
+  imagePath?: string | null
+  imageUrl?: string | null
+  imageBytes?: number | null
+  rawText?: string | null
+  remark?: string | null
+  operatorId?: number | null
+  operatorName?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface StickerList {
+  total: number
+  page: number
+  pageSize: number
+  rows: Sticker[]
+}
+
+/** 识图建议（POST /stickers/recognize 返回；ok=false 时 message 为中文提示，可手工填写后建档） */
+export interface StickerSuggestion {
+  title: string
+  brand: string
+  style: string
+  sizeSpec: string
+  qty: number | null
+  unit: string
+  customer: string
+  remark: string
+  rawText: string
+  missing: string[]
+  note: string
+}
+
+export interface StickerRecognizeResult {
+  ok: boolean
+  code?: 'VISION_KEY_MISSING' | 'VISION_FAILED' | 'VISION_EMPTY'
+  message?: string
+  imagePath?: string
+  suggestion: StickerSuggestion
+  mock?: boolean
+  degraded?: boolean
+}
+
+/** 数量流水（入库/领用留痕） */
+export interface StickerAdjustment {
+  id: number
+  stickerId: number
+  kind: string
+  qtyBefore: number
+  qtyDelta: number
+  qtyAfter: number
+  remark?: string | null
+  operatorId?: number | null
+  operatorName?: string | null
+  createdAt?: string
+}
+

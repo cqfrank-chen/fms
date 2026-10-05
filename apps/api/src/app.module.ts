@@ -18,6 +18,7 @@ import { PlanSheetsModule } from './plan-sheets/plan-sheets.module';
 import { ProductsModule } from './products/products.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
+import { StickersModule } from './stickers/stickers.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { UpdateModule } from './update/update.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
@@ -40,6 +41,7 @@ import { OperatorInterceptor } from './common/operator.interceptor';
     AccountingModule,
     InvoicesModule,
     SchedulingModule,
+    StickersModule,
     MasterDataModule,
     UpdateModule,
   ],

@@ -55,6 +55,8 @@ services:
       AI_VISION_BASE_URL: ${AI_VISION_BASE_URL:-}
       AI_VISION_KEY: ${AI_VISION_KEY:-}
       AI_VISION_MODEL: ${AI_VISION_MODEL:-qwen3-vl-flash}
+      # 不干胶图片存储目录（挂载卷内；容器里固定 /app/uploads/stickers，见下方 volumes）
+      STICKER_UPLOAD_DIR: ${STICKER_UPLOAD_DIR:-/app/uploads/stickers}
       # 自动更新（I13）：构建提交号由安装/升级脚本写入 .env；更新源指向 GitHub 仓库
       FMS_BUILD_SHA: ${FMS_BUILD_SHA:-unknown}
       FMS_UPDATE_REPO: ${FMS_UPDATE_REPO:-cqfrank-chen/fms}
@@ -63,6 +65,9 @@ services:
     volumes:
       # 更新包 / 更新请求 / 宿主更新代理状态（与宿主 system\updates 共享）
       - ./updates:/app/updates
+      # 上传文件（不干胶图片等）：挂载卷目录，不随镜像升级丢失，宿主可直接备份/清理
+      # 仓库里 uploads/ 已 gitignore（图片不入库，仅存路径）
+      - ./uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

@@ -58,6 +58,9 @@ export const PAGE_ROLES: Record<PageKey, UserRole[]> = {
   plans: ['admin', 'planner', 'warehouse', 'workshop'],
   schedule: ['admin', 'planner', 'workshop'],
   warehouse: ['admin', 'planner', 'warehouse'],
+  // 不干胶库存（I18）：仓储维护（入库/领用/建档），计划员可查看
+  //（与后端 @Roles('admin','warehouse') 的写权限对齐；读操作所有登录角色可用）
+  stickers: ['admin', 'planner', 'warehouse'],
   accounting: ['admin', 'accounting'],
   // 报价记录（I17）：计划员维护价格、账务可只读查看（与后端 @Roles('admin','planner') 写权限对齐）
   quotes: ['admin', 'planner', 'accounting'],

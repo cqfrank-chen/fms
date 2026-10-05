@@ -22,6 +22,9 @@ backups/
 # 自动更新代理的运行文件（状态/请求/日志/下载包）
 updates/
 
+# 上传文件（不干胶图片等，挂载卷目录）：图片只存路径入库，文件本体不入库
+uploads/
+
 # Python 字节码缓存（tools/ziliao 的脚本是标准库脚本，会产生 __pycache__）
 __pycache__/
 *.pyc

@@ -33,6 +33,7 @@ import type { UserRole } from '../db/schema';
  *  盘点 建单/确认/冲销 (warehouse/stocktakes*)                √          √
  *  收付款单/核销/冲销 (accounting/collection|payment-slips*)   √                     √
  *  月度成本 (accounting/monthly-costs)                       √                     √
+ *  不干胶库存 识别/建档/编辑/调量 (stickers/recognize|POST|PUT|adjust)  √          √
  *  AI 解析/反馈 (ai/orders/*, ai/feedback)                   √
  *  AI 配置写 (ai/config*, ai/test)                          —
  *  操作人主数据 (operators/*)                                —

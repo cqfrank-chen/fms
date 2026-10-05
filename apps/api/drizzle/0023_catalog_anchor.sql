@@ -1,0 +1,9 @@
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "catalog_model" text;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "size_spec" text;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "series" text;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "gas_type" text;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "orifice_mm" numeric;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "thickness_range" text;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "catalog_anchor" text;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "catalog_note" text;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "products_catalog_model_size_idx" ON "products" USING btree ("catalog_model","size_spec");

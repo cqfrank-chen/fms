@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, Layout, Menu, Space, Typography } from 'antd'
 import {
-  AccountBookOutlined, AppstoreOutlined, DashboardOutlined, DatabaseOutlined, ProfileOutlined,
-  RobotOutlined, ScheduleOutlined, SettingOutlined, ShoppingCartOutlined, TagOutlined,
+  AccountBookOutlined, AppstoreOutlined, DashboardOutlined, DatabaseOutlined, FileImageOutlined,
+  ProfileOutlined, RobotOutlined, ScheduleOutlined, SettingOutlined, ShoppingCartOutlined, TagOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import type { ReactNode } from 'react'
@@ -18,6 +18,7 @@ import OrdersPage from './pages/OrdersPage'
 import PlansPage from './pages/PlansPage'
 import QuotesPage from './pages/QuotesPage'
 import SchedulingPage from './pages/SchedulingPage'
+import StickersPage from './pages/StickersPage'
 import SetupPage from './pages/SetupPage'
 import WarehousePage from './pages/WarehousePage'
 import { canAccessPage, defaultPage, fetchMe } from './lib/auth'
@@ -38,6 +39,7 @@ const MENU_DEF: { key: PageKey; icon: ReactNode; label: string }[] = [
   { key: 'plans', icon: <ProfileOutlined />, label: '计划单' },
   { key: 'schedule', icon: <ScheduleOutlined />, label: '排程看板' },
   { key: 'warehouse', icon: <DatabaseOutlined />, label: '仓储管理' },
+  { key: 'stickers', icon: <FileImageOutlined />, label: '不干胶库存' },
   { key: 'accounting', icon: <AccountBookOutlined />, label: '账目统计' },
   { key: 'quotes', icon: <TagOutlined />, label: '报价记录' },
   { key: 'ai', icon: <RobotOutlined />, label: 'AI 助手' },
@@ -51,6 +53,7 @@ const PAGE_TITLE: Record<PageKey, string> = {
   plans: '计划单',
   schedule: '排程看板',
   warehouse: '仓储管理',
+  stickers: '不干胶库存',
   accounting: '账目统计',
   quotes: '报价记录',
   ai: 'AI 助手',
@@ -179,6 +182,7 @@ export default function App() {
               {page === 'plans' && <PlansPage />}
               {page === 'schedule' && <SchedulingPage />}
               {page === 'warehouse' && <WarehousePage />}
+              {page === 'stickers' && <StickersPage />}
               {page === 'accounting' && <AccountingPage />}
               {page === 'quotes' && <QuotesPage />}
               {page === 'ai' && <AiPage />}

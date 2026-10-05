@@ -159,6 +159,18 @@ export const TAX_RATE_OPTIONS = [
   { value: 0, label: '0%（免税/出口）' },
 ]
 
+/** 不干胶数量调整方向（与后端 sticker-qty.ts 的 STICKER_ADJUST_KINDS 一一对应） */
+export const STICKER_ADJUST_LABEL: Record<string, string> = {
+  in: '入库',
+  out: '领用',
+}
+
+/** 不干胶单位可选项（默认张；卷装可改） */
+export const STICKER_UNIT_OPTIONS = [
+  { value: '张', label: '张' },
+  { value: '卷', label: '卷' },
+]
+
 /** 月度成本六类 */
 export const COST_CATEGORY_LABEL: Record<string, string> = {
   labor: '人工',
