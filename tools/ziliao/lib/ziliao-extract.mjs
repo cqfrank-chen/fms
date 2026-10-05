@@ -39,7 +39,12 @@ export const DEFAULT_DOC_SLICE_DIRS = [
 /** 服务端 headerArea/pack 口径用到的「非产品行」终止词（与 table-parser.service 的 NOISE_RULES 同精神，本工具只用其中与产品名判定相关的部分） */
 const STOP_ROW_RE = /^(合\s*计|总\s*计|大写|人民币大写|金额大写|备\s*注|合同备注|正\s*唛|侧\s*唛|签署|盖章|供\s*方|需\s*方|[一二三四五六七八九十]{1,3}\s*[、.．]|第[一二三四五六七八九十]{1,3}条)/;
 
-/** 与 apps/api/src/ai/table-parser.service.ts 的 normalizeToken 完全同口径 */
+/**
+ * 与 apps/api/src/ai/table-parser.service.ts 的 normalizeToken 完全同口径。
+ * ⚠️ 口径边界（2026 甲方更正）：归一化只碰文本外壳（空格/全角半角/大小写/标点），
+ * **不碰数字** —— 不删前导零、不折叠数字位。但删标点会让 1-1-101 与 111-01 归一后都成 11101，
+ * 所以凡「是不是同一个产品型号」的判定都必须再过一道 digitSignature（见 productIdentityKey）。
+ */
 export function normalizeToken(s) {
   return String(s ?? '')
     .replace(/[\uff01-\uff5e]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
@@ -48,6 +53,27 @@ export function normalizeToken(s) {
     .replace(/[\uff08\uff09()\uff1a:*\uff0c,\u3002\u3001.\uff0e\-_\/\uff0f\u3010\u3011\[\]\u300c\u300d'\u2019\u201c\u201d"]/g, '');
 }
 
+/**
+ * 数字指纹（与 apps/api/src/ai/table-parser.service.ts 的 digitSignature 完全同口径）：
+ * 按出现顺序抽出数字段并用 - 连接，**前导零与位数原样保留 → 逐字符比较**。
+ *   0-GPN → "0" ／ 00-GPN → "00" ／ 000-GPN → "000"（互不相等）
+ *   1-1-101 → "1-1-101" ／ 111-01 → "111-01"（互不相等）
+ */
+export function digitSignature(s) {
+  // 全角 → 半角（属于允许的「全角半角」归一），其余不动：前导零 / 位数原样保留
+  const half = String(s ?? '').replace(/[\uff01-\uff5e]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  return (half.match(/[0-9]+/g) ?? []).join('-');
+}
+
+/** 产品去重键（文本归一 + 数字指纹）：0-GPN / 00-GPN / 000-GPN 必须是三个不同的键 */
+export function productIdentityKey(s) {
+  return normalizeToken(s) + '#' + digitSignature(s);
+}
+
+/** 两个写法是否同一型号：文本归一相同 **且** 数字指纹相同（数字部分含前导零逐字符一致） */
+export function sameProductModel(a, b) {
+  return normalizeToken(a) === normalizeToken(b) && digitSignature(a) === digitSignature(b);
+}
 /** 极简 CSV 解析（支持引号包裹与双引号转义；与 import_quotes_cloud.mjs 同一实现口径） */
 export function parseCsv(text) {
   const rows = [];
@@ -518,10 +544,30 @@ export function cleanPackaging(text) {
   return s;
 }
 
-/** 型号指纹（用于「疑似同产品的不同写法」分组）：归一后去掉非字母数字，并折叠数字段的前导零 */
+/**
+ * 型号指纹（**产品同一性判定可用**）：归一后去掉非字母数字字符。
+ * 数字段原样保留 —— modelFingerprint('0-GPN')='0gpn' ≠ modelFingerprint('00-GPN')='00gpn'。
+ * 修正记录：旧实现额外做 `t.replace(/(^|[^0-9])0+(\d)/g, '$1$2')` 折叠前导零，
+ * 会把 0/00/000-GPN 折成同一个键 —— 与甲方「前导零=不同尺寸」的口径冲突，已删除（见 variantGroupFingerprint 注释）。
+ */
 export function modelFingerprint(name) {
-  const t = normalizeToken(name).replace(/[^0-9a-z\u4e00-\u9fa5]/g, '');
-  return t.replace(/(^|[^0-9])0+(\d)/g, '$1$2');
+  return normalizeToken(name).replace(/[^0-9a-z\u4e00-\u9fa5]/g, '');
+}
+
+/**
+ * 变体候选分组指纹（**只用于把「疑似同一型号族」的写法聚到一起供人工分类**；
+ * 🚫 绝不可用于合并、去重、取价、建档判重 —— 那些地方一律用 productIdentityKey / modelFingerprint）。
+ *
+ * 它刻意比型号指纹更宽松：把「号数 #N」与前导零折成占位，好让 0/00/000-GPN 这类**同族不同尺寸**
+ * 的写法落进同一组，再由分类器按 digitSignature 判定它们属于 B 类（同型号不同尺寸，不合并）。
+ * 因此：分组结果本身**不代表可以合并**，只代表「需要人工看一眼」。
+ */
+export function variantGroupFingerprint(name) {
+  return String(name ?? '')
+    .replace(/#[0-9]+/g, '#')            // 号数 #10 → #（只折叠「号数」，不折叠型号里的数字）
+    .replace(/[0-9]+#/g, '#')            // 号数 10# → #
+    .replace(/(^|[^0-9])0+([0-9])/g, '$1$2') // 前导零 00-GPN → 0-GPN（只为聚组，便于人工看到「同族不同尺寸」）
+    .replace(/[^0-9a-z\u4e00-\u9fa5]/g, '');
 }
 
 export { STOP_ROW_RE };

@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_ZILIAO_ROOT, DEFAULT_WORK, DEFAULT_DOC_SLICE_DIRS,
   scanContracts, loadDocSlices, loadDocTexts, docRowValues,
-  isProductNoise, isSizeOnlyName, normalizeToken, topFolder, parseDateCell,
+  isProductNoise, isSizeOnlyName, normalizeToken, productIdentityKey, topFolder, parseDateCell,
 } from './lib/ziliao-extract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -171,8 +171,17 @@ console.log('.doc 切片 ' + slices.length + ' 份（含单价列的 ' + slices.
 // ============================================================
 const merged = new Map();
 let dupCount = 0, undatedDup = 0;
+// ⚠️ 甲方更正（2026）：前导零 / 数字位差异 = 不同尺寸 = 不同产品，**绝不合并**。
+// 因此去重键的产品一段用 productIdentityKey（文本归一 + **数字指纹**）：
+//   0-GPN 与 00-GPN 是两个不同的键，不会被判成「同键」而互相覆盖价格。
+// 同时用「旧口径键」再跑一遍，量化旧口径到底折叠掉多少「不同尺寸」的写法（审计证据）。
+const sizeMergeAudit = new Map(); // 旧键 → { 旧键折叠的产品写法集合 }
 for (const r of raw) {
-  const key = r.customer + '|' + normalizeToken(r.productName) + '|' + (r.validFrom ?? '');
+  const key = r.customer + '|' + productIdentityKey(r.productName) + '|' + (r.validFrom ?? '');
+  const oldKey = r.customer + '|' + normalizeToken(r.productName) + '|' + (r.validFrom ?? '');
+  if (!sizeMergeAudit.has(oldKey)) sizeMergeAudit.set(oldKey, new Map());
+  const g = sizeMergeAudit.get(oldKey);
+  g.set(r.productName, (g.get(r.productName) ?? 0) + 1);
   const prev = merged.get(key);
   if (!prev) { merged.set(key, r); continue; }
   dupCount += 1;
@@ -180,8 +189,17 @@ for (const r of raw) {
   // 同键保留信息更全的一条（有包装/有合同号的优先），价格不同则保留较新的录入（后者）
   merged.set(key, prev.remark.length >= r.remark.length ? prev : r);
 }
+// 旧口径下会被折叠成一条、但数字指纹其实不同的写法组合 = 尺寸合并实例
+const sizeMerges = [...sizeMergeAudit.entries()]
+  .map(([oldKey, g]) => ({ oldKey, names: [...g.keys()] }))
+  .filter((x) => x.names.length > 1)
+  .map((x) => ({ oldKey: x.oldKey, names: x.names, digits: x.names.map((n) => (String(n).match(/[0-9]+/g) ?? []).join('-')) }))
+  // 只有「数字指纹不同」才算尺寸折叠；写法只差标点/空格的合并是**正确**的文本归一，不算问题
+  .filter((x) => new Set(x.digits).size > 1);
+const mergedWritings = sizeMerges.reduce((n, x) => n + x.names.length, 0);
 const rowsAll = [...merged.values()];
 console.log('同键合并 ' + dupCount + ' 条（其中无日期同键 ' + undatedDup + ' 条）→ 去重后 ' + rowsAll.length + ' 条');
+console.log('尺寸合并审计：旧口径（只按 normalizeToken）会把 ' + sizeMerges.length + ' 组 / ' + mergedWritings + ' 条不同尺寸的写法折叠成同一条 → 新口径（加数字指纹）已拆开');
 
 const byCustomer = {};
 const bySource = {};
@@ -209,7 +227,15 @@ const summary = [
   '资料包根目录：' + ROOT,
   '来源① Excel 合同 ' + contracts.length + ' 份 → 价格行 ' + contractKept + '（币种 ' + JSON.stringify(currencyCount) + '）',
   '来源② .doc 切片（采购单族/带价其它单据）→ 价格行 ' + docKept,
-  '同键（客户+产品+生效日期）合并 ' + dupCount + ' 条 → 最终 ' + rowsAll.length + ' 条',
+  '去重键口径（2026 甲方更正）：客户 + **产品同一性键（文本归一 + 数字指纹）** + 生效日期。',
+  '  只做「空格 / 全角半角 / 大小写 / 标点」归一；数字部分含前导零、位数、号数**原样保留、逐字符比较**。',
+  '  0-GPN 与 00-GPN 是同一型号的不同尺寸 → 两条独立报价，绝不互相覆盖。',
+  '同键（客户+产品同一性键+生效日期）合并 ' + dupCount + ' 条 → 最终 ' + rowsAll.length + ' 条',
+  '',
+  '尺寸合并审计（旧口径只用 normalizeToken 建键，会把「文本归一相同但数字指纹不同」的产品折叠成同一条报价）：',
+  '  · 旧口径会折叠的键：' + sizeMerges.length + ' 组 / 涉及产品写法 ' + mergedWritings + ' 条',
+  '  · 结论：' + (sizeMerges.length ? '确实发生过尺寸折叠（明细见 contract_price_seed_size_merge_audit.csv）' : '**未发生尺寸折叠**（旧口径也未把不同尺寸合成一条）'),
+  '  · 最终报价种子 ' + rowsAll.length + ' 条' + (sizeMerges.length ? '（旧口径为 ' + (rowsAll.length - mergedWritings + sizeMerges.length) + ' 条）' : ''),
   '',
   '按客户：' + JSON.stringify(byCustomer),
   '按来源：' + JSON.stringify(bySource),
@@ -230,12 +256,20 @@ const summary = [
 ];
 fs.writeFileSync(path.join(OUT_DIR, 'contract_price_seeds_summary.txt'), summary.join('\r\n') + '\r\n', 'utf8');
 
+// 审计清单：旧口径会把哪些「不同尺寸」的产品写法折叠成同一条报价
+fs.writeFileSync(path.join(OUT_DIR, 'contract_price_seed_size_merge_audit.csv'),
+  '\uFEFF' + [['旧口径键（客户|归一产品名|生效日期）', '会被折叠成一条的产品写法数', '各写法的数字指纹（逐字符）', '产品写法', '结论'],
+    ...sizeMerges.flatMap((m) => m.names.map((n, i) => [m.oldKey, m.names.length, m.digits[i], n,
+      '数字指纹不一致 → 旧口径属于尺寸折叠；新口径各自成一条报价']))]
+    .map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n', 'utf8');
+
 fs.writeFileSync(path.join(OUT_DIR, 'contract_price_seeds_report.json'), JSON.stringify({
   generatedAt: new Date().toISOString(),
   root: ROOT,
   contracts: { scanned, priceContracts: contracts.length, rows: contractRows, kept: contractKept, droppedSizeOnly: contractDroppedSizeOnly, droppedBadPrice: contractDroppedBadPrice, noDate: contractNoDate, currency: currencyCount },
   docSlices: { files: slices.length, kept: docKept, droppedSizeOnly: docDroppedSize, droppedBadPrice: docDroppedBad, noDate: docNoDate },
   mergedDuplicates: dupCount,
+  sizeMergeAudit: { foldedOldKeys: sizeMerges.length, affectedWritings: mergedWritings, samples: sizeMerges.slice(0, 100) },
   total: rowsAll.length,
   byCustomer, bySource, byYear,
   output: outFile,
@@ -248,5 +282,6 @@ console.log('最终 ' + rowsAll.length + ' 条（合同 ' + bySource.contract + 
 console.log('按客户 ' + JSON.stringify(byCustomer));
 console.log('按年份 ' + JSON.stringify(byYear));
 console.log('产出：');
+console.log('尺寸合并审计：旧口径会折叠 ' + sizeMerges.length + ' 组 / ' + mergedWritings + ' 条不同尺寸写法 → 新口径（加数字指纹）已拆开');
 console.log('  ' + outFile);
 console.log('  ' + path.join(OUT_DIR, 'contract_price_seeds_summary.txt'));

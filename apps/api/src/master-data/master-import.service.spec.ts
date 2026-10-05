@@ -218,6 +218,73 @@ describe('MasterImportService · 幂等（仅新增 vs 新增或更新）', () =
   });
 });
 
+describe('MasterImportService · 型号口径（甲方更正：前导零 = 不同尺寸）', () => {
+  it('产品去重**不合并尺寸差异**：0-GPN / 00-GPN / 000-GPN 三条都判 new（不是「已存在」）', async () => {
+    const rows = await svc().preview({
+      target: 'products',
+      buffer: await xlsxBuffer([
+        ['型号', '类型', '默认包装', '安全库存'],
+        ['0-GPN', '美式丙烷', '', ''],
+        ['00-GPN', '美式丙烷', '', ''],
+        ['000-GPN', '美式丙烷', '', ''],
+        ['0-1-101', '美式乙炔', '', ''],
+        ['00-1-101', '美式乙炔', '', ''],
+      ]),
+      fileName: '产品.xlsx',
+    });
+    expect(rows.summary).toEqual({ total: 5, new: 5, update: 0, skip: 0, error: 0 });
+  });
+
+  it('表内查重也不合并尺寸：0-GPN 与 00-GPN 同表出现不算重复行', async () => {
+    const rows = await svc().preview({
+      target: 'products',
+      buffer: await xlsxBuffer([
+        ['型号', '类型'],
+        ['0-GPN', '美式丙烷'],
+        ['0-GPN', '美式丙烷'], // 真正重复（完全同名）→ 表内重复 error
+        ['00-GPN', '美式丙烷'], // 不同尺寸 → 不重复
+      ]),
+      fileName: '产品.xlsx',
+    });
+    expect(rows.summary).toEqual({ total: 3, new: 2, update: 0, skip: 0, error: 1 });
+    expect(rows.rows[1].reasons[0]).toContain('与表内第 2 行重复');
+    expect(rows.rows[2].status).toBe('new');
+  });
+
+  it('档案已存在 0-GPN 时，导入 00-GPN 仍是 new（不会误判成已存在而漏建档）', async () => {
+    __db.seed('products', { name: '0-GPN', type: 'us_propane', defaultPackaging: '', defaultRouting: '', safetyStock: 0 });
+    const rows = await svc().preview({
+      target: 'products',
+      buffer: await xlsxBuffer([['型号', '类型'], ['00-GPN', '美式丙烷'], ['0-GPN', '美式丙烷']]),
+      fileName: '产品.xlsx',
+    });
+    expect(rows.rows[0].status).toBe('new');       // 00-GPN 是新尺寸
+    expect(rows.rows[1].status).toBe('skip');      // 0-GPN 已存在
+    expect(rows.rows[1].existingId).toBe(__db.state.products[0].id);
+  });
+
+  it('纯文本差异（全角/空格/大小写/标点）仍然判为同一档案 → skip / 表内重复', async () => {
+    __db.seed('products', { name: '1-101 割嘴 00#', type: 'us_acetylene', defaultPackaging: '', defaultRouting: '', safetyStock: 0 });
+    const rows = await svc().preview({
+      target: 'products',
+      buffer: await xlsxBuffer([['型号', '类型'], ['１－１０１　割嘴　００＃', '美式乙炔']]),
+      fileName: '产品.xlsx',
+    });
+    expect(rows.rows[0].status).toBe('skip');
+    expect(rows.rows[0].reasons[0]).toContain('档案已存在');
+  });
+
+  it('客户档案不受数字指纹影响（仍按名称归一：无型号语义）', async () => {
+    __db.seed('customers', { name: '客户A', contact: '', settlement: 'cash', creditDays: 0 });
+    const rows = await svc().preview({
+      target: 'customers',
+      buffer: await xlsxBuffer([['客户名称', '联系人'], [' 客户A ', '老王']]),
+      fileName: '客户.xlsx',
+    });
+    expect(rows.rows[0].status).toBe('skip');
+  });
+});
+
 describe('MasterImportService · commit 写库', () => {
   it('preview 不写库；commit 才写，并返回统计', async () => {
     const s = svc();

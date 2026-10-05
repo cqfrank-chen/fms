@@ -16,6 +16,7 @@ import { orderInvoiceState } from '../invoices/invoice-stats';
 import { QuotesService } from '../quotes/quotes.service';
 import { describeHit } from '../quotes/quote-pricing';
 import { normName } from '../ai/order-parser.service';
+import { sameProductDigits } from '../ai/table-parser.service';
 import { computeLinePending, computeOrderPending, PENDING_CODES, pendingText } from './pending-items';
 import { quoteFillTargets, resolveQuoteFills } from './draft-quote-fill';
 import type { DraftQuoteFill } from './draft-quote-fill';
@@ -548,7 +549,10 @@ export class OrdersService {
       const exact = all.find((p) => p.name.trim() === name);
       if (exact) return { id: exact.id, filed: true, name: exact.name };
       const nn = normName(name);
-      const cands = all.filter((p) => nn && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
+      // 子串容错（只允许描述/品牌前缀差异）+ **数字守卫**：数字部分（含前导零/位数/号数）必须逐字符一致，
+      // 否则「1-101」会错落到「1-101 割嘴 00#」这种不同尺寸的档案上（价格/工艺都错）。甲方更正：不同尺寸各自建档。
+      const cands = all.filter((p) => nn && sameProductDigits(name, p.name)
+        && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
       if (cands.length === 1) return { id: cands[0].id, filed: true, name: cands[0].name };
     }
     return { id: await ensurePendingProduct(), filed: false, name: name || null };

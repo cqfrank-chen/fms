@@ -7,7 +7,7 @@ import { fromCents, toCents } from '../common/money';
 import { normalizeCurrency } from '../common/currency';
 import { currentOperatorId } from '../common/operator-context';
 import {
-  mapHeaderFields, normalizeToken, parseDateCell, parseNumberCell, TableParserService,
+  mapHeaderFields, normalizeToken, parseDateCell, parseNumberCell, productIdentityKey, sameProductDigits, TableParserService,
 } from '../ai/table-parser.service';
 import { currencyToOrderEnum, describeHit, pickQuote, todayYmd } from './quote-pricing';
 import type { PriceHit, PriceQuery, QuoteLike } from './quote-pricing';
@@ -163,7 +163,9 @@ const normName = (s: string) =>
 /** 报价唯一键：客户（0=通用）+ 产品（id 或 名称文本）+ 生效日 —— 用于导入幂等与「同键改价」 */
 function quoteKey(customerId: number | null, productId: number | null, productName: string | null, validFrom: string | null): string {
   const c = customerId == null ? '0' : String(customerId);
-  const p = productId != null ? 'id:' + productId : 'name:' + normalizeToken(productName ?? '');
+  // 产品一段带**数字指纹**（productIdentityKey）：同一型号的不同尺寸（0-GPN / 00-GPN / 000-GPN）
+  // 是两个不同的报价键，导入时不会被判成「同键改价」而互相覆盖（甲方更正：不同尺寸各自建档、各自定价）。
+  const p = productId != null ? 'id:' + productId : 'name:' + productIdentityKey(productName ?? '');
   return c + '|' + p + '|' + (validFrom ?? '');
 }
 
@@ -488,7 +490,9 @@ export class QuotesService {
       if (pname) {
         const exact = allProducts.find((p) => p.name.trim() === pname);
         const nn = normName(pname);
-        const hit = exact ?? allProducts.find((p) => nn && normName(p.name) === nn);
+        // 数字守卫兜底：产品名文本对上还不够，数字部分（含前导零/位数/号数）必须逐字符一致，
+        // 避免把 0-GPN 的报价挂到 00-GPN 的档案上（不同尺寸 = 不同产品）。
+        const hit = exact ?? allProducts.find((p) => nn && normName(p.name) === nn && sameProductDigits(pname, p.name));
         if (hit) productId = hit.id;
       }
       data.productId = productId;

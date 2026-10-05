@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { customers, products, PRODUCT_TYPES, SETTLEMENTS } from '../db/schema';
 import type { NewCustomer, NewProduct, ProductType, Settlement } from '../db/schema';
-import { mapHeaderFields, normalizeToken, parseNumberCell, TableParserService } from '../ai/table-parser.service';
+import { mapHeaderFields, normalizeToken, parseNumberCell, productIdentityKey, TableParserService } from '../ai/table-parser.service';
 
 /**
  * 主数据批量导入（客户 / 产品）：Excel(.xls/.xlsx) / CSV → 预览校验 → 用户确认 → 逐行事务写库。
@@ -241,9 +241,15 @@ export class MasterImportService {
           defaultPackaging: products.defaultPackaging, defaultRouting: products.defaultRouting,
           safetyStock: products.safetyStock,
         }).from(products);
+    // ⚠️ 产品键必须带数字指纹（productIdentityKey）：0-GPN / 00-GPN / 000-GPN 是**同一型号的不同尺寸**，
+    // 归一后必须仍是三个不同的键 —— 否则导入会把不同尺寸判成「已存在」而漏建档（甲方更正，宁缺勿错）。
+    // 客户档案不涉及型号，仍按名称归一（保持既有行为不变）。
+    const keyOf = (name: unknown): string => (target === 'products'
+      ? productIdentityKey(String(name ?? ''))
+      : normalizeToken(String(name ?? '')));
     const existingByKey = new Map<string, Record<string, unknown>>();
     for (const e of existing) {
-      const k = normalizeToken(String(e.name ?? ''));
+      const k = keyOf(e.name);
       if (k && !existingByKey.has(k)) existingByKey.set(k, e);
     }
 
@@ -289,7 +295,7 @@ export class MasterImportService {
       let existingId: number | null = null;
       let changedFields: string[] | undefined;
       if (!reasons.length) {
-        const key = normalizeToken(String(data.name ?? ''));
+        const key = keyOf(data.name);
         const dupRowNo = seenInFile.get(key);
         if (dupRowNo !== undefined) {
           reasons.push('与表内第 ' + dupRowNo + ' 行重复（' + nameLabel + '相同），已跳过');
@@ -429,7 +435,8 @@ export class MasterImportService {
         return { id: row.existingId, created: false };
       }
       const dup = await tx.select({ id: products.id, name: products.name }).from(products);
-      const hit = dup.find((d) => normalizeToken(d.name) === normalizeToken(name));
+      // 产品：文本归一 + 数字指纹都相等才算同一档案（0-GPN ≠ 00-GPN ≠ 000-GPN）
+      const hit = dup.find((d) => productIdentityKey(d.name) === productIdentityKey(name));
       if (hit) return { id: hit.id, created: false };
       const [r] = await tx.insert(products).values({
         name,

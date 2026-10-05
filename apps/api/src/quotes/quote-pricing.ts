@@ -1,4 +1,4 @@
-import { normalizeToken } from '../ai/table-parser.service';
+import { digitSignature, normalizeToken } from '../ai/table-parser.service';
 import { normalizeCurrency } from '../common/currency';
 import type { CanonicalCurrency } from '../common/currency';
 
@@ -94,7 +94,12 @@ export function matchQuoteProduct(q: QuoteLike, query: PriceQuery): ProductMatch
   if (query.productId != null && q.productId != null && q.productId === query.productId) return 'productId';
   const qn = normalizeToken(q.productName ?? '');
   const pn = normalizeToken(query.productName ?? '');
-  if (qn && pn && qn === pn) return 'productName';
+  // 按名称匹配必须**双重相等**：文本归一相同（空格/全角/大小写/标点）+ 数字指纹相同。
+  // 甲方更正：0-GPN 与 00-GPN 是同一型号的不同尺寸 → 0-GPN 的价**绝不允许**命中 00-GPN；
+  // 同理 1-1-101 的价也不能命中 111-01（标点被归一后文本会假相等）。价格错误代价高，宁缺勿错。
+  const qd = digitSignature(q.productName ?? '');
+  const pd = digitSignature(query.productName ?? '');
+  if (qn && pn && qn === pn && qd === pd) return 'productName';
   // 完全通用价：报价既不限产品也不写产品名 → 任何产品都可用（最低优先级的兜底）
   if (q.productId == null && !qn) return 'anyProduct';
   return null;

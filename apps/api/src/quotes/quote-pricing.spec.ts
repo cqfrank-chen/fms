@@ -2,6 +2,7 @@ import {
   currencyToOrderEnum, describeHit, matchQuoteProduct, pickQuote, PRICE_RULE_LABEL, quoteIsEffective, todayYmd,
 } from './quote-pricing';
 import type { QuoteLike } from './quote-pricing';
+import { normalizeToken } from '../ai/table-parser.service';
 
 /**
  * 报价取价规则单元测试（纯函数，不连数据库）
@@ -151,7 +152,53 @@ describe('③ 同一档内取 valid_from 最新（同 valid_from 取 id 最大�
   });
 });
 
-describe('④ 产品匹配与其它', () => {
+describe('④ 甲方更正：0-GPN 与 00-GPN 是同一型号的不同尺寸 —— 取价绝不跨尺寸命中', () => {
+  // 甲方更正（最高优先级）：「0-GPN 和 00-GPN 是同一型号的不同尺寸」。
+  // 取价口径：按名称匹配必须「文本归一相同 + 数字指纹逐字符相同」；前导零/位数/号数任何差异都不算同一产品。
+  const gpn = (id: number, productName: string, cents: number, customerId: number | null = null): QuoteLike =>
+    q({ id, customerId, productName, unitPriceCents: cents });
+
+  it('有 0-GPN 的价，但查询 00-GPN → **不命中**（保持缺价，宁缺勿错）', () => {
+    const quotes = [gpn(1, '0-GPN', 850)];
+    expect(matchQuoteProduct(quotes[0], { productName: '00-GPN' })).toBeNull();
+    expect(pickQuote(quotes, { productName: '00-GPN', customerId: 7, onDate: ON })).toBeNull();
+  });
+
+  it('0-GPN / 00-GPN / 000-GPN 三条价各自只命中自己', () => {
+    const quotes = [gpn(1, '0-GPN', 100), gpn(2, '00-GPN', 200), gpn(3, '000-GPN', 300)];
+    expect(pickQuote(quotes, { productName: '0-GPN', customerId: 7, onDate: ON })!.quoteId).toBe(1);
+    expect(pickQuote(quotes, { productName: '00-GPN', customerId: 7, onDate: ON })!.quoteId).toBe(2);
+    expect(pickQuote(quotes, { productName: '000-GPN', customerId: 7, onDate: ON })!.quoteId).toBe(3);
+    expect(pickQuote(quotes, { productName: '0000-GPN', customerId: 7, onDate: ON })).toBeNull();
+  });
+
+  it('标点/全角/空格差异仍然是同一个尺寸 → 正常命中（不误伤纯文本差异）', () => {
+    const quotes = [gpn(1, '0-GPN', 850)];
+    expect(pickQuote(quotes, { productName: '０－ＧＰＮ', customerId: 7, onDate: ON })!.quoteId).toBe(1);
+    expect(pickQuote(quotes, { productName: ' 0 GPN ', customerId: 7, onDate: ON })!.quoteId).toBe(1);
+  });
+
+  it('标点删除导致的文本假相等也被拦住：1-1-101 的价不会命中 111-01 的查询', () => {
+    const quotes = [gpn(1, '割嘴 1-1-101', 1320)];
+    expect(normalizeToken('割嘴 1-1-101')).toBe(normalizeToken('割嘴 111-01'));
+    expect(pickQuote(quotes, { productName: '割嘴 111-01', customerId: 7, onDate: ON })).toBeNull();
+    expect(pickQuote(quotes, { productName: '割嘴 1-1-101', customerId: 7, onDate: ON })!.quoteId).toBe(1);
+  });
+
+  it('描述/品牌前缀差异（数字部分一致）仍然命中 —— 型号对照候选确认后即可解锁', () => {
+    const quotes = [gpn(1, 'Victor 乙炔割嘴 1-1-101', 1320)];
+    expect(pickQuote(quotes, { productName: 'Victor 乙炔割嘴 1-1-101', customerId: 7, onDate: ON })!.quoteId).toBe(1);
+    // 但「没有品牌前缀的写法」在服务端仍**不算命中**（取价是精确口径，不做子串匹配）：
+    expect(pickQuote(quotes, { productName: '1-1-101', customerId: 7, onDate: ON })).toBeNull();
+  });
+
+  it('按 product_id 命中不受数字指纹影响（id 本来就是精确口径）', () => {
+    const quotes = [q({ id: 5, customerId: 7, productId: 22, productName: '0-GPN', unitPriceCents: 850 })];
+    expect(pickQuote(quotes, { customerId: 7, productId: 22, productName: '00-GPN', onDate: ON })!.quoteId).toBe(5);
+  });
+});
+
+describe('⑤ 产品匹配与其它', () => {
   it('matchQuoteProduct：按 id / 按名称 / 完全通用 三种命中，其余为 null', () => {
     expect(matchQuoteProduct(q({ id: 1, productId: 22 }), { productId: 22 })).toBe('productId');
     expect(matchQuoteProduct(q({ id: 1, productName: 'PNM 1/32' }), { productName: 'pnm 1/32' })).toBe('productName');

@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-05T16:06:00.771Z",
+ "generatedAt": "2026-10-05T16:38:39.232Z",
  "root": "D:/futures/ziliao-data",
  "excel": {
   "scanned": 597,
@@ -40,6 +40,25 @@
  "typeTbd": 1173,
  "variantGroups": 129,
  "variantRows": 586,
+ "variantClass": {
+  "aText": {
+   "groups": 5,
+   "rows": 10
+  },
+  "bSize": {
+   "groups": 124,
+   "rows": 576
+  },
+  "aTextSubClusters": {
+   "clusters": 50,
+   "rows": 104
+  }
+ },
+ "sizeMergeAudit": {
+  "foldedNormalizedForms": 0,
+  "affectedWritings": 0,
+  "samples": []
+ },
  "excluded": {
   "sizeOnlyContract": 0,
   "sizeOnlyDoc": 39,
@@ -345,6 +364,9 @@
  "outputs": {
   "candidates": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_candidates.csv",
   "variants": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_variants.csv",
+  "variantsA": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_variants_A_文本差异.csv",
+  "variantsB": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_variants_B_尺寸差异.csv",
+  "sizeMergeAudit": "D:\\futures\\factory-management-system\\tools\\ziliao\\products_size_merge_audit.csv",
   "priceRows": "D:\\futures\\factory-management-system\\tools\\ziliao\\contract_price_rows.json"
  },
  "top": [
@@ -366,7 +388,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "11101",
+   "key": "11101#1-1-101",
+   "token": "11101",
+   "digits": "1-1-101",
    "altWritings": 0
   },
   {
@@ -387,7 +411,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "21101",
+   "key": "21101#2-1-101",
+   "token": "21101",
+   "digits": "2-1-101",
    "altWritings": 0
   },
   {
@@ -408,7 +434,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "31101",
+   "key": "31101#3-1-101",
+   "token": "31101",
+   "digits": "3-1-101",
    "altWritings": 0
   },
   {
@@ -429,7 +457,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "01101",
+   "key": "01101#0-1-101",
+   "token": "01101",
+   "digits": "0-1-101",
    "altWritings": 0
   },
   {
@@ -450,7 +480,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "41101",
+   "key": "41101#4-1-101",
+   "token": "41101",
+   "digits": "4-1-101",
    "altWritings": 0
   },
   {
@@ -471,7 +503,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn1",
+   "key": "gpn1#1",
+   "token": "gpn1",
+   "digits": "1",
    "altWritings": 0
   },
   {
@@ -492,7 +526,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn2",
+   "key": "gpn2#2",
+   "token": "gpn2",
+   "digits": "2",
    "altWritings": 0
   },
   {
@@ -513,7 +549,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴62901#产品号码6010",
+   "key": "割嘴62901#产品号码6010#6290-1-6010",
+   "token": "割嘴62901#产品号码6010",
+   "digits": "6290-1-6010",
    "altWritings": 1
   },
   {
@@ -534,7 +572,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴mc121#产品号码6003",
+   "key": "割嘴mc121#产品号码6003#12-1-6003",
+   "token": "割嘴mc121#产品号码6003",
+   "digits": "12-1-6003",
    "altWritings": 4
   },
   {
@@ -555,7 +595,9 @@
    "kinds": "合同+计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "2gpn",
+   "key": "2gpn#2",
+   "token": "2gpn",
+   "digits": "2",
    "altWritings": 0
   },
   {
@@ -576,7 +618,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴sc122#产品号码6001",
+   "key": "割嘴sc122#产品号码6001#12-2-6001",
+   "token": "割嘴sc122#产品号码6001",
+   "digits": "12-2-6001",
    "altWritings": 0
   },
   {
@@ -597,7 +641,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴mc122#产品号码6004",
+   "key": "割嘴mc122#产品号码6004#12-2-6004",
+   "token": "割嘴mc122#产品号码6004",
+   "digits": "12-2-6004",
    "altWritings": 3
   },
   {
@@ -618,7 +664,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1101割嘴0#",
+   "key": "1101割嘴0##1-101-0",
+   "token": "1101割嘴0#",
+   "digits": "1-101-0",
    "altWritings": 1
   },
   {
@@ -639,7 +687,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "51101",
+   "key": "51101#5-1-101",
+   "token": "51101",
+   "digits": "5-1-101",
    "altWritings": 0
   },
   {
@@ -660,7 +710,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴00#3101产品号码6017",
+   "key": "割嘴00#3101产品号码6017#00-3-101-6017",
+   "token": "割嘴00#3101产品号码6017",
+   "digits": "00-3-101-6017",
    "altWritings": 1
   },
   {
@@ -681,7 +733,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn3",
+   "key": "gpn3#3",
+   "token": "gpn3",
+   "digits": "3",
    "altWritings": 0
   },
   {
@@ -702,7 +756,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1gpn2#产品号码6028",
+   "key": "割嘴1gpn2#产品号码6028#1-2-6028",
+   "token": "割嘴1gpn2#产品号码6028",
+   "digits": "1-2-6028",
    "altWritings": 2
   },
   {
@@ -723,7 +779,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1gpn",
+   "key": "1gpn#1",
+   "token": "1gpn",
+   "digits": "1",
    "altWritings": 0
   },
   {
@@ -744,7 +802,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴13gpn产品号码6031",
+   "key": "割嘴13gpn产品号码6031#1-3-6031",
+   "token": "割嘴13gpn产品号码6031",
+   "digits": "1-3-6031",
    "altWritings": 0
   },
   {
@@ -765,7 +825,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1#3101产品号码6019",
+   "key": "割嘴1#3101产品号码6019#1-3-101-6019",
+   "token": "割嘴1#3101产品号码6019",
+   "digits": "1-3-101-6019",
    "altWritings": 1
   },
   {
@@ -786,7 +848,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1gpn3#产品号码6029",
+   "key": "割嘴1gpn3#产品号码6029#1-3-6029",
+   "token": "割嘴1gpn3#产品号码6029",
+   "digits": "1-3-6029",
    "altWritings": 1
   },
   {
@@ -807,7 +871,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "3gpn",
+   "key": "3gpn#3",
+   "token": "3gpn",
+   "digits": "3",
    "altWritings": 0
   },
   {
@@ -828,7 +894,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1#1101产品号码6024",
+   "key": "割嘴1#1101产品号码6024#1-1-101-6024",
+   "token": "割嘴1#1101产品号码6024",
+   "digits": "1-1-101-6024",
    "altWritings": 1
   },
   {
@@ -849,7 +917,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴23gpn产品号码6032",
+   "key": "割嘴23gpn产品号码6032#2-3-6032",
+   "token": "割嘴23gpn产品号码6032",
+   "digits": "2-3-6032",
    "altWritings": 0
   },
   {
@@ -870,7 +940,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴2#1101产品号码6025",
+   "key": "割嘴2#1101产品号码6025#2-1-101-6025",
+   "token": "割嘴2#1101产品号码6025",
+   "digits": "2-1-101-6025",
    "altWritings": 1
   },
   {
@@ -891,7 +963,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx2",
+   "key": "6290nx2#6290-2",
+   "token": "6290nx2",
+   "digits": "6290-2",
    "altWritings": 0
   },
   {
@@ -912,7 +986,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴2#3101产品号码6020",
+   "key": "割嘴2#3101产品号码6020#2-3-101-6020",
+   "token": "割嘴2#3101产品号码6020",
+   "digits": "2-3-101-6020",
    "altWritings": 1
   },
   {
@@ -933,7 +1009,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴62903#产品号码6012",
+   "key": "割嘴62903#产品号码6012#6290-3-6012",
+   "token": "割嘴62903#产品号码6012",
+   "digits": "6290-3-6012",
    "altWritings": 1
   },
   {
@@ -954,7 +1032,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴3#3101产品号码6021",
+   "key": "割嘴3#3101产品号码6021#3-3-101-6021",
+   "token": "割嘴3#3101产品号码6021",
+   "digits": "3-3-101-6021",
    "altWritings": 0
   },
   {
@@ -975,7 +1055,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "2w",
+   "key": "2w#2",
+   "token": "2w",
+   "digits": "2",
    "altWritings": 0
   },
   {
@@ -996,7 +1078,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "4gpn",
+   "key": "4gpn#4",
+   "token": "4gpn",
+   "digits": "4",
    "altWritings": 0
   },
   {
@@ -1017,7 +1101,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx3",
+   "key": "6290nx3#6290-3",
+   "token": "6290nx3",
+   "digits": "6290-3",
    "altWritings": 0
   },
   {
@@ -1038,7 +1124,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx253g代码4187",
+   "key": "harris丙烷割嘴6290nx253g代码4187#6290-2-53-4187",
+   "token": "harris丙烷割嘴6290nx253g代码4187",
+   "digits": "6290-2-53-4187",
    "altWritings": 0
   },
   {
@@ -1059,7 +1147,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx1",
+   "key": "6290nx1#6290-1",
+   "token": "6290nx1",
+   "digits": "6290-1",
    "altWritings": 0
   },
   {
@@ -1080,7 +1170,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a293g代码4158",
+   "key": "smith丙烷割嘴sc50a293g代码4158#50-2-93-4158",
+   "token": "smith丙烷割嘴sc50a293g代码4158",
+   "digits": "50-2-93-4158",
    "altWritings": 0
   },
   {
@@ -1101,7 +1193,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc122103g代码4136",
+   "key": "smith乙炔割嘴sc122103g代码4136#12-2-103-4136",
+   "token": "smith乙炔割嘴sc122103g代码4136",
+   "digits": "12-2-103-4136",
    "altWritings": 0
   },
   {
@@ -1122,7 +1216,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1101割嘴1#",
+   "key": "1101割嘴1##1-101-1",
+   "token": "1101割嘴1#",
+   "digits": "1-101-1",
    "altWritings": 1
   },
   {
@@ -1143,7 +1239,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn4",
+   "key": "gpn4#4",
+   "token": "gpn4",
+   "digits": "4",
    "altWritings": 0
   },
   {
@@ -1164,7 +1262,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx053g代码4184",
+   "key": "harris丙烷割嘴6290nx053g代码4184#6290-0-53-4184",
+   "token": "harris丙烷割嘴6290nx053g代码4184",
+   "digits": "6290-0-53-4184",
    "altWritings": 0
   },
   {
@@ -1185,7 +1285,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a193g代码4157",
+   "key": "smith丙烷割嘴sc50a193g代码4157#50-1-93-4157",
+   "token": "smith丙烷割嘴sc50a193g代码4157",
+   "digits": "50-1-93-4157",
    "altWritings": 0
   },
   {
@@ -1206,7 +1308,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc123103g代码4137",
+   "key": "smith乙炔割嘴sc123103g代码4137#12-3-103-4137",
+   "token": "smith乙炔割嘴sc123103g代码4137",
+   "digits": "12-3-103-4137",
    "altWritings": 0
   },
   {
@@ -1227,7 +1331,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc125103g代码4151",
+   "key": "smith乙炔割嘴sc125103g代码4151#12-5-103-4151",
+   "token": "smith乙炔割嘴sc125103g代码4151",
+   "digits": "12-5-103-4151",
    "altWritings": 0
   },
   {
@@ -1248,7 +1354,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx153g代码4186",
+   "key": "harris丙烷割嘴6290nx153g代码4186#6290-1-53-4186",
+   "token": "harris丙烷割嘴6290nx153g代码4186",
+   "digits": "6290-1-53-4186",
    "altWritings": 0
   },
   {
@@ -1269,7 +1377,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx353g代码4188",
+   "key": "harris丙烷割嘴6290nx353g代码4188#6290-3-53-4188",
+   "token": "harris丙烷割嘴6290nx353g代码4188",
+   "digits": "6290-3-53-4188",
    "altWritings": 0
   },
   {
@@ -1290,7 +1400,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc121103g代码4134",
+   "key": "smith乙炔割嘴sc121103g代码4134#12-1-103-4134",
+   "token": "smith乙炔割嘴sc121103g代码4134",
+   "digits": "12-1-103-4134",
    "altWritings": 0
   },
   {
@@ -1311,7 +1423,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "0gpn",
+   "key": "0gpn#0",
+   "token": "0gpn",
+   "digits": "0",
    "altWritings": 0
   },
   {
@@ -1332,7 +1446,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a393g代码4161",
+   "key": "smith丙烷割嘴sc50a393g代码4161#50-3-93-4161",
+   "token": "smith丙烷割嘴sc50a393g代码4161",
+   "digits": "50-3-93-4161",
    "altWritings": 0
   },
   {
@@ -1353,7 +1469,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a493g代码4162",
+   "key": "smith丙烷割嘴sc50a493g代码4162#50-4-93-4162",
+   "token": "smith丙烷割嘴sc50a493g代码4162",
+   "digits": "50-4-93-4162",
    "altWritings": 0
   },
   {
@@ -1374,7 +1492,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc124103g代码4138",
+   "key": "smith乙炔割嘴sc124103g代码4138#12-4-103-4138",
+   "token": "smith乙炔割嘴sc124103g代码4138",
+   "digits": "12-4-103-4138",
    "altWritings": 0
   },
   {
@@ -1395,7 +1515,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn0",
+   "key": "gpn0#0",
+   "token": "gpn0",
+   "digits": "0",
    "altWritings": 0
   },
   {
@@ -1416,7 +1538,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1w",
+   "key": "1w#1",
+   "token": "1w",
+   "digits": "1",
    "altWritings": 0
   },
   {
@@ -1437,7 +1561,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn271g代码4194",
+   "key": "丙烷割嘴gpn271g代码4194#2-71-4194",
+   "token": "丙烷割嘴gpn271g代码4194",
+   "digits": "2-71-4194",
    "altWritings": 0
   },
   {
@@ -1458,7 +1584,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris乙炔割嘴62903代码4027",
+   "key": "harris乙炔割嘴62903代码4027#6290-3-4027",
+   "token": "harris乙炔割嘴62903代码4027",
+   "digits": "6290-3-4027",
    "altWritings": 0
   },
   {
@@ -1479,7 +1607,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc120103g代码4133",
+   "key": "smith乙炔割嘴sc120103g代码4133#12-0-103-4133",
+   "token": "smith乙炔割嘴sc120103g代码4133",
+   "digits": "12-0-103-4133",
    "altWritings": 0
   },
   {
@@ -1500,7 +1630,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1101割嘴00#",
+   "key": "1101割嘴00##1-101-00",
+   "token": "1101割嘴00#",
+   "digits": "1-101-00",
    "altWritings": 1
   },
   {
@@ -1521,7 +1653,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn171g代码4193",
+   "key": "丙烷割嘴gpn171g代码4193#1-71-4193",
+   "token": "丙烷割嘴gpn171g代码4193",
+   "digits": "1-71-4193",
    "altWritings": 0
   },
   {
@@ -1542,7 +1676,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn371g代码4195",
+   "key": "丙烷割嘴gpn371g代码4195#3-71-4195",
+   "token": "丙烷割嘴gpn371g代码4195",
+   "digits": "3-71-4195",
    "altWritings": 0
   },
   {
@@ -1563,7 +1699,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "5gpn",
+   "key": "5gpn#5",
+   "token": "5gpn",
+   "digits": "5",
    "altWritings": 0
   },
   {
@@ -1584,7 +1722,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62901",
+   "key": "62901#6290-1",
+   "token": "62901",
+   "digits": "6290-1",
    "altWritings": 0
   },
   {
@@ -1605,7 +1745,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx0",
+   "key": "6290nx0#6290-0",
+   "token": "6290nx0",
+   "digits": "6290-0",
    "altWritings": 0
   },
   {
@@ -1626,7 +1768,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "8mfa",
+   "key": "8mfa#8",
+   "token": "8mfa",
+   "digits": "8",
    "altWritings": 0
   },
   {
@@ -1647,7 +1791,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴11012102g代码4191",
+   "key": "乙炔割嘴11012102g代码4191#1-101-2-102-4191",
+   "token": "乙炔割嘴11012102g代码4191",
+   "digits": "1-101-2-102-4191",
    "altWritings": 0
   },
   {
@@ -1668,7 +1814,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62902",
+   "key": "62902#6290-2",
+   "token": "62902",
+   "digits": "6290-2",
    "altWritings": 0
   },
   {
@@ -1689,7 +1837,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "3w",
+   "key": "3w#3",
+   "token": "3w",
+   "digits": "3",
    "altWritings": 0
   },
   {
@@ -1710,7 +1860,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx4",
+   "key": "6290nx4#6290-4",
+   "token": "6290nx4",
+   "digits": "6290-4",
    "altWritings": 0
   },
   {
@@ -1731,7 +1883,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴11013102g代码4192",
+   "key": "乙炔割嘴11013102g代码4192#1-101-3-102-4192",
+   "token": "乙炔割嘴11013102g代码4192",
+   "digits": "1-101-3-102-4192",
    "altWritings": 0
   },
   {
@@ -1752,7 +1906,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris乙炔割嘴62904代码4209",
+   "key": "harris乙炔割嘴62904代码4209#6290-4-4209",
+   "token": "harris乙炔割嘴62904代码4209",
+   "digits": "6290-4-4209",
    "altWritings": 0
   },
   {
@@ -1773,7 +1929,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "001101",
+   "key": "001101#00-1-101",
+   "token": "001101",
+   "digits": "00-1-101",
    "altWritings": 0
   },
   {
@@ -1794,7 +1952,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx5",
+   "key": "6290nx5#6290-5",
+   "token": "6290nx5",
+   "digits": "6290-5",
    "altWritings": 0
   },
   {
@@ -1815,7 +1975,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn5",
+   "key": "gpn5#5",
+   "token": "gpn5",
+   "digits": "5",
    "altWritings": 0
   },
   {
@@ -1836,7 +1998,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62903",
+   "key": "62903#6290-3",
+   "token": "62903",
+   "digits": "6290-3",
    "altWritings": 0
   },
   {
@@ -1857,7 +2021,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#2塑料盖贴11012",
+   "key": "乙炔割嘴1101#2塑料盖贴11012#1-101-2-1-101-2",
+   "token": "乙炔割嘴1101#2塑料盖贴11012",
+   "digits": "1-101-2-1-101-2",
    "altWritings": 1
   },
   {
@@ -1878,7 +2044,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc122103g货号4136",
+   "key": "smith乙炔割嘴sc122103g货号4136#12-2-103-4136",
+   "token": "smith乙炔割嘴sc122103g货号4136",
+   "digits": "12-2-103-4136",
    "altWritings": 0
   },
   {
@@ -1899,7 +2067,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#3塑料盖贴11013",
+   "key": "乙炔割嘴1101#3塑料盖贴11013#1-101-3-1-101-3",
+   "token": "乙炔割嘴1101#3塑料盖贴11013",
+   "digits": "1-101-3-1-101-3",
    "altWritings": 1
   },
   {
@@ -1920,7 +2090,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc123103g货号4137",
+   "key": "smith乙炔割嘴sc123103g货号4137#12-3-103-4137",
+   "token": "smith乙炔割嘴sc123103g货号4137",
+   "digits": "12-3-103-4137",
    "altWritings": 0
   },
   {
@@ -1941,7 +2113,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc125103g货号4151",
+   "key": "smith乙炔割嘴sc125103g货号4151#12-5-103-4151",
+   "token": "smith乙炔割嘴sc125103g货号4151",
+   "digits": "12-5-103-4151",
    "altWritings": 0
   },
   {
@@ -1962,7 +2136,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "00gpn",
+   "key": "00gpn#00",
+   "token": "00gpn",
+   "digits": "00",
    "altWritings": 0
   },
   {
@@ -1983,7 +2159,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴62902#产品号码6011",
+   "key": "割嘴62902#产品号码6011#6290-2-6011",
+   "token": "割嘴62902#产品号码6011",
+   "digits": "6290-2-6011",
    "altWritings": 1
   },
   {
@@ -2004,7 +2182,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴11011#产品号码6024",
+   "key": "割嘴11011#产品号码6024#1-101-1-6024",
+   "token": "割嘴11011#产品号码6024",
+   "digits": "1-101-1-6024",
    "altWritings": 0
   },
   {
@@ -2025,7 +2205,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴31010#产品号码6018",
+   "key": "割嘴31010#产品号码6018#3-101-0-6018",
+   "token": "割嘴31010#产品号码6018",
+   "digits": "3-101-0-6018",
    "altWritings": 0
   },
   {
@@ -2046,7 +2228,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴11010#产品号码6023",
+   "key": "乙炔割嘴11010#产品号码6023#1-101-0-6023",
+   "token": "乙炔割嘴11010#产品号码6023",
+   "digits": "1-101-0-6023",
    "altWritings": 0
   },
   {
@@ -2067,7 +2251,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴31010#产品号码6018",
+   "key": "乙炔割嘴31010#产品号码6018#3-101-0-6018",
+   "token": "乙炔割嘴31010#产品号码6018",
+   "digits": "3-101-0-6018",
    "altWritings": 0
   },
   {
@@ -2088,7 +2274,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws6290nx2丙烷割嘴6290nx2",
+   "key": "ws6290nx2丙烷割嘴6290nx2#6290-2-6290-2",
+   "token": "ws6290nx2丙烷割嘴6290nx2",
+   "digits": "6290-2-6290-2",
    "altWritings": 0
   },
   {
@@ -2109,7 +2297,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc120103g货号4133",
+   "key": "smith乙炔割嘴sc120103g货号4133#12-0-103-4133",
+   "token": "smith乙炔割嘴sc120103g货号4133",
+   "digits": "12-0-103-4133",
    "altWritings": 0
   },
   {
@@ -2130,7 +2320,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1101割嘴2#",
+   "key": "1101割嘴2##1-101-2",
+   "token": "1101割嘴2#",
+   "digits": "1-101-2",
    "altWritings": 1
   },
   {
@@ -2151,7 +2343,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1101割嘴3#",
+   "key": "1101割嘴3##1-101-3",
+   "token": "1101割嘴3#",
+   "digits": "1-101-3",
    "altWritings": 1
   },
   {
@@ -2172,7 +2366,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx6",
+   "key": "6290nx6#6290-6",
+   "token": "6290nx6",
+   "digits": "6290-6",
    "altWritings": 0
   },
   {
@@ -2193,7 +2389,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴11012#产品号码6025",
+   "key": "割嘴11012#产品号码6025#1-101-2-6025",
+   "token": "割嘴11012#产品号码6025",
+   "digits": "1-101-2-6025",
    "altWritings": 0
   },
   {
@@ -2214,7 +2412,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴31012#产品号码6020",
+   "key": "割嘴31012#产品号码6020#3-101-2-6020",
+   "token": "割嘴31012#产品号码6020",
+   "digits": "3-101-2-6020",
    "altWritings": 0
   },
   {
@@ -2235,7 +2435,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴310100#产品号码6017",
+   "key": "乙炔割嘴310100#产品号码6017#3-101-00-6017",
+   "token": "乙炔割嘴310100#产品号码6017",
+   "digits": "3-101-00-6017",
    "altWritings": 0
   },
   {
@@ -2256,7 +2458,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn割嘴1#",
+   "key": "gpn割嘴1##1",
+   "token": "gpn割嘴1#",
+   "digits": "1",
    "altWritings": 0
   },
   {
@@ -2277,7 +2481,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith乙炔割嘴sc124103g货号4138",
+   "key": "smith乙炔割嘴sc124103g货号4138#12-4-103-4138",
+   "token": "smith乙炔割嘴sc124103g货号4138",
+   "digits": "12-4-103-4138",
    "altWritings": 0
   },
   {
@@ -2298,7 +2504,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62904",
+   "key": "62904#6290-4",
+   "token": "62904",
+   "digits": "6290-4",
    "altWritings": 0
   },
   {
@@ -2319,7 +2527,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴31011#产品号码6019",
+   "key": "割嘴31011#产品号码6019#3-101-1-6019",
+   "token": "割嘴31011#产品号码6019",
+   "digits": "3-101-1-6019",
    "altWritings": 0
   },
   {
@@ -2340,7 +2550,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴31011#产品号码6019",
+   "key": "乙炔割嘴31011#产品号码6019#3-101-1-6019",
+   "token": "乙炔割嘴31011#产品号码6019",
+   "digits": "3-101-1-6019",
    "altWritings": 0
   },
   {
@@ -2361,7 +2573,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴31012#产品号码6020",
+   "key": "乙炔割嘴31012#产品号码6020#3-101-2-6020",
+   "token": "乙炔割嘴31012#产品号码6020",
+   "digits": "3-101-2-6020",
    "altWritings": 0
   },
   {
@@ -2382,7 +2596,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws6290nx1丙烷割嘴6290nx1",
+   "key": "ws6290nx1丙烷割嘴6290nx1#6290-1-6290-1",
+   "token": "ws6290nx1丙烷割嘴6290nx1",
+   "digits": "6290-1-6290-1",
    "altWritings": 0
   },
   {
@@ -2402,7 +2618,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "0# / 1# / 2# / 3# / 4# / 5#",
-   "key": "乙炔割嘴1101",
+   "key": "乙炔割嘴1101#1-101",
+   "token": "乙炔割嘴1101",
+   "digits": "1-101",
    "altWritings": 0
   },
   {
@@ -2423,7 +2641,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "1502割嘴4#",
+   "key": "1502割嘴4##1502-4",
+   "token": "1502割嘴4#",
+   "digits": "1502-4",
    "altWritings": 0
   },
   {
@@ -2444,7 +2664,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "61101",
+   "key": "61101#6-1-101",
+   "token": "61101",
+   "digits": "6-1-101",
    "altWritings": 0
   },
   {
@@ -2465,7 +2687,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn271g货号4194",
+   "key": "丙烷割嘴gpn271g货号4194#2-71-4194",
+   "token": "丙烷割嘴gpn271g货号4194",
+   "digits": "2-71-4194",
    "altWritings": 0
   },
   {
@@ -2486,7 +2710,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴11011#产品号码6024",
+   "key": "乙炔割嘴11011#产品号码6024#1-101-1-6024",
+   "token": "乙炔割嘴11011#产品号码6024",
+   "digits": "1-101-1-6024",
    "altWritings": 0
   },
   {
@@ -2507,7 +2733,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴11012#产品号码6025",
+   "key": "乙炔割嘴11012#产品号码6025#1-101-2-6025",
+   "token": "乙炔割嘴11012#产品号码6025",
+   "digits": "1-101-2-6025",
    "altWritings": 0
   },
   {
@@ -2528,7 +2756,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx153g货号4186",
+   "key": "harris丙烷割嘴6290nx153g货号4186#6290-1-53-4186",
+   "token": "harris丙烷割嘴6290nx153g货号4186",
+   "digits": "6290-1-53-4186",
    "altWritings": 0
   },
   {
@@ -2549,7 +2779,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx253g货号4187",
+   "key": "harris丙烷割嘴6290nx253g货号4187#6290-2-53-4187",
+   "token": "harris丙烷割嘴6290nx253g货号4187",
+   "digits": "6290-2-53-4187",
    "altWritings": 0
   },
   {
@@ -2570,7 +2802,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris乙炔割嘴6290255g货号4210",
+   "key": "harris乙炔割嘴6290255g货号4210#6290-2-55-4210",
+   "token": "harris乙炔割嘴6290255g货号4210",
+   "digits": "6290-2-55-4210",
    "altWritings": 0
   },
   {
@@ -2591,7 +2825,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a293g货号4158",
+   "key": "smith丙烷割嘴sc50a293g货号4158#50-2-93-4158",
+   "token": "smith丙烷割嘴sc50a293g货号4158",
+   "digits": "50-2-93-4158",
    "altWritings": 0
   },
   {
@@ -2612,7 +2848,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a393g货号4161",
+   "key": "smith丙烷割嘴sc50a393g货号4161#50-3-93-4161",
+   "token": "smith丙烷割嘴sc50a393g货号4161",
+   "digits": "50-3-93-4161",
    "altWritings": 0
   },
   {
@@ -2633,7 +2871,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "wssc502丙烷割嘴sc502",
+   "key": "wssc502丙烷割嘴sc502#502-50-2",
+   "token": "wssc502丙烷割嘴sc502",
+   "digits": "502-50-2",
    "altWritings": 0
   },
   {
@@ -2654,7 +2894,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "0w",
+   "key": "0w#0",
+   "token": "0w",
+   "digits": "0",
    "altWritings": 0
   },
   {
@@ -2675,7 +2917,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#2仿包装",
+   "key": "割嘴gpn#2仿包装#2",
+   "token": "割嘴gpn#2仿包装",
+   "digits": "2",
    "altWritings": 0
   },
   {
@@ -2696,7 +2940,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴110100#产品号码6022",
+   "key": "割嘴110100#产品号码6022#1-101-00-6022",
+   "token": "割嘴110100#产品号码6022",
+   "digits": "1-101-00-6022",
    "altWritings": 0
   },
   {
@@ -2717,7 +2963,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴310100#产品号码6017",
+   "key": "割嘴310100#产品号码6017#3-101-00-6017",
+   "token": "割嘴310100#产品号码6017",
+   "digits": "3-101-00-6017",
    "altWritings": 0
   },
   {
@@ -2738,7 +2986,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#1塑料盖贴11011",
+   "key": "乙炔割嘴1101#1塑料盖贴11011#1-101-1-1-101-1",
+   "token": "乙炔割嘴1101#1塑料盖贴11011",
+   "digits": "1-101-1-1-101-1",
    "altWritings": 1
   },
   {
@@ -2759,7 +3009,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101282g货号4191",
+   "key": "乙炔割嘴1101282g货号4191#1-101-2-82-4191",
+   "token": "乙炔割嘴1101282g货号4191",
+   "digits": "1-101-2-82-4191",
    "altWritings": 0
   },
   {
@@ -2780,7 +3032,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris丙烷割嘴6290nx353g货号4188",
+   "key": "harris丙烷割嘴6290nx353g货号4188#6290-3-53-4188",
+   "token": "harris丙烷割嘴6290nx353g货号4188",
+   "digits": "6290-3-53-4188",
    "altWritings": 0
   },
   {
@@ -2801,7 +3055,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "pnme18割嘴116",
+   "key": "pnme18割嘴116#18-1-16",
+   "token": "pnme18割嘴116",
+   "digits": "18-1-16",
    "altWritings": 0
   },
   {
@@ -2822,7 +3078,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290割嘴1#",
+   "key": "6290割嘴1##6290-1",
+   "token": "6290割嘴1#",
+   "digits": "6290-1",
    "altWritings": 0
   },
   {
@@ -2843,7 +3101,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1101#1仿包装",
+   "key": "割嘴1101#1仿包装#1-101-1",
+   "token": "割嘴1101#1仿包装",
+   "digits": "1-101-1",
    "altWritings": 0
   },
   {
@@ -2864,7 +3124,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1101#2仿包装",
+   "key": "割嘴1101#2仿包装#1-101-2",
+   "token": "割嘴1101#2仿包装",
+   "digits": "1-101-2",
    "altWritings": 0
   },
   {
@@ -2885,7 +3147,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1101#3仿包装",
+   "key": "割嘴1101#3仿包装#1-101-3",
+   "token": "割嘴1101#3仿包装",
+   "digits": "1-101-3",
    "altWritings": 0
   },
   {
@@ -2906,7 +3170,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#4仿包装",
+   "key": "割嘴gpn#4仿包装#4",
+   "token": "割嘴gpn#4仿包装",
+   "digits": "4",
    "altWritings": 0
   },
   {
@@ -2927,7 +3193,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴11010#产品号码6023",
+   "key": "割嘴11010#产品号码6023#1-101-0-6023",
+   "token": "割嘴11010#产品号码6023",
+   "digits": "1-101-0-6023",
    "altWritings": 0
   },
   {
@@ -2948,7 +3216,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn00",
+   "key": "gpn00#00",
+   "token": "gpn00",
+   "digits": "00",
    "altWritings": 0
   },
   {
@@ -2969,7 +3239,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a193g货号4157",
+   "key": "smith丙烷割嘴sc50a193g货号4157#50-1-93-4157",
+   "token": "smith丙烷割嘴sc50a193g货号4157",
+   "digits": "50-1-93-4157",
    "altWritings": 0
   },
   {
@@ -2990,7 +3262,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws62902乙炔割嘴62902",
+   "key": "ws62902乙炔割嘴62902#62902-6290-2",
+   "token": "ws62902乙炔割嘴62902",
+   "digits": "62902-6290-2",
    "altWritings": 0
   },
   {
@@ -3011,7 +3285,9 @@
    "kinds": "采购单+计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "10mfa",
+   "key": "10mfa#10",
+   "token": "10mfa",
+   "digits": "10",
    "altWritings": 0
   },
   {
@@ -3032,7 +3308,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "106hc2",
+   "key": "106hc2#106-2",
+   "token": "106hc2",
+   "digits": "106-2",
    "altWritings": 0
   },
   {
@@ -3053,7 +3331,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "4w",
+   "key": "4w#4",
+   "token": "4w",
+   "digits": "4",
    "altWritings": 0
   },
   {
@@ -3074,7 +3354,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "5w",
+   "key": "5w#5",
+   "token": "5w",
+   "digits": "5",
    "altWritings": 0
   },
   {
@@ -3095,7 +3377,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6gpn",
+   "key": "6gpn#6",
+   "token": "6gpn",
+   "digits": "6",
    "altWritings": 0
   },
   {
@@ -3116,7 +3400,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62900",
+   "key": "62900#6290-0",
+   "token": "62900",
+   "digits": "6290-0",
    "altWritings": 0
   },
   {
@@ -3137,7 +3423,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62902ac",
+   "key": "62902ac#6290-2",
+   "token": "62902ac",
+   "digits": "6290-2",
    "altWritings": 0
   },
   {
@@ -3158,7 +3446,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "62905",
+   "key": "62905#6290-5",
+   "token": "62905",
+   "digits": "6290-5",
    "altWritings": 0
   },
   {
@@ -3179,7 +3469,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn171g货号4193",
+   "key": "丙烷割嘴gpn171g货号4193#1-71-4193",
+   "token": "丙烷割嘴gpn171g货号4193",
+   "digits": "1-71-4193",
    "altWritings": 0
   },
   {
@@ -3200,7 +3492,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn371g货号4195",
+   "key": "丙烷割嘴gpn371g货号4195#3-71-4195",
+   "token": "丙烷割嘴gpn371g货号4195",
+   "digits": "3-71-4195",
    "altWritings": 0
   },
   {
@@ -3221,7 +3515,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1101#4仿包装",
+   "key": "割嘴1101#4仿包装#1-101-4",
+   "token": "割嘴1101#4仿包装",
+   "digits": "1-101-4",
    "altWritings": 0
   },
   {
@@ -3242,7 +3538,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴1101#5仿包装",
+   "key": "割嘴1101#5仿包装#1-101-5",
+   "token": "割嘴1101#5仿包装",
+   "digits": "1-101-5",
    "altWritings": 0
   },
   {
@@ -3263,7 +3561,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#0塑料盖贴gpn0",
+   "key": "割嘴gpn#0塑料盖贴gpn0#0-0",
+   "token": "割嘴gpn#0塑料盖贴gpn0",
+   "digits": "0-0",
    "altWritings": 0
   },
   {
@@ -3284,7 +3584,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#1塑料盖贴gpn1",
+   "key": "割嘴gpn#1塑料盖贴gpn1#1-1",
+   "token": "割嘴gpn#1塑料盖贴gpn1",
+   "digits": "1-1",
    "altWritings": 0
   },
   {
@@ -3305,7 +3607,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#2塑料盖贴gpn2",
+   "key": "割嘴gpn#2塑料盖贴gpn2#2-2",
+   "token": "割嘴gpn#2塑料盖贴gpn2",
+   "digits": "2-2",
    "altWritings": 0
   },
   {
@@ -3326,7 +3630,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#3塑料盖贴gpn3",
+   "key": "割嘴gpn#3塑料盖贴gpn3#3-3",
+   "token": "割嘴gpn#3塑料盖贴gpn3",
+   "digits": "3-3",
    "altWritings": 0
   },
   {
@@ -3347,7 +3653,9 @@
    "kinds": "采购单",
    "recovered": 8,
    "variantTexts": "",
-   "key": "尼龙袋",
+   "key": "尼龙袋#",
+   "token": "尼龙袋",
+   "digits": "",
    "altWritings": 0
   },
   {
@@ -3368,7 +3676,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#0塑料盖贴11010",
+   "key": "乙炔割嘴1101#0塑料盖贴11010#1-101-0-1-101-0",
+   "token": "乙炔割嘴1101#0塑料盖贴11010",
+   "digits": "1-101-0-1-101-0",
    "altWritings": 1
   },
   {
@@ -3389,7 +3699,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn割嘴3#",
+   "key": "gpn割嘴3##3",
+   "token": "gpn割嘴3#",
+   "digits": "3",
    "altWritings": 0
   },
   {
@@ -3410,7 +3722,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a093g货号4154",
+   "key": "smith丙烷割嘴sc50a093g货号4154#50-0-93-4154",
+   "token": "smith丙烷割嘴sc50a093g货号4154",
+   "digits": "50-0-93-4154",
    "altWritings": 0
   },
   {
@@ -3431,7 +3745,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a593g代码4163",
+   "key": "smith丙烷割嘴sc50a593g代码4163#50-5-93-4163",
+   "token": "smith丙烷割嘴sc50a593g代码4163",
+   "digits": "50-5-93-4163",
    "altWritings": 0
   },
   {
@@ -3452,7 +3768,9 @@
    "kinds": "采购单+计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "15mfa",
+   "key": "15mfa#15",
+   "token": "15mfa",
+   "digits": "15",
    "altWritings": 0
   },
   {
@@ -3473,7 +3791,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "3101割嘴1#",
+   "key": "3101割嘴1##3-101-1",
+   "token": "3101割嘴1#",
+   "digits": "3-101-1",
    "altWritings": 0
   },
   {
@@ -3494,7 +3814,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#1仿包装",
+   "key": "乙炔割嘴1101#1仿包装#1-101-1",
+   "token": "乙炔割嘴1101#1仿包装",
+   "digits": "1-101-1",
    "altWritings": 0
   },
   {
@@ -3515,7 +3837,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#2仿包装",
+   "key": "乙炔割嘴1101#2仿包装#1-101-2",
+   "token": "乙炔割嘴1101#2仿包装",
+   "digits": "1-101-2",
    "altWritings": 0
   },
   {
@@ -3536,7 +3860,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#3仿包装",
+   "key": "乙炔割嘴1101#3仿包装#1-101-3",
+   "token": "乙炔割嘴1101#3仿包装",
+   "digits": "1-101-3",
    "altWritings": 0
   },
   {
@@ -3557,7 +3883,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#5仿包装",
+   "key": "乙炔割嘴1101#5仿包装#1-101-5",
+   "token": "乙炔割嘴1101#5仿包装",
+   "digits": "1-101-5",
    "altWritings": 0
   },
   {
@@ -3578,7 +3906,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#8仿包装",
+   "key": "乙炔割嘴1101#8仿包装#1-101-8",
+   "token": "乙炔割嘴1101#8仿包装",
+   "digits": "1-101-8",
    "altWritings": 0
   },
   {
@@ -3599,7 +3929,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "106hc1",
+   "key": "106hc1#106-1",
+   "token": "106hc1",
+   "digits": "106-1",
    "altWritings": 0
   },
   {
@@ -3620,7 +3952,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "106hc3",
+   "key": "106hc3#106-3",
+   "token": "106hc3",
+   "digits": "106-3",
    "altWritings": 0
   },
   {
@@ -3641,7 +3975,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "106hc5",
+   "key": "106hc5#106-5",
+   "token": "106hc5",
+   "digits": "106-5",
    "altWritings": 0
   },
   {
@@ -3662,7 +3998,9 @@
    "kinds": "采购单+计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "12mfa",
+   "key": "12mfa#12",
+   "token": "12mfa",
+   "digits": "12",
    "altWritings": 0
   },
   {
@@ -3683,7 +4021,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290ac割嘴2#",
+   "key": "6290ac割嘴2##6290-2",
+   "token": "6290ac割嘴2#",
+   "digits": "6290-2",
    "altWritings": 0
   },
   {
@@ -3704,7 +4044,9 @@
    "kinds": "计划单+其它单据",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx00",
+   "key": "6290nx00#6290-00",
+   "token": "6290nx00",
+   "digits": "6290-00",
    "altWritings": 0
   },
   {
@@ -3725,7 +4067,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "澳大利亚款式乙炔割嘴4112刻字内容如右图所示4112",
+   "key": "澳大利亚款式乙炔割嘴4112刻字内容如右图所示4112#41-12-41-12",
+   "token": "澳大利亚款式乙炔割嘴4112刻字内容如右图所示4112",
+   "digits": "41-12-41-12",
    "altWritings": 1
   },
   {
@@ -3746,7 +4090,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "澳大利亚款式乙炔割嘴4115刻字内容如图所示4115",
+   "key": "澳大利亚款式乙炔割嘴4115刻字内容如图所示4115#41-15-41-15",
+   "token": "澳大利亚款式乙炔割嘴4115刻字内容如图所示4115",
+   "digits": "41-15-41-15",
    "altWritings": 1
   },
   {
@@ -3767,7 +4113,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#1仿包装",
+   "key": "割嘴gpn#1仿包装#1",
+   "token": "割嘴gpn#1仿包装",
+   "digits": "1",
    "altWritings": 0
   },
   {
@@ -3788,7 +4136,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴31013#产品号码6021",
+   "key": "割嘴31013#产品号码6021#3-101-3-6021",
+   "token": "割嘴31013#产品号码6021",
+   "digits": "3-101-3-6021",
    "altWritings": 0
   },
   {
@@ -3809,7 +4159,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#4塑料盖贴11014",
+   "key": "乙炔割嘴1101#4塑料盖贴11014#1-101-4-1-101-4",
+   "token": "乙炔割嘴1101#4塑料盖贴11014",
+   "digits": "1-101-4-1-101-4",
    "altWritings": 1
   },
   {
@@ -3830,7 +4182,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴110100#产品号码6022",
+   "key": "乙炔割嘴110100#产品号码6022#1-101-00-6022",
+   "token": "乙炔割嘴110100#产品号码6022",
+   "digits": "1-101-00-6022",
    "altWritings": 0
   },
   {
@@ -3851,7 +4205,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn割嘴5#",
+   "key": "gpn割嘴5##5",
+   "token": "gpn割嘴5#",
+   "digits": "5",
    "altWritings": 0
   },
   {
@@ -3872,7 +4228,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn6",
+   "key": "gpn6#6",
+   "token": "gpn6",
+   "digits": "6",
    "altWritings": 0
   },
   {
@@ -3893,7 +4251,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris乙炔割嘴6290355g货号4027",
+   "key": "harris乙炔割嘴6290355g货号4027#6290-3-55-4027",
+   "token": "harris乙炔割嘴6290355g货号4027",
+   "digits": "6290-3-55-4027",
    "altWritings": 0
   },
   {
@@ -3914,7 +4274,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "smith丙烷割嘴sc50a493g货号4162",
+   "key": "smith丙烷割嘴sc50a493g货号4162#50-4-93-4162",
+   "token": "smith丙烷割嘴sc50a493g货号4162",
+   "digits": "50-4-93-4162",
    "altWritings": 0
   },
   {
@@ -3935,7 +4297,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws10111乙炔割嘴10111",
+   "key": "ws10111乙炔割嘴10111#10111-101-1-1",
+   "token": "ws10111乙炔割嘴10111",
+   "digits": "10111-101-1-1",
    "altWritings": 0
   },
   {
@@ -3956,7 +4320,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws62903乙炔割嘴62903",
+   "key": "ws62903乙炔割嘴62903#62903-6290-3",
+   "token": "ws62903乙炔割嘴62903",
+   "digits": "62903-6290-3",
    "altWritings": 0
   },
   {
@@ -3977,7 +4343,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws6290nx3丙烷割嘴6290nx3",
+   "key": "ws6290nx3丙烷割嘴6290nx3#6290-3-6290-3",
+   "token": "ws6290nx3丙烷割嘴6290nx3",
+   "digits": "6290-3-6290-3",
    "altWritings": 0
   },
   {
@@ -3998,7 +4366,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "ws6290nx4丙烷割嘴6290nx4",
+   "key": "ws6290nx4丙烷割嘴6290nx4#6290-4-6290-4",
+   "token": "ws6290nx4丙烷割嘴6290nx4",
+   "digits": "6290-4-6290-4",
    "altWritings": 0
   },
   {
@@ -4019,7 +4389,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "wsgpn2丙烷割嘴gpn2",
+   "key": "wsgpn2丙烷割嘴gpn2#2-2",
+   "token": "wsgpn2丙烷割嘴gpn2",
+   "digits": "2-2",
    "altWritings": 0
   },
   {
@@ -4040,7 +4412,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴1101#0仿包装",
+   "key": "乙炔割嘴1101#0仿包装#1-101-0",
+   "token": "乙炔割嘴1101#0仿包装",
+   "digits": "1-101-0",
    "altWritings": 0
   },
   {
@@ -4061,7 +4435,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn#1仿包装",
+   "key": "丙烷割嘴gpn#1仿包装#1",
+   "token": "丙烷割嘴gpn#1仿包装",
+   "digits": "1",
    "altWritings": 0
   },
   {
@@ -4082,7 +4458,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn#2仿包装",
+   "key": "丙烷割嘴gpn#2仿包装#2",
+   "token": "丙烷割嘴gpn#2仿包装",
+   "digits": "2",
    "altWritings": 0
   },
   {
@@ -4103,7 +4481,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn#3仿包装",
+   "key": "丙烷割嘴gpn#3仿包装#3",
+   "token": "丙烷割嘴gpn#3仿包装",
+   "digits": "3",
    "altWritings": 0
   },
   {
@@ -4124,7 +4504,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷割嘴gpn#4仿包装",
+   "key": "丙烷割嘴gpn#4仿包装#4",
+   "token": "丙烷割嘴gpn#4仿包装",
+   "digits": "4",
    "altWritings": 0
   },
   {
@@ -4145,7 +4527,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "106hc0",
+   "key": "106hc0#106-0",
+   "token": "106hc0",
+   "digits": "106-0",
    "altWritings": 0
   },
   {
@@ -4166,7 +4550,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "106hc4",
+   "key": "106hc4#106-4",
+   "token": "106hc4",
+   "digits": "106-4",
    "altWritings": 0
   },
   {
@@ -4187,7 +4573,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "3101割嘴000#",
+   "key": "3101割嘴000##3-101-000",
+   "token": "3101割嘴000#",
+   "digits": "3-101-000",
    "altWritings": 0
   },
   {
@@ -4208,7 +4596,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290割嘴0#",
+   "key": "6290割嘴0##6290-0",
+   "token": "6290割嘴0#",
+   "digits": "6290-0",
    "altWritings": 0
   },
   {
@@ -4229,7 +4619,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx割嘴1#",
+   "key": "6290nx割嘴1##6290-1",
+   "token": "6290nx割嘴1#",
+   "digits": "6290-1",
    "altWritings": 0
   },
   {
@@ -4250,7 +4642,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "6290nx割嘴2#",
+   "key": "6290nx割嘴2##6290-2",
+   "token": "6290nx割嘴2#",
+   "digits": "6290-2",
    "altWritings": 0
   },
   {
@@ -4271,7 +4665,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷切割喷嘴1号厚度1020mm孔口12",
+   "key": "丙烷切割喷嘴1号厚度1020mm孔口12#1-10-20-1-2",
+   "token": "丙烷切割喷嘴1号厚度1020mm孔口12",
+   "digits": "1-10-20-1-2",
    "altWritings": 1
   },
   {
@@ -4292,7 +4688,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "丙烷切割喷嘴2号厚度2040mm孔口15",
+   "key": "丙烷切割喷嘴2号厚度2040mm孔口15#2-20-40-1-5",
+   "token": "丙烷切割喷嘴2号厚度2040mm孔口15",
+   "digits": "2-20-40-1-5",
    "altWritings": 1
   },
   {
@@ -4313,7 +4711,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴gpn#4塑料盖贴gpn4",
+   "key": "割嘴gpn#4塑料盖贴gpn4#4-4",
+   "token": "割嘴gpn#4塑料盖贴gpn4",
+   "digits": "4-4",
    "altWritings": 0
   },
   {
@@ -4334,7 +4734,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴mc123#产品号码6005",
+   "key": "割嘴mc123#产品号码6005#12-3-6005",
+   "token": "割嘴mc123#产品号码6005",
+   "digits": "12-3-6005",
    "altWritings": 2
   },
   {
@@ -4355,7 +4757,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴3gpn1#产品号码6031",
+   "key": "割嘴3gpn1#产品号码6031#3-1-6031",
+   "token": "割嘴3gpn1#产品号码6031",
+   "digits": "3-1-6031",
    "altWritings": 0
   },
   {
@@ -4376,7 +4780,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "割嘴3gpn2#产品号码6032",
+   "key": "割嘴3gpn2#产品号码6032#3-2-6032",
+   "token": "割嘴3gpn2#产品号码6032",
+   "digits": "3-2-6032",
    "altWritings": 0
   },
   {
@@ -4397,7 +4803,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴anm1#刻字内容规格与型号包装常规中性",
+   "key": "乙炔割嘴anm1#刻字内容规格与型号包装常规中性#1",
+   "token": "乙炔割嘴anm1#刻字内容规格与型号包装常规中性",
+   "digits": "1",
    "altWritings": 1
   },
   {
@@ -4418,7 +4826,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔割嘴11013#产品号码6026",
+   "key": "乙炔割嘴11013#产品号码6026#1-101-3-6026",
+   "token": "乙炔割嘴11013#产品号码6026",
+   "digits": "1-101-3-6026",
    "altWritings": 0
   },
   {
@@ -4439,7 +4849,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔切割喷嘴1号厚度1020mm预热07孔口12",
+   "key": "乙炔切割喷嘴1号厚度1020mm预热07孔口12#1-10-20-0-7-1-2",
+   "token": "乙炔切割喷嘴1号厚度1020mm预热07孔口12",
+   "digits": "1-10-20-0-7-1-2",
    "altWritings": 1
   },
   {
@@ -4460,7 +4872,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔切割喷嘴2号厚度2040mm预热08孔口15",
+   "key": "乙炔切割喷嘴2号厚度2040mm预热08孔口15#2-20-40-0-8-1-5",
+   "token": "乙炔切割喷嘴2号厚度2040mm预热08孔口15",
+   "digits": "2-20-40-0-8-1-5",
    "altWritings": 1
   },
   {
@@ -4481,7 +4895,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "乙炔切割喷嘴3号厚度4060mm预热09孔口18",
+   "key": "乙炔切割喷嘴3号厚度4060mm预热09孔口18#3-40-60-0-9-1-8",
+   "token": "乙炔切割喷嘴3号厚度4060mm预热09孔口18",
+   "digits": "3-40-60-0-9-1-8",
    "altWritings": 1
   },
   {
@@ -4502,7 +4918,9 @@
    "kinds": "计划单",
    "recovered": 0,
    "variantTexts": "",
-   "key": "g1p1610",
+   "key": "g1p1610#1-16-10",
+   "token": "g1p1610",
+   "digits": "1-16-10",
    "altWritings": 0
   },
   {
@@ -4523,7 +4941,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "gpn割嘴2#",
+   "key": "gpn割嘴2##2",
+   "token": "gpn割嘴2#",
+   "digits": "2",
    "altWritings": 0
   },
   {
@@ -4544,7 +4964,9 @@
    "kinds": "合同",
    "recovered": 0,
    "variantTexts": "",
-   "key": "harris乙炔割嘴62902代码4210",
+   "key": "harris乙炔割嘴62902代码4210#6290-2-4210",
+   "token": "harris乙炔割嘴62902代码4210",
+   "digits": "6290-2-4210",
    "altWritings": 0
   }
  ]

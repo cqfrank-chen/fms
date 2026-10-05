@@ -557,6 +557,53 @@ async function main() {
   eq('裁定④ SQL：该行无缺价待补', docLine.rows[0].pending_items, null);
   eq('裁定⑤ SQL：.doc 落草稿的订单行币种 = CNY', docLine.rows[0].currency, 'CNY');
 
+  // ================= 甲方更正（2026）：前导零 = 不同尺寸，绝不合并 =================
+  console.log('\n【甲方更正】0-GPN / 00-GPN / 000-GPN 是同一型号的不同尺寸 → 各自建档、各自定价、取价不跨尺寸');
+  // 建档：三个尺寸三条档案（服务端按「型号归一 + 数字指纹」判重，不得判成「已存在」）
+  const gpns = [];
+  for (const nm of ['0-GPN', '00-GPN', '000-GPN']) {
+    const r = await req('POST', '/products', { name: nm, type: 'us_propane' }, token);
+    eq('建档「' + nm + '」成功', r.status, 201);
+    gpns.push(r.body);
+  }
+  ok('三条档案 id 互不相同（前导零没有被合并）', new Set(gpns.map((p) => p.id)).size === 3, gpns.map((p) => p.id));
+
+  // 同一型号的不同尺寸可各自定价（唯一键含数字指纹 → 不会被判成「同键改价」而互相覆盖）
+  const gq0 = await req('POST', '/quotes', { productId: gpns[0].id, productName: '0-GPN', unitPrice: 8.5, currency: 'CNY', validFrom: PAST, source: 'contract' }, token);
+  const gq00 = await req('POST', '/quotes', { productId: gpns[1].id, productName: '00-GPN', unitPrice: 9.9, currency: 'CNY', validFrom: PAST, source: 'contract' }, token);
+  ok('0-GPN 与 00-GPN 各自建价成功（未被同键覆盖）', gq0.status === 201 && gq00.status === 201 && gq0.body.id !== gq00.body.id,
+    { 零: gq0.body?.id, 双零: gq00.body?.id });
+
+  // 取价试算：按名称查 00-GPN 不得命中 0-GPN 的价
+  const look0 = await req('GET', '/quotes/lookup?productId=' + gpns[0].id + '&productName=' + encodeURIComponent('0-GPN'), undefined, token);
+  eq('取价：0-GPN 命中自己的价 8.50', look0.body.hit.unitPriceCents, 850);
+  const look00 = await req('GET', '/quotes/lookup?productName=' + encodeURIComponent('00-GPN'), undefined, token);
+  eq('取价：00-GPN 只命中自己的价 9.90（绝不用 0-GPN 的价）', look00.body.hit.unitPriceCents, 990);
+  const look000 = await req('GET', '/quotes/lookup?productName=' + encodeURIComponent('000-GPN'), undefined, token);
+  ok('取价：000-GPN 没有价 → 保持缺价（不拿 0/00-GPN 的价顶上）', look000.body.hit === null, look000.body.hit);
+
+  // 识单：三个尺寸各自解析到自己的档案（不互相错配）
+  const gpnCsv = Buffer.from(['产品名称,数量', '0-GPN,10', '00-GPN,20', '000-GPN,30'].join('\r\n'), 'utf8');
+  const gpnParse = await req('POST', '/ai/orders/parse', { ...uploadBody(gpnCsv, 'GPN.csv'), folderCustomer: '安宝公司' }, token);
+  eq('识单：0-GPN → 档案 #' + gpns[0].id, gpnParse.body.lines[0].productId, gpns[0].id);
+  eq('识单：00-GPN → 档案 #' + gpns[1].id, gpnParse.body.lines[1].productId, gpns[1].id);
+  eq('识单：000-GPN → 档案 #' + gpns[2].id, gpnParse.body.lines[2].productId, gpns[2].id);
+  eq('识单补价：0-GPN 行 8.50', gpnParse.body.lines[0].unitPrice, 8.5);
+  eq('识单补价：00-GPN 行 9.90', gpnParse.body.lines[1].unitPrice, 9.9);
+  ok('识单补价：000-GPN 行保持缺价（不串尺寸）', gpnParse.body.lines[2].unitPrice == null, gpnParse.body.lines[2]);
+
+  // 子串容错必须带数字守卫：旧口径会把「0-GPN 0#」子串错配到档案「0-GPN」（差一个号数 = 另一个尺寸）
+  const subCsv = Buffer.from(['产品名称,数量', '0-GPN 0#,5'].join('\r\n'), 'utf8');
+  const subParse = await req('POST', '/ai/orders/parse', { ...uploadBody(subCsv, 'sub.csv'), folderCustomer: '安宝公司' }, token);
+  ok('数字守卫：子串相似但数字指纹不同（0-GPN 0# vs 0-GPN）→ 不错配，保持未建档（宁缺勿错）',
+    subParse.body.lines[0].productId == null
+      && subParse.body.lines[0].issues.some((i) => i.message.includes('不在目录中') || i.message.includes('匹配到多个产品')),
+    { productId: subParse.body.lines[0].productId, issues: subParse.body.lines[0].issues.map((i) => i.message) });
+
+  // SQL 核对：库里确实是三条独立档案（不是一条被合并的档案）
+  const gpnSql = await db.query("select id, name from products where name in ('0-GPN','00-GPN','000-GPN') order by name");
+  eq('SQL 核对：库中 0-GPN / 00-GPN / 000-GPN 是三条独立档案', gpnSql.rowCount, 3);
+
   // ================= 权限 =================
   console.log('\n【权限】报价写操作限 admin / planner');
   await req('POST', '/users', { username: 'e2ewh2', password: 'Ws@2026x', displayName: '仓管测试', role: 'warehouse' }, token);

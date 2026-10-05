@@ -25,7 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_WORK, DEFAULT_DOC_SLICE_DIRS, parseCsv,
-  loadDocSlices, docRowValues, isProductNoise, normalizeToken, topFolder,
+  loadDocSlices, docRowValues, isProductNoise, normalizeToken, digitSignature, topFolder,
 } from './lib/ziliao-extract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +49,7 @@ const seeds = seedRows.slice(1).map((r) => ({
   price: (r[ci('单价')] ?? '').trim(),
   date: (r[ci('生效日期')] ?? '').trim(),
   tok: normalizeToken(r[ci('产品名称')] ?? ''),
+  digits: digitSignature(r[ci('产品名称')] ?? ''),
 })).filter((x) => x.product && x.tok);
 const byCustomer = new Map();
 for (const s of seeds) {
@@ -71,9 +72,11 @@ for (const s of slices) {
     if (!v.name || isProductNoise(v.name)) continue;
     planRows += 1;
     const tok = normalizeToken(v.name);
-    if (pool.some((x) => x.tok === tok)) { hitRows += 1; hits.push([top, v.name, s.rel]); continue; }
-    const key = top + '|' + tok;
-    if (!missGroups.has(key)) missGroups.set(key, { customer: top, name: v.name, tok, n: 0, files: new Set() });
+    // ⚠️ 命中判定必须带**数字指纹**（甲方更正）：归一文本相同但数字部分不同 → 不是同一产品（不同尺寸）
+    const digits = digitSignature(v.name);
+    if (pool.some((x) => x.tok === tok && x.digits === digits)) { hitRows += 1; hits.push([top, v.name, s.rel]); continue; }
+    const key = top + '|' + tok + '|' + digits;
+    if (!missGroups.has(key)) missGroups.set(key, { customer: top, name: v.name, tok, digits, n: 0, files: new Set() });
     const g = missGroups.get(key);
     g.n += 1;
     g.files.add(s.rel);
@@ -84,11 +87,14 @@ const out = [];
 const reasonByRows = {};
 const reasonByGroups = {};
 for (const g of missGroups.values()) {
-  const sameCust = (byCustomer.get(g.customer) ?? []).find((x) => x.tok.includes(g.tok) || g.tok.includes(x.tok));
-  const otherCust = sameCust ? null : seeds.find((x) => x.tok.includes(g.tok) || g.tok.includes(x.tok));
+  // 线索也用**同一道数字守卫**：数字部分含前导零/位数/号数不一致的一律不算「近似价源」
+  // （旧口径把 0-GPN 与 00-GPN 这类不同尺寸当成近似线索 —— 甲方更正后必须剔除；详见 build_model_aliases.mjs）
+  const near = (x) => x.digits === g.digits && (x.tok.includes(g.tok) || g.tok.includes(x.tok));
+  const sameCust = (byCustomer.get(g.customer) ?? []).find(near);
+  const otherCust = sameCust ? null : seeds.find(near);
   const reason = sameCust
-    ? '命名不一致：同客户有近似价源（写法包含关系）'
-    : (otherCust ? '命名不一致：其它客户文件夹有近似价源（需甲方裁定是否可作为通用价）'
+    ? '命名不一致：同客户有近似价源（写法包含关系，数字部分完全一致）'
+    : (otherCust ? '命名不一致：其它客户文件夹有近似价源（数字部分完全一致，需甲方裁定是否可作为通用价）'
       : '无任何可对应的价源（该型号族只出现在计划单里）');
   reasonByRows[reason] = (reasonByRows[reason] ?? 0) + g.n;
   reasonByGroups[reason] = (reasonByGroups[reason] ?? 0) + 1;

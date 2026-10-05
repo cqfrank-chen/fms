@@ -10,17 +10,29 @@ import type { PriceHit } from '../quotes/quote-pricing';
  * 向后兼容：不传报价信息（无命中 / quotePricing:false）时行为与改造前完全一致。
  */
 
+/** 假产品档案：测试可临时增删（jest.mock 工厂里引用的变量必须以 mock 开头） */
+const mockProducts: Array<{ id: number; name: string }> = [
+  { id: 22, name: '1-101 割嘴 00#' },
+  { id: 44, name: '0-GPN' },
+  { id: 55, name: '00-GPN' },
+];
+const mockProductsDefault = mockProducts.slice();
+
 jest.mock('../db', () => {
   const schema = jest.requireActual('../db/schema');
   const customers = [{ id: 11, name: '安宝公司' }];
-  const products = [{ id: 22, name: '1-101 割嘴 00#' }];
   return {
     db: {
       select: () => ({
-        from: (table: unknown) => Promise.resolve(table === schema.customers ? customers : products),
+        from: (table: unknown) => Promise.resolve(table === schema.customers ? customers : mockProducts),
       }),
     },
   };
+});
+
+afterEach(() => {
+  mockProducts.length = 0;
+  mockProducts.push(...mockProductsDefault);
 });
 
 const llm = { hasChatKey: async () => false, chat: async () => ({ text: '{}' }) } as never;
@@ -120,7 +132,47 @@ describe('① 缺价行按报价记录补价', () => {
   });
 });
 
-describe('② 客户由文件夹决定（与报价补价协同）', () => {
+describe('② 产品名与档案的子串容错**必须带数字守卫**（甲方更正：不同尺寸 = 不同产品）', () => {
+  // 旧行为：normName 子串匹配（'1-101割嘴00#'.includes('1-101')）会把计划单的「1-101」
+  // 错配到档案「1-101 割嘴 00#」——那是**另一个尺寸**，价格/工艺都会跟错。
+  // 新口径：子串容错保留（描述/品牌前缀差异仍可命中），但要求数字指纹逐字符一致。
+  const oneRow = (name: string) => [['产品名称', '数量', '单价'], [name, '100', '']];
+
+  it('计划单写「1-101」、档案只有「1-101 割嘴 00#」→ **不再错配**（productId 为空 + 明确提示）', async () => {
+    mockProducts.length = 0;
+    mockProducts.push({ id: 22, name: '1-101 割嘴 00#' });
+    const svc = new OrderParserService(llm);
+    const r = await svc.parseAndResolve({ table: { rows: oneRow('1-101'), source: 'csv' }, folderCustomer: '安宝公司' });
+    expect(r.lines[0].productId ?? null).toBeNull();
+    expect(r.lines[0].issues.some((i) => i.message.includes('不在目录中'))).toBe(true);
+  });
+
+  it('描述后缀差异（数字一致）仍然命中：档案「1-101 割嘴 00#」↔ 单据「1-101 割嘴 00# 特价」', async () => {
+    mockProducts.length = 0;
+    mockProducts.push({ id: 22, name: '1-101 割嘴 00#' });
+    const svc = new OrderParserService(llm);
+    const r = await svc.parseAndResolve({ table: { rows: oneRow('1-101 割嘴 00# 特价'), source: 'csv' }, folderCustomer: '安宝公司' });
+    expect(r.lines[0].productId).toBe(22);
+  });
+
+  it('品牌前缀差异（数字一致）仍然命中：档案「Victor 乙炔割嘴 1-1-101」↔ 单据「Victor 乙炔割嘴 1-1-101 中性包装」', async () => {
+    mockProducts.length = 0;
+    mockProducts.push({ id: 77, name: 'Victor 乙炔割嘴 1-1-101' });
+    const svc = new OrderParserService(llm);
+    const r = await svc.parseAndResolve({ table: { rows: oneRow('Victor 乙炔割嘴 1-1-101 中性包装'), source: 'csv' }, folderCustomer: '安宝公司' });
+    expect(r.lines[0].productId).toBe(77);
+  });
+
+  it('0-GPN 与 00-GPN 各自命中自己的档案（不互相错配）', async () => {
+    const svc = new OrderParserService(llm);
+    const g0 = await svc.parseAndResolve({ table: { rows: oneRow('0-GPN'), source: 'csv' }, folderCustomer: '安宝公司' });
+    expect(g0.lines[0].productId).toBe(44);
+    const g00 = await svc.parseAndResolve({ table: { rows: oneRow('00-GPN'), source: 'csv' }, folderCustomer: '安宝公司' });
+    expect(g00.lines[0].productId).toBe(55);
+  });
+});
+
+describe('③ 客户由文件夹决定（与报价补价协同）', () => {
   it('folderCustomer 决定客户名，补价用的客户即该文件夹客户', async () => {
     const captured: Array<{ customerId: number | null; productName: string | null }> = [];
     const spy = {

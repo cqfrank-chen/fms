@@ -378,6 +378,14 @@ export function requiredTableFields(folderCustomer?: string): TableField[] {
 /**
  * 通用文本归一（表头匹配 / 主数据枚举值匹配共用）：
  * 全角→半角、小写、去空白、去括号/冒号/星号/顿号等噪声（前后空格与「单价（元）」类写法都能命中）。
+ *
+ * ⚠️ 口径边界（2026 甲方更正，最高优先级）：**归一化只碰文本外壳，绝不碰数字。**
+ *   · 只做「空格 / 全角半角 / 大小写 / 标点」层面的归一；
+ *   · 数字部分（含**前导零**与**数字位数**）**原样保留、逐字符比较** —— 本函数不会删前导零、
+ *     不会折叠数字位、不会把 0-GPN 变成 gpn；
+ *   · 但删除标点会带来「数字分段」层面的假相等：1-1-101 与 111-01 归一后都是 11101。
+ *     所以**凡是判定「是不是同一个产品型号」的地方，必须再加一道 digitSignature 守卫**
+ *     （见 sameProductModel / productIdentityKey），只靠 normalizeToken 相等是不够的。
  */
 export function normalizeToken(s: string): string {
   return (s ?? '')
@@ -385,6 +393,47 @@ export function normalizeToken(s: string): string {
     .toLowerCase()
     .replace(/\s+/g, '')
     .replace(/[（）()：:*，,。、.．\-_/／【】\[\]「」'’“”"]/g, '');
+}
+
+/**
+ * 数字指纹（型号归一的正确姿势）：按出现顺序抽出「数字段」并用 - 连接。
+ * **前导零与数字位数原样保留 → 逐字符比较**（只抹掉分隔标点本身的差异）。
+ *
+ *   0-GPN   → "0"        ／ 00-GPN  → "00"       ／ 000-GPN → "000"  （三者互不相等）
+ *   1-1-101 → "1-1-101"  ／ 111-01  → "111-01"   ／ 1 1 101 → "1-1-101"
+ *   GPN-1   → "1"        ／ GPN 1   → "1"        ／ 无数字   → ""
+ *
+ * 甲方口径：「**0-GPN 和 00-GPN 是同一型号的不同尺寸**」—— 前导零 / 数字位差异 = 不同产品，
+ * 绝不合并、绝不在归一化时删除前导零或折叠数字位（价格错误代价高，宁缺勿错）。
+ */
+export function digitSignature(s: string): string {
+  // 先做**全角 → 半角**（属于「全角半角」层面的归一，允许；否则 '００' 这种全角数字会取不到指纹，
+  // 导致同一尺寸被误判成两个产品）—— 除此之外不动数字：前导零、位数原样保留。
+  const half = String(s ?? '').replace(/[\uff01-\uff5e]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  return (half.match(/[0-9]+/g) ?? []).join('-');
+}
+
+/**
+ * 「是不是同一个产品型号」的唯一权威判定：
+ * **文本归一相同（空格/全角/大小写/标点）+ 数字指纹相同（数字部分含前导零逐字符一致）**，两者同时成立。
+ * 任何「按名称归一后相等就算同一产品」的比对都必须走本函数（或 productIdentityKey）。
+ */
+export function sameProductModel(a: string, b: string): boolean {
+  return normalizeToken(a) === normalizeToken(b) && digitSignature(a) === digitSignature(b);
+}
+
+/**
+ * 子串容错匹配的前置守卫：两个写法的**数字部分是否完全一致**（含前导零 / 位数 / 号数）。
+ * 用于「计划单写 1-1-101、档案写 Victor 乙炔割嘴 1-1-101」这类**只差描述/品牌前缀**的比对：
+ * 允许子串关系，但数字部分必须逐字符一致 —— 绝不为凑覆盖率放开数字。宁缺勿错。
+ */
+export function sameProductDigits(a: string, b: string): boolean {
+  return digitSignature(a) === digitSignature(b);
+}
+
+/** 产品去重键（导入幂等 / 表内查重 / 报价唯一键的「产品」一段）：文本归一 + 数字指纹 */
+export function productIdentityKey(s: string): string {
+  return normalizeToken(s) + '#' + digitSignature(s);
 }
 
 /**

@@ -64,12 +64,32 @@ zip ──extract_ziliao.py──► 解压目录 + _manifest.csv
 | **extract_products.mjs** | **任务一**：从 570 份带单价列合同 + 214 份计划单 + 36 份采购单/带价单据抽产品 → 产品建档候选 CSV（含建议类型/默认包装/出现次数/来源文件数/置信度）+ **疑似同产品不同写法**清单（**不自动合并**） | node tools/ziliao/extract_products.mjs |
 | **extract_price_seeds.mjs** | **任务二**：从合同与 .doc 采购单抽 `(客户=文件夹名, 产品名, 单价, 币种, 日期)` → 报价种子 CSV（表头含**来源**列：contract / doc） | node tools/ziliao/extract_price_seeds.mjs |
 | **import_products_cloud.mjs** | 产品批量导入：**只调既有接口** `/api/master-data/import/preview\|commit`（target=products）；`--dry-run` 先看 新增/更新/跳过/错误；幂等（按产品名归一判重，复跑全 skip） | node tools/ziliao/import_products_cloud.mjs --in tools/ziliao/products_candidates.csv --dry-run |
-| **analyze_price_gap.mjs** | **任务三配套**：报价种子导入后仍缺价的**原因分析**（命名不一致 / 无价源），产出逐产品写法的线索清单 | node tools/ziliao/analyze_price_gap.mjs |
+| **analyze_price_gap.mjs** | **任务三配套**：报价种子导入后仍缺价的**原因分析**（命名不一致 / 无价源），产出逐产品写法的线索清单；近似线索**必须数字指纹一致**才算 | node tools/ziliao/analyze_price_gap.mjs |
+| **build_model_aliases.mjs** | **任务三**：产出**型号对照候选**（计划单写法 ↔ 合同/报价写法），用于解锁缺价；硬门槛：**数字部分含前导零逐字符一致** + 只允许描述/品牌前缀（子串）差异；**只出候选供人工确认，不写库、不自动应用** | node tools/ziliao/build_model_aliases.mjs |
+| **size_normalization_audit.sql** | **型号归一口径 SQL 核对**（只读）：档案/报价计数是否与候选 CSV 对齐、前导零型号是否各自建档、同族尺寸清单、重复档案、危险对检查；附（默认不执行的）修复片段 | docker exec -i fms-postgres psql -U fms -d fms -f - < tools/ziliao/size_normalization_audit.sql |
 
 产物（跑完落在仓库 tools/ziliao/）：
-`products_candidates.csv`（产品建档候选）、`products_variants.csv`（疑似同产品不同写法，**未合并**）、`products_candidates_summary.txt`、
+`products_candidates.csv`（产品建档候选）、`products_variants.csv`（疑似同产品不同写法，**未合并**，带「差异类别」列）、
+`products_variants_A_文本差异.csv`（A 类·可合并候选，附建议标准名）、`products_variants_B_尺寸差异.csv`（B 类·**不合并，各自建档**）、
+`products_size_merge_audit.csv`（旧口径尺寸折叠审计）、`products_candidates_summary.txt`、
 `contract_price_seeds.csv`（历史成交价报价种子，直接喂 `import_quotes_cloud.mjs`）、`contract_price_seeds_summary.txt`、
+`contract_price_seed_size_merge_audit.csv`（报价种子侧的尺寸折叠审计）、
+`model_alias_candidates.csv` + `model_alias_summary.txt`（型号对照候选，供人工确认）、
 `price_gap_analysis.csv` + `price_gap_summary.txt`（剩余缺价原因）。
+
+## 型号归一口径（甲方更正 2026 · **最高优先级**）
+
+> 甲方更正原文：「**0-GPN 和 00-GPN 是同一型号的不同尺寸**。」
+
+1. **前导零 / 数字位数差异 = 不同尺寸 = 不同产品**，绝不合并、绝不各自覆盖；
+2. 归一化**只碰文本外壳**：空格 / 全角半角 / 大小写 / 标点；**数字部分（含前导零、位数、后缀号数）原样保留、逐字符比较**；
+3. 判定「是不是同一个产品型号」的唯一口径 = `normalizeToken` 相同 **且** `digitSignature` 相同（`productIdentityKey`）；
+   服务端实现在 `apps/api/src/ai/table-parser.service.ts`，工具侧在 `tools/ziliao/lib/ziliao-extract.mjs`（逐字符同口径）；
+4. 变体清单据此重新分类：
+   * **A 类·纯文本差异**（组内数字指纹全一致）→ 可合并候选，附建议标准名，**仍不自动合并**；
+   * **B 类·数字/尺寸差异**（组内出现 ≥2 种数字指纹）→ **同型号不同尺寸，不合并，各自建档**；
+5. 子串容错（"计划单写 1-1-101、合同写 Victor 乙炔割嘴 1-1-101"）**必须带数字守卫**：
+   数字部分逐字符一致才允许命中；**绝不为凑覆盖率做无约束子串匹配**（宁缺勿错，价格错误代价高）。
 
 > 报价导入的**来源**列：`contract`（合同成交价）/ `doc`（.doc 单据提取）/ `import`（用户上传的报价表）/ `manual`；
 > 留空沿用既有口径 `import`（向后兼容）。服务端词表见 apps/api/src/db/schema.ts 的 `QUOTE_SOURCES`。
@@ -157,8 +177,15 @@ node tools/ziliao/extract_products.mjs
 # 16) 【任务二】抽历史成交价报价种子（只读资料包）
 node tools/ziliao/extract_price_seeds.mjs
 
-# 17) 【任务三配套】剩余缺价原因分析
+# 17) 【任务三配套】剩余缺价原因分析（近似线索已加数字守卫）
 node tools/ziliao/analyze_price_gap.mjs
+
+# 17b) 【任务三】型号对照候选（计划单写法 ↔ 合同写法；只出候选，供人工确认）
+node tools/ziliao/build_model_aliases.mjs
+
+# 17c) 型号归一口径 SQL 核对（只读；核对「上一轮导入有没有把不同尺寸合并」）
+docker exec -i fms-postgres psql -U fms -d fms -f - < tools/ziliao/size_normalization_audit.sql
+# 云端：psql "postgresql://fms:<密码>@<云端主机>/fms" -f tools/ziliao/size_normalization_audit.sql
 
 # 18) 产品建档导入（先 --dry-run；FMS_BASE 指向目标环境）
 $env:FMS_BASE = "https://<云端地址>/api"
@@ -189,6 +216,8 @@ print(r["chars"], r["text"])
 * import_* 脚本会**真的写库**。请先指向一个空的试点库（本报告用的是独立容器 fms-ziliao-pg，宿主机 15433）。
 * build_candidates.py 只产出「候选 + 置信度 + 疑点」，**不做任何别名合并**；
   客户别名合并必须由业务人工裁定（见 D:\futures\ziliao-analysis.md §5.1）。
+* **型号归一（2026 甲方更正）**：`0-GPN` 与 `00-GPN` 是同一型号的**不同尺寸** → 各自建档、各自定价；
+  任何脚本都不得删除前导零、折叠数字位，也不得用无约束子串匹配把它们判成同一产品（见上节口径）。
 * 结算方式 / 账期天数在资料包里没有证据，导入时一律留空，不臆造。
 * **幂等**：客户导入自带「同名（去空格后）」去重 → 复跑 summary.new=0、全部 skip；唛头模板按「模板名」先查后插 → 复跑 created=0、skipped=全部。
 * **.doc 计划单族没有单价列** → 识单结果必然缺 unitPrice（管线如实报「缺数量或单价，已保留 N 行待人工补全」），需人工补价；

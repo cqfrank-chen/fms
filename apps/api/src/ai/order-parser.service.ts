@@ -4,7 +4,7 @@ import { customers, products } from '../db/schema';
 import { fromCents, lineCents, sumLineCents } from '../common/money';
 import { LlmGatewayService } from './llm-gateway.service';
 import type { LlmMessage } from './llm-gateway.service';
-import { matrixToCompactText, ruleMapMatrix } from './table-parser.service';
+import { matrixToCompactText, ruleMapMatrix, sameProductDigits } from './table-parser.service';
 import type { HeaderArea, RuleMapResult } from './table-parser.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { describeHit } from '../quotes/quote-pricing';
@@ -394,7 +394,10 @@ export class OrderParserService {
           match = 'exact';
         } else {
           const nn = normName(name);
-          const cands = allProducts.filter((p) => nn && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
+          // 子串容错（计划单写「1-1-101」、档案写「Victor 乙炔割嘴 1-1-101」）**必须加数字守卫**：
+          // 数字部分（含前导零/位数/号数）逐字符一致才允许命中 —— 否则「1-101」会错配到「1-101 割嘴 00#」这种不同尺寸。
+          const cands = allProducts.filter((p) => nn && sameProductDigits(name, p.name)
+            && (nn.includes(normName(p.name)) || normName(p.name).includes(nn)));
           if (cands.length === 1) {
             productId = cands[0].id;
             match = 'exact';
