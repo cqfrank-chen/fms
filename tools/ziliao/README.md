@@ -44,6 +44,18 @@ zip ──extract_ziliao.py──► 解压目录 + _manifest.csv
 | **doc-text.mjs** | **纯 Node 零依赖** Word 正文抽取器（.doc Word97/CFB + .docx zip），与 doc_text.py 同口径 | node doc-text.mjs 某文件.doc [--json] |
 | **build_folder_lists.mjs** | **纯 Node 零依赖**生成客户清单 / 唛头模板候选（**不需要 python**），产出直接落到本目录 | node build_folder_lists.mjs [--root 解压目录] [--outdir 目录] |
 
+## 本轮新增脚本（I17 甲方裁定 5 项 · 报价导入 / 落草稿）
+
+| 文件 | 作用 | 用法 |
+| --- | --- | --- |
+| **find_quote_files.mjs** | 在资料包里**检索报价单**并抽样表结构（文件名含 报价/价格/单价/价目/quote/price，扩展名 xls/xlsx/doc/docx/pdf/csv）；产出清单 + 抽样明细 + 可映射性判断 + **候选报价行 CSV** | node find_quote_files.mjs [--root D:/futures/ziliao-data] [--out tools/ziliao] [--rows 12] |
+| **import_quotes_cloud.mjs** | 报价批量导入云端：**只调既有接口** `/api/quotes/import/preview` → `/commit`（分类统计/档案匹配/同键改价全由服务端负责，与界面导入同一口径）；先 `--dry-run` 看统计，幂等（复跑 = 全改价，不新增） | $env:FMS_BASE="https://…/api"; node import_quotes_cloud.mjs --in tools/ziliao/quote_seed_candidates.csv --dry-run |
+| **draft_orders_from_parse.mjs**（增强） | 批量落草稿：新增 `--base`、`--dry-run` 输出**识单层面预估统计**（客户已建档/未建档、报价补价行、仍缺价行、缺数量行、按文件夹客户分组） | node draft_orders_from_parse.mjs --csvdir <切片目录> [--csvdir …] --dry-run |
+
+产物（跑 `find_quote_files.mjs` 后落在仓库 tools/ziliao/）：
+`quote_files.csv`（报价单清单）、`quote_files_samples.json`（抽样明细）、`quote_files_summary.txt`（摘要与结论）、
+`quote_seed_candidates.csv`（可导入的候选行，直接喂 `import_quotes_cloud.mjs`）。
+
 ## 环境变量（.mjs 脚本共用）
 
 | 变量 | 默认 | 说明 |
