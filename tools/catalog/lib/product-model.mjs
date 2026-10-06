@@ -99,9 +99,21 @@ function candidates(raw, index) {
  * 锚定不到目录（型号不在目录 / 尺寸有歧义 / size 不在档位）时 result 为 null —— 绝不猜。
  */
 export function explainProductModel(name, index) {
+  const ex = explainProductModelSpans(name, index);
+  return { result: ex.result, reason: ex.reason };
+}
+
+/**
+ * 与 explainProductModel 同判定，**额外返回命中区间**（产品名归一用：把型号与 size 从名字里摘掉，
+ * 剩下的文字再归位到「默认包装 / 备注」）。
+ * 区间是 `toHalfWidth(name).trim()` 上的下标（半角化后的坐标），调用方需用同一个字符串取值。
+ * 判定逻辑与 explainProductModel **完全共用**（后者只是丢掉区间），所以二者永不漂移。
+ */
+export function explainProductModelSpans(name, index) {
   const raw = toHalfWidth(String(name ?? '')).trim();
-  if (!raw) return { result: null, reason: '空名称' };
-  if (!index || !index.size) return { result: null, reason: '型号索引为空' };
+  const miss = (reason) => ({ result: null, reason, modelStart: null, modelEnd: null, sizeStart: null, sizeEnd: null });
+  if (!raw) return miss('空名称');
+  if (!index || !index.size) return miss('型号索引为空');
   let reason = null;
 
   for (const cand of candidates(raw, index)) {
@@ -131,16 +143,46 @@ export function explainProductModel(name, index) {
       if (leftRun) { reason = '尺寸不在目录档位（型号前数字 ' + leftRun[2] + '）'; continue; }
       // 型号后面既没有合法 size，又紧贴着字母数字 → 边界不干净（多半是别的编号），作废
       if (cand.end < raw.length && isAlnum(raw[cand.end])) { reason = '型号边界不干净（右侧紧贴 ' + raw[cand.end] + '）'; continue; }
-      return { result: { ...base, size: null, orificeMm: null, thicknessRange: null, sizeKnown: false }, reason: null };
+      return {
+        result: { ...base, size: null, orificeMm: null, thicknessRange: null, sizeKnown: false },
+        reason: null, modelStart: cand.start, modelEnd: cand.end, sizeStart: null, sizeEnd: null,
+      };
     }
     // ③ size 必须是该型号目录里真实存在的档位（逐字符，含前导零）
     const row = cand.hit.bySize.get(size);
     // size 不在档位里（例如把货号 / 变体号 PNME18 的 18 当 size）→ **整个候选作废、不当成「型号无尺寸」**：
     // 尺寸没定死就放过，会让不同尺寸互相命中（价格错误代价高）。
     if (!row) { reason = '尺寸不在目录档位（候选数字 ' + size + '）'; continue; }
-    return { result: { ...base, size, orificeMm: row.orifice, thicknessRange: row.thickness, sizeKnown: true }, reason: null };
+    // size 的命中位置：型号前（preM）或型号后（sufM），换算成 raw 上的绝对下标
+    // before = raw.slice(0, cand.start) → preM.index 已是 raw 上的绝对下标；
+    // after = raw.slice(cand.end) → sufM.index 需加上 cand.end
+    const sizeStart = preM
+      ? preM.index + preM[0].indexOf(pre)
+      : cand.end + sufM.index + sufM[0].indexOf(suf);
+    return {
+      result: { ...base, size, orificeMm: row.orifice, thicknessRange: row.thickness, sizeKnown: true },
+      reason: null, modelStart: cand.start, modelEnd: cand.end, sizeStart, sizeEnd: sizeStart + String(size).length,
+    };
   }
-  return { result: null, reason: reason ?? '型号未锚定到目录' };
+  return miss(reason ?? '型号未锚定到目录');
+}
+
+/**
+ * 额外型号别名叠加（默认不生效）：把「可锚定的其它型号写法」映射到目录型号的**紧凑键**上，
+ * 例如 { "106hc": "106" } —— 只有在甲方确认「106HC 就是 106」之后才允许启用（默认关闭，绝不臆造）。
+ * 只加键、不改既有键，避免覆盖目录真实型号；返回新的索引（不改原索引）。
+ */
+export function withModelAliases(index, aliases) {
+  if (!aliases || !Object.keys(aliases).length) return index;
+  const byKey = new Map(index);
+  for (const [alias, target] of Object.entries(aliases)) {
+    const hit = byKey.get(compactKey(target));
+    if (!hit) continue; // 目标必须是目录里真实存在的型号，否则整条忽略
+    const k = compactKey(alias);
+    if (k.length < 2 || byKey.has(k)) continue; // 不覆盖既有键
+    byKey.set(k, hit);
+  }
+  return byKey;
 }
 
 /** 只要结论：锚定不到目录（或尺寸有歧义）时返回 null */

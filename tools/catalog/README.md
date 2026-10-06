@@ -52,6 +52,11 @@
 | **lib/catalog-type.mjs** | 目录（系列 + 气体）→ 系统产品类型（type）推导；映射不到保持 tbd | 被 import |
 | **dedupe_products.test.mjs** | 去重判定**单元测试**（13 项：写法等价 / 不跨 size / 分组 / 存活选择 / 类型推导 / 真实 1444 条） | `node --test tools/catalog/dedupe_products.test.mjs` |
 | **dedupe_audit.sql** | 合并后**只读**核对 SQL：条数 / 悬空引用 / 同型号同 size 只剩 1 条 / 前导零三档 / 类型分布 | `psql "<DSN>" -f tools/catalog/dedupe_audit.sql` |
+| **normalize_products.mjs** | **产品名归一**：统一成 `{size}-{model}`、从名称提炼型号、归一后再次去重、多余信息归位到「默认包装 / 备注」；默认 dry-run / 单事务 / 幂等 | 见下「产品名归一」 |
+| **lib/normalize-core.mjs** | 归一的**纯函数核心**（解析 → 标准名 → 包装/备注归位 → 分组选存活），被 CLI 与单测共用 | 被 import |
+| **lib/rehang.mjs** | 引用 products 的外键「重挂 + 唯一约束冲突行清理」**共享实现**（dedupe 与 normalize 共用同一口径） | 被 import |
+| **normalize_products.test.mjs** | 归一判定**单元测试**（19 项：命名规则 / 前导零 / 归位 / 多包装去重 / 幂等 / 别名 / 不臆造） | `node --test tools/catalog/normalize_products.test.mjs` |
+| **catalog_model_aliases.candidate.json** | **候选**型号别名（默认不启用）：确认「106HC 就是 106」这类写法后才用 `--aliases` 启用 | `--aliases tools/catalog/catalog_model_aliases.candidate.json` |
 
 产物（跑 `dedupe_products.mjs` 时自动写出）：
 `dedupe_product_merges.csv`（被合并清单：分组键 / 系列 / 气体 / 类型 / 存活 id+名字 / 被合并 id+名字）、
@@ -119,6 +124,46 @@ node apps/api/test/dedupe-products-e2e.mjs
 （`ACE→ACETYLENE`、`LPG→LPG`；款式 美式→`us_*`、英式→`uk_*`）；
 日式 / 法式 / 澳式 / 巴西式在既有枚举（英式/美式 × 乙炔/丙烷）里**没有对应值** →
 保持 `tbd` 并标记，**不臆造**；未锚定行不改 type（保持现状）。
+
+---
+
+## 产品名归一（`normalize_products.mjs`，**默认 dry-run**）
+
+甲方 2026 规则：**产品名统一为 `{size}-{model}`**（size 用目录原值，**不补零不删零**；model 用目录型号代码），
+例如 `0-1-101` / `000-3-101` / `0-261`；**从名称提炼型号后按 (model, size) 再去重**；
+**产品号码 / 塑料盖贴 → 默认包装（1:N）**，其余（品牌 / 刻字 / 重量 / 货号 / 尺寸描述）→ **备注**。
+
+```powershell
+# ① dry-run（只报告）：命名变更 / 新提炼型号 / 新合并 / 包装·备注归位 / 未锚定清单
+node tools/catalog/normalize_products.mjs --dsn "postgres://fms:<密码>@<主机>:5432/fms"
+
+# ② 正式写入（单事务，失败自动回滚）
+node tools/catalog/normalize_products.mjs --dsn "<DSN>" --apply
+
+# ③ 幂等复核（复跑应全部为 0）
+node tools/catalog/normalize_products.mjs --dsn "<DSN>" --apply
+
+# ④ 甲方确认「其它型号写法」之后再启用别名（默认不启用，绝不臆造）
+node tools/catalog/normalize_products.mjs --dsn "<DSN>" --aliases tools/catalog/catalog_model_aliases.candidate.json --apply
+
+# 单测 / 端到端
+node --test tools/catalog/normalize_products.test.mjs
+node apps/api/test/normalize-products-e2e.mjs
+```
+
+**归位规则（写死在 lib/normalize-core.mjs，可被单测复算）**
+
+| 名称里的内容 | 归到哪里 | 例 |
+| --- | --- | --- |
+| 产品号码、塑料盖 / 塑料盒盖 / 盖贴 / 贴盖 / 塑壳、包装 / 彩盒 / 泡壳 / 尼龙袋 / 不干胶… | `product_packagings`（默认包装，1:N） | `产品号码6023`、`塑料盖贴：1-101 1` |
+| 品牌、刻字、重量、**货号**、代码、尺寸描述、其它备注性文字 | `products.remark`（备注，多值用 ` ｜ ` 连接） | `HARRIS 53g`、`代码:4187` |
+| 产品类别 / 款式 / 气体词（割嘴、喷嘴、乙炔、丙烷、澳大利亚款式…） | **丢弃**（这些信息已在 type / series / gas_type 列） | `乙炔割嘴` |
+
+**归一前的原始产品名**一律写入 `products.legacy_name` 留档（信息零丢失，可随时核对 / 回退）；
+`products.default_packaging` 文本列**保留不动**（只补空），既有读取路径与 e2e 不受影响。
+
+**同一型号多种默认包装**：新增 `product_packagings(product_id, packaging, note, source)`（迁移 `0025`，**只新增**），
+`(product_id, packaging)` 唯一索引保证幂等；`source` 取值 `name`（名字归位）/ `legacy`（既有文本列回填）/ `manual`（界面新增）。
 
 ---
 

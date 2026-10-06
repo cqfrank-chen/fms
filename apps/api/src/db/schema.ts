@@ -75,13 +75,44 @@ export const products = pgTable('products', {
   orificeMm: numeric('orifice_mm'), // 切割孔径(mm)，取自目录该型号该 size 行（保留目录写法）
   thicknessRange: text('thickness_range'), // 切割厚度范围(mm)，取自目录，如 '6-10'
   catalogAnchor: text('catalog_anchor'), // matched / unmatched（未锚定的保持现状并标记）
-  catalogNote: text('catalog_note'), // 锚定说明 / 未锚定原因（人工复核用）
+  catalogNote: text('catalog_note'), // 锚定说明 / 未锚定原因 / 合并说明（人工复核用）
+  // ---- 产品名归一（2026 标准化；迁移**只新增**，见 drizzle/0025_product_packagings.sql）----
+  // 甲方规则：产品名统一为 `{size}-{model}`（如 0-1-101 / 000-3-101 / 0-261）；
+  // 原产品名里除型号与 size 以外的信息（品牌 / 刻字 / 重量 / 货号 / 尺寸描述 / 备注性文字）
+  // 归入本列；包装类信息（产品号码、塑料盖贴等）归入 product_packagings（1:N）。
+  remark: text('remark'), // 备注（归一后从产品名里归位的多余信息）
+  legacyName: text('legacy_name'), // 归一前的原始产品名（无损留档，便于核对与回退）
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), // 最后修改时间
 }, (t) => [
   // 目录锚定检索索引：与 0023_catalog_anchor.sql 已建的同名索引对齐
   // （此前只写在迁移与快照里、未在 schema 声明，导致 drizzle-kit 认为要删掉它）
   index('products_catalog_model_size_idx').on(t.catalogModel, t.sizeSpec),
+]);
+
+/**
+ * 产品默认包装（1:N）—— 同一型号可以有**多种默认包装**（甲方规则 2026）。
+ * ---------------------------------------------------------------------------
+ * 为什么是独立表而不是把 products.default_packaging 改成数组：
+ *   ① 迁移只新增：既有 default_packaging 文本列**原样保留**，历史读取路径（订单 / 计划单 / 报价 /
+ *      标签 / 报表 / e2e）零改动，向后兼容；
+ *   ② 前端可增删改每一行包装（含备注与来源），并给出「同型号多包装」的完整视图；
+ *   ③ (product_id, packaging) 唯一索引保证重复写入幂等（归一脚本可反复跑）。
+ * source 取值：'name'（从产品名归位）/ 'legacy'（由原 default_packaging 回填）/ 'manual'（界面新增）。
+ */
+export const productPackagings = pgTable('product_packagings', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  packaging: text('packaging').notNull(), // 默认包装描述（如：产品号码6023 / 塑料盖贴：1-101 1 / 塑壳 红盖 不干胶）
+  note: text('note'), // 该包装的补充说明
+  source: text('source'), // name / legacy / manual
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('product_packagings_product_packaging_uq').on(t.productId, t.packaging),
+  index('product_packagings_product_idx').on(t.productId),
 ]);
 
 /** 客户档案（Customer）：订单与应收归集主体 */
@@ -117,6 +148,8 @@ export const operators = pgTable('operators', {
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
+export type ProductPackaging = typeof productPackagings.$inferSelect;
+export type NewProductPackaging = typeof productPackagings.$inferInsert;
 export type Customer = typeof customers.$inferSelect;
 export type NewCustomer = typeof customers.$inferInsert;
 export type Supplier = typeof suppliers.$inferSelect;

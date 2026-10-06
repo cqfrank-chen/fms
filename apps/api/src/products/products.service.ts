@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '../db';
 import {
   NewProduct,
+  productPackagings,
   productProcesses,
   products,
   processes as processesTbl,
@@ -14,9 +15,44 @@ import { CATALOG_SERIES } from '../ai/catalog-models';
 import { hidePlaceholders, includePlaceholders } from '../common/placeholders';
 import { ensurePendingProduct } from '../common/pending-entities';
 
+/** 默认包装条目（1:N）：同一型号可以有多种默认包装 */
+export interface PackagingInput {
+  packaging: string;
+  note?: string | null;
+}
+
+/** 列表返回的产品行 = 产品档案 + 默认包装多值 */
+export type ProductWithPackagings<T> = T & { packagings: PackagingView[] };
+
+/** 事务句柄类型（从 db.transaction 回调参数推导，避免手写 drizzle 泛型） */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * 系列筛选取值 → SQL 包含匹配模式（甲方规则：?series=AMERICAN 必须命中
+ * 'AMERICAN STYLE CUTTING TIP'）。用户输入里的 % / _ / 反斜杠先转义，避免被当成通配符。
+ * 纯函数，单独导出便于单测守住「包含匹配」这一口径。
+ */
+export function seriesLikePattern(series?: string): string | null {
+  const s = (series ?? '').trim();
+  if (!s) return null;
+  return '%' + s.replace(/[%_\\]/g, (c) => '\\' + c) + '%';
+}
+
+/** 列表里的包装视图（id 为 null = 由既有 defaultPackaging 文本**虚拟合成**，尚未落表） */
+export interface PackagingView {
+  id: number | null;
+  packaging: string;
+  note: string | null;
+  source: string | null;
+}
+
 /** 产品目录列表的筛选条件（全部可空 = 不筛） */
 export interface ProductListFilter {
-  /** 目录系列 / 款式（AMERICAN STYLE CUTTING TIP …）—— 精确匹配 */
+  /**
+   * 目录系列 / 款式 —— **包含匹配**（2026 甲方规则）。
+   * 存储值是目录全称（AMERICAN STYLE CUTTING TIP），界面/链接里常写简称（AMERICAN），
+   * 精确匹配会 0 命中，故一律 `ilike '%…%'`；空 = 不筛。
+   */
   series?: string;
   /** 目录气体类型：LPG / ACE（ACETYLENE 的写法兼容） */
   gasType?: string;
@@ -53,8 +89,9 @@ export class ProductsService {
     if (includePlaceholders(opts.includePlaceholders)) await ensurePendingProduct();
 
     const conds: SQL[] = [];
-    const series = (opts.series ?? '').trim();
-    if (series) conds.push(eq(products.series, series));
+    // 系列：**包含匹配**（甲方规则）——简称 AMERICAN 要能命中 'AMERICAN STYLE CUTTING TIP'
+    const seriesPattern = seriesLikePattern(opts.series);
+    if (seriesPattern) conds.push(ilike(products.series, seriesPattern));
     // 气体类型：LPG / ACETYLENE（'ACE' 是目录 FOR ACE 的写法，一并放行；其余非法值忽略）
     const gasRaw = (opts.gasType ?? '').trim().toUpperCase();
     const gas = gasRaw === 'ACE' ? 'ACETYLENE' : gasRaw;
@@ -85,17 +122,91 @@ export class ProductsService {
         sql`${products.sizeSpec} asc nulls last`,      // ③ 组内：size（0 00 000 1 … 文本序）
         asc(products.id),                  // ④ 兜底：最早建档在前
       );
-    return hidePlaceholders(rows, opts.includePlaceholders);
+    return this.attachPackagings(hidePlaceholders(rows, opts.includePlaceholders));
   }
 
-  async create(data: NewProduct) {
-    const [row] = await db.insert(products).values(data).returning();
-    return row;
+  /**
+   * 给列表行挂上「默认包装」多值数组。
+   * 兼容口径（**不动既有读取路径**）：若某产品在 product_packagings 里没有行、但
+   * 既有文本列 default_packaging 非空，则**虚拟合成**一行（id = null / source = 'legacy'），
+   * 让界面从一开始就能看到并编辑老数据 —— 不写库、不迁移、幂等。
+   */
+  private async attachPackagings<T extends { id: number; defaultPackaging?: string | null }>(
+    rows: T[],
+  ): Promise<ProductWithPackagings<T>[]> {
+    if (!rows.length) return [];
+    const ids = rows.map((r) => r.id);
+    const packs = await db
+      .select()
+      .from(productPackagings)
+      .where(inArray(productPackagings.productId, ids))
+      .orderBy(asc(productPackagings.id));
+    const byProduct = new Map<number, PackagingView[]>();
+    for (const p of packs) {
+      const list = byProduct.get(p.productId) ?? [];
+      list.push({ id: p.id, packaging: p.packaging, note: p.note, source: p.source });
+      byProduct.set(p.productId, list);
+    }
+    return rows.map((r) => {
+      const list = byProduct.get(r.id) ?? [];
+      const legacy = (r.defaultPackaging ?? '').trim();
+      if (!list.length && legacy) {
+        return { ...r, packagings: [{ id: null, packaging: legacy, note: null, source: 'legacy' }] };
+      }
+      return { ...r, packagings: list };
+    });
   }
 
-  async update(id: number, data: Partial<NewProduct>) {
-    const [row] = await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id)).returning();
-    return row;
+  /** 写入默认包装（整表替换）；同时把第一条同步回既有文本列 default_packaging（向后兼容） */
+  private async replacePackagings(tx: Tx, productId: number, items: PackagingInput[]) {
+    await tx.delete(productPackagings).where(eq(productPackagings.productId, productId));
+    const seen = new Set<string>();
+    const clean: { productId: number; packaging: string; note: string | null; source: string }[] = [];
+    for (const it of items ?? []) {
+      const packaging = String(it?.packaging ?? '').trim();
+      if (!packaging || seen.has(packaging)) continue; // 空值与重复值直接跳过（唯一索引兜底）
+      seen.add(packaging);
+      clean.push({ productId, packaging, note: it?.note ? String(it.note).trim() || null : null, source: 'manual' });
+    }
+    if (clean.length) await tx.insert(productPackagings).values(clean);
+    // 既有文本列 = 第一条包装（读 default_packaging 的老路径仍然拿到有意义的值）
+    await tx
+      .update(products)
+      .set({ defaultPackaging: clean.length ? clean[0].packaging : null, updatedAt: new Date() })
+      .where(eq(products.id, productId));
+  }
+
+  async create(data: NewProduct & { packagings?: PackagingInput[] }) {
+    const { packagings: packs, ...rest } = data;
+    const createdId = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(products).values(rest).returning();
+      // 未显式给包装列表时，把既有文本列（若有）落成第一条包装，保证「多包装」视图完整
+      const items: PackagingInput[] = packs?.length
+        ? packs
+        : created.defaultPackaging
+          ? [{ packaging: created.defaultPackaging }]
+          : [];
+      if (items.length) await this.replacePackagings(tx, created.id, items);
+      return created.id;
+    });
+    return this.findByIdWithPackagings(createdId);
+  }
+
+  async update(id: number, data: Partial<NewProduct> & { packagings?: PackagingInput[] }) {
+    const { packagings: packs, ...rest } = data;
+    await db.transaction(async (tx) => {
+      await tx.update(products).set({ ...rest, updatedAt: new Date() }).where(eq(products.id, id));
+      if (packs) await this.replacePackagings(tx, id, packs);
+    });
+    return this.findByIdWithPackagings(id);
+  }
+
+  /** 单条产品（含默认包装多值）—— 新增 / 修改后回给前端，保证界面立即看到多包装 */
+  async findByIdWithPackagings(id: number) {
+    const [row] = await db.select().from(products).where(eq(products.id, id));
+    if (!row) throw new NotFoundException('产品 ' + id + ' 不存在');
+    const [withPacks] = await this.attachPackagings([row]);
+    return withPacks;
   }
 
   async remove(id: number) {

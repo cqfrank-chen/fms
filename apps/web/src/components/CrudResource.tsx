@@ -9,7 +9,11 @@ export interface FieldConfig {
   name: string
   label: string
   required?: boolean
-  kind?: 'text' | 'number' | 'select'
+  /**
+   * packagings = 「默认包装」多值编辑器（Form.List）：
+   * 同一型号可以有多种默认包装（甲方规则 2026），每行一个包装 + 可选备注。
+   */
+  kind?: 'text' | 'number' | 'select' | 'packagings'
   options?: { value: string; label: string }[]
   placeholder?: string
   min?: number
@@ -96,7 +100,13 @@ export default function CrudResource<T extends { id: number }>({
     // 去掉 null（InputNumber 清空返回 null；后端可选字段省略而非置空）
     const clean: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(values)) {
-      if (v !== null && v !== undefined) clean[k] = v
+      if (v === null || v === undefined) continue
+      // 数组字段（默认包装多值）：丢掉空行，避免后端 DTO 因「包装内容必填」报 400
+      if (Array.isArray(v)) {
+        clean[k] = v.filter((x) => x && String((x as { packaging?: string }).packaging ?? '').trim())
+        continue
+      }
+      clean[k] = v
     }
     setSaving(true)
     try {
@@ -173,8 +183,50 @@ export default function CrudResource<T extends { id: number }>({
             if (f.kind === 'number' && f.min !== undefined)
               rules.push({ type: 'number' as const, min: f.min, message: `${f.label}不能小于 ${f.min}` })
             return (
-              <Form.Item key={f.name} name={f.name} label={f.label} rules={rules}>
-                {f.kind === 'number' ? (
+              <Form.Item
+                key={f.name}
+                name={f.name}
+                label={f.label}
+                rules={rules}
+                // packagings 是 Form.List（值挂在 f.name 下），校验/回填方式与普通字段一致
+                {...(f.kind === 'packagings' ? { valuePropName: undefined } : {})}
+              >
+                {f.kind === 'packagings' ? (
+                  <Form.List name={f.name}>
+                    {(items, { add, remove }) => (
+                      <div>
+                        {items.map((it) => (
+                          <Space key={it.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
+                            <Form.Item
+                              {...it}
+                              name={[it.name, 'packaging']}
+                              rules={[{ required: true, message: '包装内容必填' }]}
+                              style={{ marginBottom: 0, width: 240 }}
+                            >
+                              <Input placeholder={f.placeholder ?? '如：塑壳 红盖 不干胶 50只/中盒'} />
+                            </Form.Item>
+                            <Form.Item
+                              {...it}
+                              name={[it.name, 'note']}
+                              style={{ marginBottom: 0, width: 180 }}
+                            >
+                              <Input placeholder="该包装备注（可选）" />
+                            </Form.Item>
+                            <Button size="small" danger type="link" onClick={() => remove(it.name)}>
+                              删除
+                            </Button>
+                          </Space>
+                        ))}
+                        <Button size="small" type="dashed" onClick={() => add({ packaging: '', note: '' })}>
+                          + 添加默认包装
+                        </Button>
+                        <div style={{ color: '#888', fontSize: 12, marginTop: 4 }}>
+                          同一型号可以有多种默认包装（第一条会同步到既有「默认包装」文本字段）
+                        </div>
+                      </div>
+                    )}
+                  </Form.List>
+                ) : f.kind === 'number' ? (
                   <InputNumber style={{ width: '100%' }} min={f.min ?? 0} placeholder={f.placeholder} />
                 ) : f.kind === 'select' ? (
                   <Select

@@ -1,6 +1,23 @@
 /** 与后端 schema.ts / service 返回结构对齐的类型 */
 
-export interface Product { id: number; name: string; type: string; defaultPackaging?: string | null; defaultRouting?: string | null; safetyStock: number; createdAt?: string; updatedAt?: string }
+/** 默认包装条目（1:N）：同一型号可以有多种默认包装；id = null 表示由既有 defaultPackaging 文本虚拟合成 */
+export interface ProductPackaging { id: number | null; packaging: string; note?: string | null; source?: string | null }
+export interface Product {
+  id: number
+  name: string
+  type: string
+  defaultPackaging?: string | null
+  defaultRouting?: string | null
+  safetyStock: number
+  /** 备注（产品名归一后归位的品牌 / 刻字 / 重量 / 货号 / 尺寸描述等） */
+  remark?: string | null
+  /** 归一前的原始产品名（无损留档） */
+  legacyName?: string | null
+  /** 默认包装多值（后端已挂；老接口挂不上时前端按 defaultPackaging 兜底） */
+  packagings?: ProductPackaging[]
+  createdAt?: string
+  updatedAt?: string
+}
 export interface Customer { id: number; name: string; contact?: string | null; settlement?: string | null; creditDays: number; createdAt?: string; updatedAt?: string }
 export interface Supplier { id: number; name: string; contact?: string | null; settlement?: string | null; createdAt?: string; updatedAt?: string }
 export interface Operator { id: number; name: string; boundPc?: string | null; note?: string | null; createdAt?: string; updatedAt?: string }

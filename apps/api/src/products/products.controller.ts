@@ -1,9 +1,24 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { PRODUCT_TYPES } from '../db/schema';
 import type { ProductType } from '../db/schema';
 import { Roles } from '../auth/decorators';
 import { ProductsService } from './products.service';
+
+/**
+ * 默认包装条目（1:N）—— 甲方规则：同一型号可以有**多种默认包装**。
+ * 既有 `defaultPackaging` 文本字段保留（向后兼容）；本数组是它的多值化补充。
+ */
+export class PackagingDto {
+  @IsNotEmpty({ message: '包装内容必填' })
+  @IsString()
+  packaging: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
 
 export class CreateProductDto {
   @IsNotEmpty({ message: '产品名必填' })
@@ -25,6 +40,18 @@ export class CreateProductDto {
   @IsInt({ message: '安全库存须为整数' })
   @Min(0, { message: '安全库存不能为负' })
   safetyStock?: number;
+
+  /** 备注（归一后从产品名里归位的品牌 / 刻字 / 重量 / 货号 / 尺寸描述等） */
+  @IsOptional()
+  @IsString()
+  remark?: string;
+
+  /** 默认包装列表（1:N）：给了就整表替换；不传 = 不动既有包装 */
+  @IsOptional()
+  @IsArray({ message: '默认包装须为数组' })
+  @ValidateNested({ each: true })
+  @Type(() => PackagingDto)
+  packagings?: PackagingDto[];
 }
 
 /** 工序路线整表替换的入参（前端一次提交整条路线） */

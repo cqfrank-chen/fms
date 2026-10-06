@@ -62,6 +62,9 @@ import { buildModelIndex } from './lib/product-model.mjs';
 import {
   CATALOG_FIELDS, canonicalName, dedupeKeyOf, norm, planDedupe, richness, targetOf,
 } from './lib/dedupe-core.mjs';
+// 重挂引用 products 的外键：与 normalize_products.mjs **共用同一实现**（lib/rehang.mjs），
+// 保证两条合并路径的口径完全一致。
+import { buildFkPlan, qi, rehangReference } from './lib/rehang.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '..', '..');
@@ -97,42 +100,7 @@ const cat = JSON.parse(fs.readFileSync(path.join(__dirname, 'catalog_models.json
 const idx = buildModelIndex(cat);
 
 // ==================== 引用 products 的外键（运行时从库里查，不写死） ====================
-async function foreignKeysToProducts(client) {
-  const q = 'select tc.table_name as table_name, kcu.column_name as column_name'
-    + ' from information_schema.table_constraints tc'
-    + ' join information_schema.key_column_usage kcu'
-    + '   on kcu.constraint_name = tc.constraint_name and kcu.table_schema = tc.table_schema'
-    + ' join information_schema.constraint_column_usage ccu'
-    + '   on ccu.constraint_name = tc.constraint_name and ccu.table_schema = tc.table_schema'
-    + " where tc.constraint_type = 'FOREIGN KEY' and ccu.table_name = 'products' and tc.table_schema = 'public'"
-    + ' order by 1, 2';
-  return (await client.query(q)).rows;
-}
-
-/** SQL 标识符加双引号（列名来自系统目录，仍按规范转义，避免保留字/大小写意外） */
-const qi = (name) => '"' + String(name).replace(/"/g, '""') + '"';
-
-/** 某表的**唯一索引**里，除 product 列外的其余列（用于判断重挂会不会撞唯一约束） */
-async function uniqueConflictColumns(client, table, column) {
-  const q = 'select i.relname as index_name,'
-    + ' array(select a.attname::text from unnest(ix.indkey::int2[]) with ordinality as u(attnum, ord)'
-    + '   join pg_attribute a on a.attrelid = t.oid and a.attnum = u.attnum order by u.ord) as cols'
-    + ' from pg_index ix'
-    + ' join pg_class i on i.oid = ix.indexrelid'
-    + ' join pg_class t on t.oid = ix.indrelid'
-    + ' join pg_namespace n on n.oid = t.relnamespace'
-    + " where n.nspname = 'public' and t.relname = $1 and ix.indisunique";
-  const rows = (await client.query(q, [table])).rows;
-  const out = [];
-  for (const r of rows) {
-    const cols = (r.cols ?? []).map((c) => String(c));
-    if (!cols.includes(column)) continue;
-    const other = cols.filter((c) => c !== column);
-    if (!other.length) continue;
-    out.push({ index: r.index_name, other });
-  }
-  return out;
-}
+// 具体实现见 lib/rehang.mjs（与 normalize_products.mjs 共用）
 
 // ==================== 主流程 ====================
 async function main() {
@@ -142,8 +110,8 @@ async function main() {
   console.log('目标库：' + who.rows[0].db + ' @ ' + (who.rows[0].host ?? 'local') + '   模式：'
     + (APPLY ? 'APPLY（真写库）' : 'DRY-RUN（只报告）'));
 
-  const fks = await foreignKeysToProducts(client);
-  if (!fks.length) { console.error('库里没有引用 products 的外键 —— 是否还没跑迁移？'); await client.end(); process.exit(3); }
+  const fkPlan = await buildFkPlan(client);
+  if (!fkPlan.length) { console.error('库里没有引用 products 的外键 —— 是否还没跑迁移？'); await client.end(); process.exit(3); }
   const prodCols = (await client.query(
     "select column_name from information_schema.columns where table_schema='public' and table_name='products'",
   )).rows.map((r) => r.column_name);
@@ -152,12 +120,6 @@ async function main() {
       console.error('products 缺少目录列 ' + c + ' —— 请先跑迁移 0023_catalog_anchor.sql');
       await client.end(); process.exit(3);
     }
-  }
-
-  const fkPlan = [];
-  for (const fk of fks) {
-    const uniq = await uniqueConflictColumns(client, fk.table_name, fk.column_name);
-    fkPlan.push({ table: fk.table_name, column: fk.column_name, uniq });
   }
 
   const rows = (await client.query(
@@ -429,23 +391,9 @@ async function main() {
       for (const m of g.merged) {
         const dup = m.row.id;
         for (const fk of fkPlan) {
-          const col = fk.column;
-          if (fk.uniq.length) {
-            const conflict = fk.uniq[0];
-            const qcol = qi(col);
-            const notExists = conflict.other.map((c) => 't2.' + qi(c) + ' = t.' + qi(c)).join(' and ');
-            const res = await client.query(
-              'update ' + fk.table + ' t set ' + qcol + ' = $1 where t.' + qcol + ' = $2'
-              + ' and not exists (select 1 from ' + fk.table + ' t2 where t2.' + qcol + ' = $1 and ' + notExists + ')',
-              [live, dup]);
-            movedTotal += res.rowCount ?? 0;
-            const del = await client.query('delete from ' + fk.table + ' where ' + qcol + ' = $1', [dup]);
-            droppedTotal += del.rowCount ?? 0;
-          } else {
-            const qcol = qi(col);
-            const res = await client.query('update ' + fk.table + ' set ' + qcol + ' = $1 where ' + qcol + ' = $2', [live, dup]);
-            movedTotal += res.rowCount ?? 0;
-          }
+          const r = await rehangReference(client, fk, live, dup);
+          movedTotal += r.moved;
+          droppedTotal += r.dropped;
         }
         const del = await client.query('delete from products where id = $1', [dup]);
         deletedProducts += del.rowCount ?? 0;

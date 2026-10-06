@@ -18,6 +18,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -49,9 +50,17 @@ function eq(label, actual, expected) {
   catch { ok(label, false, { actual, expected }); }
 }
 
+// CSV 存档写到临时目录：测试**不能覆盖** tools/catalog 下的正式存档清单（dedupe_product_merges.csv 等）
+const TMP_CSV = path.join(os.tmpdir(), 'fms-dedupe-e2e');
+
 /** 跑一次去重脚本（**默认 dry-run**）；execFileSync 管道捕获 stdout，失败时把输出一并带出 */
 function runScript(extraArgs) {
-  const args = [SCRIPT, '--dsn', DSN, ...extraArgs];
+  const args = [
+    SCRIPT, '--dsn', DSN,
+    '--csv', path.join(TMP_CSV, 'merges.csv'),
+    '--csv-unmerged', path.join(TMP_CSV, 'unmerged.csv'),
+    ...extraArgs,
+  ];
   try {
     return { code: 0, out: execFileSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, cwd: REPO }) };
   } catch (e) {

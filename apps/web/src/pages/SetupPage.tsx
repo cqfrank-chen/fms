@@ -21,6 +21,7 @@ const { Text } = Typography
 const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => ({ value, label }))
 const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_LABEL).map(([value, label]) => ({ value, label }))
 
+interface ProductPackagingRow { id?: number | null; packaging: string; note?: string | null; source?: string | null }
 interface ProductRow {
   id: number
   name: string
@@ -28,6 +29,12 @@ interface ProductRow {
   defaultPackaging?: string | null
   defaultRouting?: string | null
   safetyStock: number
+  /** 备注（产品名归一后从名字里归位的品牌/刻字/重量/货号/尺寸描述等） */
+  remark?: string | null
+  /** 归一前的原始产品名（无损留档） */
+  legacyName?: string | null
+  /** 默认包装多值（同一型号可以有多种） */
+  packagings?: ProductPackagingRow[]
   updatedAt?: string
   // ---- 官方目录锚定列（2026 目录更正；迁移 0023 新增，未锚定时为 null）----
   /** 目录基础型号（1-101 / GPN / 6290NX…） */
@@ -60,9 +67,32 @@ const dash = (v?: string | null) => (v ? v : '—')
  * 产品目录列（本轮新增：型号 / size / 系列 / 气体类型 —— 目录锚定结果）；
  * 「类型」由目录推导（美式/英式 × 乙炔/丙烷；其余款式保持 tbd 不臆造），与「气体」列一起看即完整。
  */
+/** 默认包装多值展示：一行一个 Tag；由既有文本列虚拟合成的标「旧」 */
+const PackagingCell = ({ record }: { record: ProductRow }) => {
+  const list = (record.packagings?.length
+    ? record.packagings
+    : record.defaultPackaging
+      ? [{ packaging: record.defaultPackaging, source: 'legacy' }]
+      : []) as ProductPackagingRow[]
+  const texts = list.map((p) => p.packaging).filter(Boolean)
+  if (!texts.length) return <span>—</span>
+  return (
+    <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{texts.join('\n')}</span>}>
+      <Space size={4} wrap>
+        {texts.slice(0, 2).map((t, i) => (
+          <Tag key={i} color={i === 0 ? 'blue' : 'default'} style={{ marginInlineEnd: 0 }}>
+            {firstLine(t).slice(0, 14)}{firstLine(t).length > 14 ? '…' : ''}
+          </Tag>
+        ))}
+        {texts.length > 2 && <Tag>+{texts.length - 2}</Tag>}
+      </Space>
+    </Tooltip>
+  )
+}
+
 const PRODUCT_COLUMNS: ColumnsType<ProductRow> = [
   {
-    title: '产品名', dataIndex: 'name', width: 240, ellipsis: { showTitle: false },
+    title: '产品名（size-型号）', dataIndex: 'name', width: 230, ellipsis: { showTitle: false },
     render: (v?: string | null) => <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{firstLine(v)}</Tooltip>,
   },
   { title: '型号', dataIndex: 'catalogModel', width: 96, render: dash },
@@ -80,8 +110,14 @@ const PRODUCT_COLUMNS: ColumnsType<ProductRow> = [
       : v === 'unmatched' ? <Tag>{CATALOG_ANCHOR_LABEL.unmatched}</Tag> : '—'),
   },
   {
-    title: '默认包装', dataIndex: 'defaultPackaging', width: 130, ellipsis: { showTitle: false },
-    render: (v?: string | null) => <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{v || '—'}</Tooltip>,
+    title: '默认包装（可多值）', dataIndex: 'defaultPackaging', width: 190,
+    render: (_: unknown, record: ProductRow) => <PackagingCell record={record} />,
+  },
+  {
+    title: '备注', dataIndex: 'remark', width: 220, ellipsis: { showTitle: false },
+    render: (v?: string | null) => (
+      <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{v ? firstLine(v) : '—'}</Tooltip>
+    ),
   },
   {
     title: '默认工序路线', dataIndex: 'defaultRouting', width: 150, ellipsis: { showTitle: false },
@@ -178,7 +214,7 @@ function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders:
 
   const toolbar = (
     <Space wrap size={8}>
-      <Select size="small" style={{ width: 168 }} allowClear placeholder="全部系列"
+      <Select size="small" style={{ width: 168 }} allowClear placeholder="全部系列（包含匹配）"
         value={series || undefined} onChange={(v?: string) => setSeries(v ?? '')} options={CATALOG_SERIES_OPTIONS} />
       <Select size="small" style={{ width: 140 }} allowClear placeholder="全部气体类型"
         value={gas || undefined} onChange={(v?: string) => setGas(v ?? '')} options={CATALOG_GAS_OPTIONS} />
@@ -188,7 +224,9 @@ function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders:
         value={kwInput} onChange={(e) => setKwInput(e.target.value)}
         onSearch={(v) => setKw(v)} />
       <Button size="small" onClick={reset}>重置筛选</Button>
-      <Text type="secondary" style={{ fontSize: 12 }}>按系列分组排序（官方目录顺序）· 筛选状态保留在地址栏</Text>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        按系列分组排序（官方目录顺序）· 系列为**包含匹配**（AMERICAN 命中 AMERICAN STYLE CUTTING TIP）· 筛选状态保留在地址栏
+      </Text>
     </Space>
   )
 
@@ -202,15 +240,22 @@ function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders:
       onChanged={onChanged}
       listQuery={listQuery}
       toolbar={toolbar}
-      scrollX={1560}
+      scrollX={1800}
     />
   )
 }
 
 const PRODUCT_FIELDS: FieldConfig[] = [
-  { name: 'name', label: '产品名', required: true, placeholder: '如：ANM 1/32" 乙炔' },
+  {
+    name: 'name', label: '产品名（{size}-{型号}）', required: true,
+    placeholder: '如：0-1-101 / 000-3-101 / 0-261（size 用目录原值，不补零不删零）',
+  },
   { name: 'type', label: '类型', required: true, kind: 'select', options: PRODUCT_TYPE_OPTIONS },
-  { name: 'defaultPackaging', label: '默认包装', placeholder: '如：包装盒×50+纸箱' },
+  {
+    name: 'packagings', label: '默认包装（可多种）', kind: 'packagings',
+    placeholder: '如：塑壳 红盖 不干胶 50只/中盒',
+  },
+  { name: 'remark', label: '备注', placeholder: '如：品牌 VICTOR / 刻字 / 重量 93g / 货号 4154 / 尺寸描述' },
   { name: 'defaultRouting', label: '默认工序路线', placeholder: '如：下料→车削→钻孔→螺纹→铰孔→抛光→清洗→测试→包装' },
   { name: 'safetyStock', label: '安全库存', kind: 'number', min: 0 },
 ]

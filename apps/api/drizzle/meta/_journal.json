@@ -176,6 +176,13 @@
       "when": 1791225261823,
       "tag": "0024_stickers",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0025_product_packagings",
+      "breakpoints": true
     }
   ]
 }
