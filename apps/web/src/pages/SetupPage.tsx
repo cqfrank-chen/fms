@@ -1,4 +1,4 @@
-import { Button, Card, Divider, Form, Input, Popconfirm, Select, Space, Switch, Tag, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Col, Divider, Flex, Form, Input, Popconfirm, Row, Select, Space, Switch, Tag, Tooltip, Typography, message } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import CrudResource from '../components/CrudResource'
 import type { FieldConfig } from '../components/CrudResource'
@@ -78,21 +78,22 @@ const PackagingCell = ({ record }: { record: ProductRow }) => {
   if (!texts.length) return <span>—</span>
   return (
     <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{texts.join('\n')}</span>}>
-      <Space size={4} wrap>
+      {/* 多值 Tag 用 flex-wrap：列宽不足时换行而不是把表格顶宽 */}
+      <Flex wrap gap={4}>
         {texts.slice(0, 2).map((t, i) => (
-          <Tag key={i} color={i === 0 ? 'blue' : 'default'} style={{ marginInlineEnd: 0 }}>
+          <Tag key={i} color={i === 0 ? 'blue' : 'default'} style={{ marginInlineEnd: 0, maxWidth: '100%' }}>
             {firstLine(t).slice(0, 14)}{firstLine(t).length > 14 ? '…' : ''}
           </Tag>
         ))}
         {texts.length > 2 && <Tag>+{texts.length - 2}</Tag>}
-      </Space>
+      </Flex>
     </Tooltip>
   )
 }
 
 const PRODUCT_COLUMNS: ColumnsType<ProductRow> = [
   {
-    title: '产品名（size-型号）', dataIndex: 'name', width: 230, ellipsis: { showTitle: false },
+    title: '产品名（size-型号）', dataIndex: 'name', width: 230, fixed: 'left', ellipsis: { showTitle: false },
     render: (v?: string | null) => <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{firstLine(v)}</Tooltip>,
   },
   { title: '型号', dataIndex: 'catalogModel', width: 96, render: dash },
@@ -213,7 +214,8 @@ function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders:
   const reset = () => { setSeries(''); setGas(''); setAnchor(''); setKwInput(''); setKw('') }
 
   const toolbar = (
-    <Space wrap size={8}>
+    // Flex wrap：筛选控件与说明文字在窄屏自动换行，说明文字允许收缩（minWidth: 0）
+    <Flex wrap gap={8} align="center">
       <Select size="small" style={{ width: 168 }} allowClear placeholder="全部系列（包含匹配）"
         value={series || undefined} onChange={(v?: string) => setSeries(v ?? '')} options={CATALOG_SERIES_OPTIONS} />
       <Select size="small" style={{ width: 140 }} allowClear placeholder="全部气体类型"
@@ -224,10 +226,10 @@ function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders:
         value={kwInput} onChange={(e) => setKwInput(e.target.value)}
         onSearch={(v) => setKw(v)} />
       <Button size="small" onClick={reset}>重置筛选</Button>
-      <Text type="secondary" style={{ fontSize: 12 }}>
+      <Text type="secondary" style={{ fontSize: 12, flex: '1 1 240px', minWidth: 0 }}>
         按系列分组排序（官方目录顺序）· 系列为**包含匹配**（AMERICAN 命中 AMERICAN STYLE CUTTING TIP）· 筛选状态保留在地址栏
       </Text>
-    </Space>
+    </Flex>
   )
 
   return (
@@ -240,7 +242,6 @@ function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders:
       onChanged={onChanged}
       listQuery={listQuery}
       toolbar={toolbar}
-      scrollX={1800}
     />
   )
 }
@@ -329,7 +330,13 @@ export default function SetupPage() {
           </Typography.Text>
         </Tooltip>
       </Space>
-      <div style={{ display: 'grid', gap: 16, marginTop: 12 }}>
+      {/*
+        纵向 Flex 而不是 CSS Grid：Grid 子项默认 min-width:auto，其自动最小尺寸取 min-content，
+        产品目录表 12 列（本页最宽卡片）的 min-content ≈1.7k px，会把整页在 1280 档撑到 2044px（实测）。
+        纵向 Flex 的自动最小尺寸只作用于主轴（纵向），横向由容器宽度决定，
+        表格因此收敛为「卡片内部横向滚动」（见 CrudResource 的 scroll.x = max-content）。
+      */}
+      <Flex vertical gap={16} style={{ marginTop: 12, minWidth: 0 }}>
         <ProductCatalogCard showPlaceholders={showPlaceholders} onChanged={bumpData} />
         <MasterImportCard target="products" title="产品目录 · 批量导入（Excel / CSV）" onChanged={bumpData} />
         <CrudResource<CustomerRow>
@@ -363,7 +370,7 @@ export default function SetupPage() {
         <InvoiceSettingsCard />
         <AiConfigCard />
         <UpdateCard />
-      </div>
+      </Flex>
     </div>
   )
 }
@@ -453,7 +460,8 @@ function AiConfigCard() {
       placeholder: shown,
       status: (isKeyConfigured ? undefined : 'warning') as 'warning' | undefined,
       onChange: (e: React.ChangeEvent<HTMLInputElement>) => setInput((p) => ({ ...p, [f]: e.target.value })),
-      style: { width: 380 },
+      // 不再写死 380px：占满栅格列并设上限，窄屏可收缩
+      style: { width: '100%', maxWidth: 380, minWidth: 0 },
       disabled: loading,
       ...(isKey ? { type: 'password' as const, autoComplete: 'new-password' } : {}),
     }
@@ -463,15 +471,22 @@ function AiConfigCard() {
     const st = s(f)
     const configured = isKey ? !!st?.keySet : !!st?.value
     return (
-      <Space key={f} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-        <div style={{ width: 110, fontSize: 13, color: '#666' }}>{label}</div>
-        <Input {...inputProps(f, ph, isKey)} />
-        {isKey && configured && (
-          <Popconfirm title="清除后回退默认（.env）配置？" onConfirm={() => clearField(f)} okText="清除" okButtonProps={{ danger: true }}>
-            <Button size="small" type="link" danger>清除</Button>
-          </Popconfirm>
-        )}
-      </Space>
+      // 响应式栅格：xs 标签与输入框上下排列，sm 及以上左右排列（原实现是固定 110px 标签 + 380px 输入框，窄屏不折行）
+      <Row key={f} gutter={[8, 4]} align="middle" style={{ marginBottom: 4 }}>
+        <Col xs={24} sm={6} md={4}>
+          <div style={{ fontSize: 13, color: '#666' }}>{label}</div>
+        </Col>
+        <Col xs={24} sm={18} md={20}>
+          <Flex gap={8} align="center" wrap>
+            <Input {...inputProps(f, ph, isKey)} />
+            {isKey && configured && (
+              <Popconfirm title="清除后回退默认（.env）配置？" onConfirm={() => clearField(f)} okText="清除" okButtonProps={{ danger: true }}>
+                <Button size="small" type="link" danger>清除</Button>
+              </Popconfirm>
+            )}
+          </Flex>
+        </Col>
+      </Row>
     )
   }
 
@@ -511,7 +526,7 @@ function AiConfigCard() {
           <Button size="small" loading={testing === 'vision'} onClick={() => test('vision')} style={{ marginTop: 6 }}>测试识图连接</Button>
         </div>
         <Divider style={{ margin: '4px 0 12px' }} />
-        <Space>
+        <Space wrap>
           <Button type="primary" loading={saving} onClick={save}>保存 AI 配置</Button>
           <Text type="secondary" style={{ fontSize: 12 }}>
             保存后：AI 助手页 / 订单 AI 导入 立即切换为真实模型

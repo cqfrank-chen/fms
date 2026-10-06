@@ -172,7 +172,8 @@ export default function App() {
             onClick={({ key }) => setPage(key as PageKey)}
           />
         </Sider>
-        <Content style={{ padding: 20, background: '#f0f2f5' }}>
+        {/* minWidth: 0：Content 是 flex 子项，默认 min-width:auto 会被内部宽表格顶开，导致整页横向滚动 */}
+        <Content style={{ padding: 20, background: '#f0f2f5', minWidth: 0 }}>
           {!allowed ? (
             <Forbidden title={PAGE_TITLE[page]} />
           ) : (

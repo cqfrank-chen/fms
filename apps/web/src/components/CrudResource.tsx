@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message } from 'antd'
+import { Button, Card, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReactNode } from 'react'
 import { api } from '../lib/api'
@@ -40,8 +40,12 @@ interface CrudResourceProps<T extends { id: number }> {
   listQuery?: string
   /** 卡片顶部工具条（筛选控件等，放在「+ 新增」左侧的表头上方） */
   toolbar?: ReactNode
-  /** 表格横向滚动宽度（列多时避免挤压换行；不传 = 不横向滚动） */
-  scrollX?: number
+  /**
+   * 表格横向滚动的最小宽度（可选）。
+   * 不传时默认 'max-content'：表格按各列内容/宽度取宽，**超出卡片即在表格内部横向滚动**，
+   * 而不是把页面撑宽。列很多时不要让表格参与父级（Flex/Grid）的固有尺寸计算。
+   */
+  scrollX?: number | 'max-content'
 }
 
 /** 通用主数据 CRUD：列表 + 弹窗表单增删改，直接生效无草稿态（对齐票 09 原型设置页） */
@@ -141,6 +145,8 @@ export default function CrudResource<T extends { id: number }>({
   const actionColumn: ColumnsType<T>[number] = {
     title: '操作',
     width: 140,
+    // 操作列固定右侧：表格内部横滚时始终可见（配合 scroll.x）
+    fixed: 'right',
     render: (_, record) => (
       <Space>
         <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
@@ -155,17 +161,17 @@ export default function CrudResource<T extends { id: number }>({
     <Card
       title={title}
       size="small"
-      styles={{ body: { paddingTop: 8 } }}
+      styles={{ body: { paddingTop: 8, minWidth: 0 } }}
       extra={<Button type="primary" size="small" onClick={openCreate}>+ 新增</Button>}
     >
-      {toolbar && <div style={{ marginBottom: 8 }}>{toolbar}</div>}
+      {toolbar && <div style={{ marginBottom: 8, minWidth: 0 }}>{toolbar}</div>}
       <Table<T>
         rowKey="id"
         size="small"
         loading={loading}
         columns={[...columns, actionColumn]}
         dataSource={rows}
-        scroll={scrollX ? { x: scrollX } : undefined}
+        scroll={{ x: scrollX ?? 'max-content' }}
         pagination={rows.length > 10 ? { pageSize: 10 } : false}
       />
       <Modal
@@ -196,26 +202,27 @@ export default function CrudResource<T extends { id: number }>({
                     {(items, { add, remove }) => (
                       <div>
                         {items.map((it) => (
-                          <Space key={it.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
+                          // Flex wrap + 弹性宽度：窄屏（弹窗变窄）时输入框换行，不再用固定 240/180px 挤破弹窗
+                          <Flex key={it.key} wrap gap={8} align="baseline" style={{ marginBottom: 4 }}>
                             <Form.Item
                               {...it}
                               name={[it.name, 'packaging']}
                               rules={[{ required: true, message: '包装内容必填' }]}
-                              style={{ marginBottom: 0, width: 240 }}
+                              style={{ marginBottom: 0, flex: '1 1 220px', minWidth: 0 }}
                             >
                               <Input placeholder={f.placeholder ?? '如：塑壳 红盖 不干胶 50只/中盒'} />
                             </Form.Item>
                             <Form.Item
                               {...it}
                               name={[it.name, 'note']}
-                              style={{ marginBottom: 0, width: 180 }}
+                              style={{ marginBottom: 0, flex: '1 1 160px', minWidth: 0 }}
                             >
                               <Input placeholder="该包装备注（可选）" />
                             </Form.Item>
                             <Button size="small" danger type="link" onClick={() => remove(it.name)}>
                               删除
                             </Button>
-                          </Space>
+                          </Flex>
                         ))}
                         <Button size="small" type="dashed" onClick={() => add({ packaging: '', note: '' })}>
                           + 添加默认包装
