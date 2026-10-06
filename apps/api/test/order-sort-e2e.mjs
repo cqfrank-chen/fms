@@ -12,6 +12,9 @@
  *      占位档案开关（includePlaceholders）、开票派生列（invoiceState/uninvoicedCents）都还在。
  *
  * 前置：一个连到**空库**的 API 实例（会自建表 + 种子 admin/Fms@2026）：
+ *   ⑥ 排序口径：默认 = 交期降序（不传 sort ≡ 空 sort ≡ sort=dueDate:desc）、
+ *      单键可反复切换升/降序、第三次点击取消后回到默认（含前端状态机纯函数的真跑与静态核对）
+ *
  *   DB_HOST=localhost DB_PORT=15432 DB_NAME=fms_orders_sort JWT_SECRET=e2e \
  *   PORT=3100 node dist/main
  * 运行：node test/order-sort-e2e.mjs
@@ -22,6 +25,8 @@
  * 这也是本用例唯一一处直接改库造数的地方。
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:3100/api';
@@ -392,6 +397,67 @@ async function main() {
   const a = new Set((await listOrders(token, 'sort=dueDate:desc')).body.map((r) => r.id));
   const b = new Set((await listOrders(token, 'sort=amount:asc,lineCount:desc')).body.map((r) => r.id));
   eq('不同排序返回的订单集合完全相同（只改顺序）', [...a].sort((x, y) => x - y), [...b].sort((x, y) => x - y));
+
+  // =====================================================================================
+  // 【2026-10-06 修复】单键排序可反复切换升降序、第三次点击取消后回到默认口径
+  //   前端状态机在 apps/web/src/lib/order-sort-state.ts（纯函数，有单测），这里做两件事：
+  //     ① 接口层：**不传 sort / 空 sort / sort=dueDate:desc 三者完全等价**（默认口径唯一）；
+  //     ② 前端层：直接 import 那个纯函数模块跑一遍点击序列，并静态核对 OrdersPage 真的用了它
+  //        （不是把逻辑抄在页面里 —— 抄一份就有两套口径）。
+  // =====================================================================================
+  console.log('\n【6】排序口径：默认 = 交期降序；单键可反复切换升降序、第三次点击取消回到默认');
+  const noSortAgain = await listOrders(token, '');
+  const emptySortAgain = await listOrders(token, 'sort=');
+  const orderOf = (r) => r.body.map((x) => x.id);
+  eq('不传 sort ≡ sort=dueDate:desc（默认口径唯一）', orderOf(noSortAgain), orderOf(explicitDefault));
+  eq('sort= 空串 ≡ 不传 sort', orderOf(emptySortAgain), orderOf(noSortAgain));
+  ok('sort=dueDate:asc 与默认（降序）顺序不同 —— 方向真的生效',
+    JSON.stringify(orderOf(dueAsc)) !== JSON.stringify(orderOf(noSortAgain)), {
+      默认: orderOf(noSortAgain).slice(0, 4), 升序: orderOf(dueAsc).slice(0, 4),
+    });
+  eq('不传 sort 与既有 EXPECT_DUE_DESC 基准一致', idsOf(noSortAgain.body, ourIds), EXPECT_DUE_DESC);
+
+  // ---- 前端纯函数状态机（直接 import，不用正则猜源码） ----
+  const UI = await import(new URL('../../web/src/lib/order-sort-state.ts', import.meta.url).href);
+  const click = (prev, field, dir) => {
+    const active = new Map();
+    for (const k of prev) active.set(k.field, k.dir);
+    if (dir) active.set(field, dir); else active.delete(field);
+    return UI.nextOrderSort(prev, active);
+  };
+  const DEFAULT_UI = [{ field: 'dueDate', dir: 'desc' }];
+  eq('前端：默认口径 = 交期 DESC，且 sort 参数**不传**（空串）',
+    [UI.effectiveOrderSort([]), UI.orderSortParam([])], [DEFAULT_UI, '']);
+  let k = [];
+  k = click(k, 'dueDate', 'asc');
+  eq('前端：第 1 次点击交期 → 升序（state = 显式 1 条）', [UI.orderSortParam(k), UI.sortDirOf(k, 'dueDate'), UI.sortIndexOf(k, 'dueDate')],
+    ['dueDate:asc', 'ascend', 1]);
+  k = click(k, 'dueDate', 'desc');
+  eq('前端：第 2 次点击交期 → 降序', [UI.orderSortParam(k), UI.sortDirOf(k, 'dueDate')], ['dueDate:desc', 'descend']);
+  k = click(k, 'dueDate', null);
+  eq('前端：第 3 次点击交期 → 取消该排序项（state 清空）', [k.length, UI.isDefaultOrderSort(k)], [0, true]);
+  eq('前端：取消后回到默认口径（交期降序），且 sort 参数回到不传',
+    [UI.effectiveOrderSort(k), UI.orderSortParam(k), UI.sortDirOf(k, 'dueDate'), UI.sortIndexOf(k, 'dueDate')],
+    [DEFAULT_UI, '', null, undefined]);
+  eq('前端：取消最后一列后，其余列保持相对优先级',
+    click([{ field: 'customer', dir: 'asc' }, { field: 'dueDate', dir: 'desc' }], 'dueDate', null),
+    [{ field: 'customer', dir: 'asc' }]);
+  ok('前端：sorter.multiple 恒为数字（否则 AntD 会退回单列排序、点第二列清掉第一列）',
+    UI.ORDER_SORT_FIELDS.every((x) => typeof UI.sortMultiple([{ field: 'poNo', dir: 'desc' }], x) === 'number'),
+    UI.ORDER_SORT_FIELDS.length);
+
+  // ---- 静态核对：OrdersPage 必须用这个纯函数模块，而不是把「默认 = 已选」的逻辑抄在页面里 ----
+  const pageSrc = readFileSync(fileURLToPath(new URL('../../web/src/pages/OrdersPage.tsx', import.meta.url)), 'utf8');
+  ok('前端页面：排序 state 初值为**空**（默认口径不写进 state —— 原 bug 就是这里）',
+    /useState<OrderSortKey\[\]>\(\[\]\)/.test(pageSrc), (pageSrc.match(/useState<OrderSortKey\[\]>\([^)]*\)/) ?? [''])[0]);
+  ok('前端页面：默认判定的旧写法（keys.length === 1 && …dueDate…desc）已消失',
+    !/keys\.length === 1 && keys\[0\]\.field === 'dueDate'/.test(pageSrc), '');
+  ok('前端页面：表头点击走 nextOrderSort()', /setSortKeys\(nextOrderSort\(/.test(pageSrc), '');
+  ok('前端页面：sort 参数走 orderSortParam() 且**空则不传**',
+    /if \(sortParam\) params\.set\('sort', sortParam\)/.test(pageSrc), '');
+  ok('前端页面：排序方向/优先级一律取自纯函数模块（不在页面内自己 findIndex）',
+    /sortDirOf as sortDirOfKeys/.test(pageSrc) && /sortMultiple as sortMultipleOf/.test(pageSrc)
+    && !/const i = sortKeys\.findIndex/.test(pageSrc), '');
 
   await db.end();
   console.log('\n================ 结果 ================');

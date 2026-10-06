@@ -11,6 +11,11 @@ import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_LABEL, CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PENDING_CODE, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
 import { optionLabel, optionsPath, ORDER_PLACEHOLDER_HINT, useShowPlaceholders } from '../lib/placeholders'
+import {
+  isDefaultOrderSort, nextOrderSort, orderSortParam, ORDER_SORT_FIELDS, sortDirOf as sortDirOfKeys,
+  sortIndexOf, sortMultiple as sortMultipleOf,
+} from '../lib/order-sort-state'
+import type { OrderSortDir, OrderSortField, OrderSortKey } from '../lib/order-sort-state'
 import { fmtCents, toCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
@@ -726,22 +731,23 @@ function OrderLinesDetail({ order }: { order: Order }) {
 // =====================================================================================
 // 订单列表排序（多列组合排序）
 // -------------------------------------------------------------------------------------
-// 口径与后端 apps/api/src/orders/order-sort.ts **一一对应**（字段白名单 / 优先级 / 默认值）：
-//   · 默认排序 = 交期 DESC（后端缺省同此）。「交期待定」的哨兵日单据（2099-12-31 + due_date_tbd）
-//     被后端当成「无交期」恒定排在最后 —— 前端不做二次排序，只信接口返回的顺序；
-//   · 点击表头 = 把该列加入组合排序（**新列优先级最低，排在末尾**），再点切换升/降序，
-//     点第三次移除该列；全部移除后自动回到默认排序（交期 DESC）；
+// 状态机与纯函数在 **lib/order-sort-state.ts**（有单测：node --test apps/web/src/lib/order-sort-state.test.ts），
+// 口径与后端 apps/api/src/orders/order-sort.ts 一一对应（字段白名单 / 优先级 / 默认值）：
+//   · **默认排序 = 交期 DESC**（后端缺省同此），且「默认」**不写进 state**（state 空数组 = 默认）：
+//     这样表头箭头 / 排序条 / 优先级数字都只反映**用户显式选择**，不会把默认伪装成「1. 交期 降序」；
+//   · 点击表头 = 加入组合排序（新列优先级最低，排在末尾），再点切换升/降序，**点第三次取消该列**；
+//     全部取消（state 清空）→ 回到默认口径（交期 DESC），且 sort 参数**不传**，由后端走缺省
+//     —— 前后端只有一套默认口径，不会「界面一套、接口一套」；
 //   · 表头标题后的小数字 = 组合排序优先级（1 最先比较），与发给后端的
 //     sort 参数（逗号分隔、从左到右）严格同序，用户一眼能看清「先按什么排、再按什么排」；
+//   · 「交期待定」的哨兵日单据（2099-12-31 + due_date_tbd）被后端当成「无交期」恒定排在最后
+//     —— 前端不做二次排序，只信接口返回的顺序；
 //   · 排序在后端完成（sorter 只配置 multiple、不配置 compare → AntD 不做本地排序），
 //     以免出现「接口按交期排、界面按本地再排一遍」的两套口径。
+//   · 修复记录（2026-10-06）：原实现把默认排序当成不可取消的隐式排序键写进 state（初值就是
+//     [{dueDate,desc}]），于是「取消」算出来还是 [{dueDate,desc}]，state 无变化 → 第三次点击
+//     看起来没反应、也切不到升序（AntD 对最后一档 descend 的下一次就是取消）。
 // =====================================================================================
-type OrderSortDir = 'asc' | 'desc'
-type OrderSortField =
-  | 'dueDate' | 'orderNo' | 'poNo' | 'customer' | 'status' | 'invoiceState'
-  | 'amount' | 'invoiced' | 'pendingCount' | 'createdAt' | 'lineCount'
-
-interface OrderSortKey { field: OrderSortField; dir: OrderSortDir }
 
 /** 排序字段中文名（排序状态条 / 表头提示用），顺序 = 后端白名单顺序 */
 const ORDER_SORT_LABEL: Record<OrderSortField, string> = {
@@ -758,14 +764,8 @@ const ORDER_SORT_LABEL: Record<OrderSortField, string> = {
   lineCount: '产品行数',
 }
 
-const ORDER_SORT_FIELDS = Object.keys(ORDER_SORT_LABEL) as OrderSortField[]
-
-/** 默认排序：交期 DESC（与后端 sort 缺省一致） */
-const DEFAULT_ORDER_SORT: OrderSortKey[] = [{ field: 'dueDate', dir: 'desc' }]
-
-/** 是否默认排序（「重置排序」按钮的禁用条件） */
-const isDefaultOrderSort = (keys: OrderSortKey[]) =>
-  keys.length === 1 && keys[0].field === 'dueDate' && keys[0].dir === 'desc'
+/** 排序状态条按钮「重置排序」的目标值 = 默认口径 = 空（不传 sort，由后端走缺省） */
+const RESET_ORDER_SORT: OrderSortKey[] = []
 
 /** 表头标题 + 组合排序序号（1/2/3…）：序号 = 该列在组合排序中的优先级 */
 function SortTitle({ text, order }: { text: string; order?: number }) {
@@ -799,10 +799,11 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [kw, setKw] = useState('')
   /**
-   * 组合排序键（有序：下标 0 = 优先级最高）。
-   * 默认 = 交期 DESC；顺序即发给后端的 sort 参数顺序，也是表头显示 1/2/3 的依据。
+   * **用户显式选择**的组合排序键（有序：下标 0 = 优先级最高；空数组 = 默认口径）。
+   * 默认（交期 DESC）刻意**不写进 state** —— 否则「取消排序」会算回同一个值、看起来点不动（见上方修复记录）。
+   * 顺序即发给后端的 sort 参数顺序，也是表头显示 1/2/3 的依据。
    */
-  const [sortKeys, setSortKeys] = useState<OrderSortKey[]>(DEFAULT_ORDER_SORT)
+  const [sortKeys, setSortKeys] = useState<OrderSortKey[]>([])
   /** I17：只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
   const [pendingOnly, setPendingOnly] = useState(false)
   /**
@@ -858,8 +859,10 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       // I17 裁定②（口径收窄「只看客户」）：默认只隐藏占位**客户**的单据；
       // 打开开关才带 includePlaceholders=1（连占位客户单一起显示，仅供排查）
       if (showPlaceholders) params.set('includePlaceholders', '1')
-      // 组合排序：字段白名单与优先级由后端校验/执行（非法字段会 400 中文提示）
-      if (sortKeys.length) params.set('sort', sortKeys.map((k) => `${k.field}:${k.dir}`).join(','))
+      // 组合排序：字段白名单与优先级由后端校验/执行（非法字段会 400 中文提示）。
+      // **用户没选排序键时不传 sort** → 后端缺省 = dueDate:desc，与界面「默认排序（交期 降序）」同一口径。
+      const sortParam = orderSortParam(sortKeys)
+      if (sortParam) params.set('sort', sortParam)
       setRows(await api<Order[]>(`/orders?${params.toString()}`))
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
@@ -878,23 +881,17 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     finally { setCancelingId(null) }
   }
 
-  // ---- 组合排序：优先级 / 方向 / sorter.multiple ----
+  // ---- 组合排序：优先级 / 方向 / sorter.multiple（一律基于**用户显式选择**，纯函数见 lib/order-sort-state.ts） ----
   /** 该字段在组合排序中的优先级（1 起；未参与 → undefined） */
-  const sortIndex = (field: OrderSortField): number | undefined => {
-    const i = sortKeys.findIndex((k) => k.field === field)
-    return i < 0 ? undefined : i + 1
-  }
-  /** 受控排序方向（AntD 表头箭头） */
-  const sortDirOf = (field: OrderSortField): SortOrder | null => {
-    const k = sortKeys.find((x) => x.field === field)
-    return k ? (k.dir === 'desc' ? 'descend' : 'ascend') : null
-  }
+  const sortIndex = (field: OrderSortField): number | undefined => sortIndexOf(sortKeys, field)
+  /** 受控排序方向（AntD 表头箭头）：默认口径下恒为 null（箭头熄灭，不把默认伪装成用户选择） */
+  const sortDirOf = (field: OrderSortField): SortOrder | null => sortDirOfKeys(sortKeys, field)
   /**
    * sorter.multiple：参与组合排序 → 当前优先级；未参与 → 「加入后」的优先级。
    * 必须恒为数字（不能是 false/缺省），否则 AntD 会退回单列排序模式、点第二列会清掉第一列。
    * 这里只配置 multiple（不配 compare）→ AntD **不做本地排序**，排序一律由后端 sort 参数执行。
    */
-  const sortMultiple = (field: OrderSortField): number => sortIndex(field) ?? sortKeys.length + 1
+  const sortMultiple = (field: OrderSortField): number => sortMultipleOf(sortKeys, field)
 
   /** 表头点击回调（AntD 受控排序）：维护「排序键 + 方向」，顺序 = 优先级顺序 */
   const handleTableChange: TableProps<Order>['onChange'] = (_pagination, _filters, sorter, extra) => {
@@ -906,18 +903,9 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       if (!s?.order || !field || !ORDER_SORT_FIELDS.includes(field)) continue
       active.set(field, s.order === 'descend' ? 'desc' : 'asc')
     }
-    // ① 原有键保持相对优先级（只更新方向）；② 新加入的键追加到末尾（优先级最低）
-    const next: OrderSortKey[] = []
-    for (const k of sortKeys) {
-      const dir = active.get(k.field)
-      if (dir) next.push({ field: k.field, dir })
-    }
-    for (const field of ORDER_SORT_FIELDS) {
-      const dir = active.get(field)
-      if (dir && !next.some((k) => k.field === field)) next.push({ field, dir })
-    }
-    // 全部取消排序 → 回到默认（交期 DESC），列表永远有确定的顺序
-    setSortKeys(next.length ? next : DEFAULT_ORDER_SORT)
+    // ① 原有键保持相对优先级（只更新方向）；② 新加入的键按白名单顺序追加到末尾（优先级最低）；
+    // ③ 全部取消（active 为空）→ 返回空数组 = **回到默认口径**（交期 DESC，sort 参数不传）
+    setSortKeys(nextOrderSort(sortKeys, active))
   }
 
   const columns: ColumnsType<Order> = useMemo(() => [
@@ -1128,10 +1116,11 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
             {i + 1}. {ORDER_SORT_LABEL[k.field]} {k.dir === 'desc' ? '降序' : '升序'}
           </Tag>
         ))}
-        <Button size="small" onClick={() => setSortKeys(DEFAULT_ORDER_SORT)} disabled={isDefaultOrderSort(sortKeys)}>
+        <Button size="small" onClick={() => setSortKeys(RESET_ORDER_SORT)} disabled={isDefaultOrderSort(sortKeys)}>
           重置排序
         </Button>
         {isDefaultOrderSort(sortKeys) && (
+          // 默认口径不占「1. 交期 降序」的位置：这里明说「默认 = 交期降序」，与不传 sort 参数的后端缺省一致
           <Text type="secondary" style={{ fontSize: 12 }}>默认排序（交期 降序；「待定交期」的草稿排最后）</Text>
         )}
       </Space>
