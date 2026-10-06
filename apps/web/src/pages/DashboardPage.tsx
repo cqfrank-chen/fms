@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Col, Empty, List, Row, Spin, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Col, Empty, List, Row, Spin, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   AccountBookOutlined, AppstoreOutlined, AuditOutlined, BarChartOutlined, ClockCircleOutlined,
@@ -89,10 +89,12 @@ export default function DashboardPage({ onNavigate }: { onNavigate: (p: PageKey)
   const orderColumns: ColumnsType<DashboardData['recentOrders'][number]> = [
     { title: '订单号', dataIndex: 'orderNo', width: 150 },
     {
-      // 客户 PO 号紧贴订单号（与订单列表口径一致）：空值显示「—」，超长省略悬停看全文
-      title: 'PO号', dataIndex: 'poNo', width: 150,
-      ellipsis: { showTitle: false },
-      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">—</Text>),
+      // 客户 PO 号紧贴订单号，与**订单列表同一口径**（甲方 2026-10-06：PO 号要完整显示）：
+      // 不用省略号截断、不靠 Tooltip 看全文 —— 长 PO 号走换行（wordBreak 兜底防撑破列），空值显示「—」。
+      title: 'PO号', dataIndex: 'poNo', width: 180,
+      render: (v?: string | null) => (v
+        ? <span style={{ whiteSpace: 'normal', wordBreak: 'break-all', lineHeight: 1.35 }}>{v}</span>
+        : <Text type="secondary">—</Text>),
     },
     { title: '客户', dataIndex: 'customerName', ellipsis: true },
     { title: '交期', dataIndex: 'dueDate', width: 110, render: (v: string) => dateText(v) },
@@ -206,7 +208,7 @@ export default function DashboardPage({ onNavigate }: { onNavigate: (p: PageKey)
               rowKey="id"
               pagination={false}
               columns={orderColumns}
-              scroll={{ x: 800 }}
+              scroll={{ x: 840 }}
               dataSource={data?.recentOrders ?? []}
               locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无订单" /> }}
             />
