@@ -11,7 +11,8 @@
  *   ③ **多余信息归位**：产品号码 / 塑料盖贴（塑料盖 / 贴盖 / 盖贴）→ product_packagings（1:N，**默认包装**）；
  *      其余（品牌 / 刻字 / 重量 / 货号 / 尺寸描述 / 备注性文字）→ products.remark（**备注**）。
  *   ④ **不臆造**：型号锚定不到目录、或名称没写 size 的档案**保持现状**，逐条列清单交甲方确认。
- *      其它型号写法（如 106HC / 102HC / 6290VVC）默认**不启用**，需甲方点头后放进 --aliases 文件再跑。
+ *      其它型号写法（如 6290VVC）默认**不启用**，需甲方点头后放进 --aliases 文件的 accepted 区再跑。
+ *      106HC / 102HC 已被甲方**驳回**（不是 106 / 102）—— 见 catalog_model_aliases.candidate.json 的 rejected 区。
  *
  * 写库范围（一个事务）：
  *   · 只 update **已锚定且有 size** 的产品行：name / catalog_model / size_spec / series / gas_type /
@@ -30,7 +31,9 @@
  * 参数：
  *   --dsn <url>        数据库连接串（也可 DATABASE_URL / DB_HOST+DB_PORT+DB_NAME+DB_USER+DB_PASSWORD）
  *   --apply            真正写库（不加 = dry-run）
- *   --aliases <file>   【默认不启用】额外型号别名（JSON：{"106hc":"106"}），需甲方确认后才用
+ *   --aliases <file>   【默认不启用】额外型号别名。文件格式：{ accepted:{写法:目录型号}, pending:{…}, rejected:[{alias,target,decidedAt,verdict}] }；
+ *                      **只有 accepted 会生效**，pending 一律不应用，rejected 永不启用（并在启动时打印追溯）。
+ *                      兼容旧的扁平写法 { "106hc": "106" }（全部按 accepted 处理）。
  *   --limit N          只处理前 N 个合并组（联调 / 抽样）
  *   --sample N         控制台打印的样例条数（默认 10）
  *   --quiet            只打印汇总
@@ -43,7 +46,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { buildModelIndex, withModelAliases } from './lib/product-model.mjs';
+import { buildModelIndex, loadAliasFile, withModelAliases } from './lib/product-model.mjs';
 import { canonicalProductName, planNormalize, REMARK_SEP } from './lib/normalize-core.mjs';
 import { buildFkPlan, rehangReference } from './lib/rehang.mjs';
 
@@ -77,7 +80,14 @@ if (!DSN) {
 }
 
 const cat = JSON.parse(fs.readFileSync(path.join(__dirname, 'catalog_models.json'), 'utf8'));
-const aliases = ALIASES_PATH ? JSON.parse(fs.readFileSync(ALIASES_PATH, 'utf8')) : null;
+
+/**
+ * 别名文件（**默认不启用**）：只认「甲方已确认（accepted）」的那部分；
+ * pending / rejected 一律不生效，rejected 会被打印出来以备追溯（防将来误启用）。
+ * 文件格式与硬约束见 lib/product-model.mjs 的 loadAliasFile。
+ */
+const aliasFile = ALIASES_PATH ? loadAliasFile(fs.readFileSync(ALIASES_PATH, 'utf8'), ALIASES_PATH) : null;
+const aliases = aliasFile ? aliasFile.accepted : null;
 const idx = withModelAliases(buildModelIndex(cat), aliases);
 
 /** 产品行查询列（写库与判定都基于这些列） */
@@ -108,7 +118,20 @@ async function main() {
   const who = await client.query('select current_database() as db, inet_server_addr()::text as host');
   console.log('目标库：' + who.rows[0].db + ' @ ' + (who.rows[0].host ?? 'local') + '   模式：'
     + (APPLY ? 'APPLY（真写库）' : 'DRY-RUN（只报告）')
-    + (aliases ? '   别名文件：' + ALIASES_PATH + '（' + Object.keys(aliases).length + ' 条）' : '   别名文件：未启用'));
+    + (aliasFile
+      ? '   别名文件：' + ALIASES_PATH + '（生效 ' + Object.keys(aliases).length + ' 条 / 待甲方勾选 '
+        + Object.keys(aliasFile.pending).length + ' 条 / 已驳回 ' + aliasFile.rejected.length + ' 条）'
+      : '   别名文件：未启用'));
+  if (aliasFile && aliasFile.rejected.length) {
+    console.log('  甲方已驳回（永不启用，勿写回 accepted）：');
+    for (const r of aliasFile.rejected) {
+      console.log('    · ' + r.alias + ' → ' + (r.target ?? '—') + '　[' + (r.decidedAt ?? '日期未记') + '] ' + r.verdict);
+    }
+  }
+  if (aliasFile && Object.keys(aliasFile.pending).length) {
+    console.log('  待甲方勾选（本轮**未应用**）：' + Object.keys(aliasFile.pending).join('、')
+      + '　—— 逐族建议见 tools/catalog/catalog_model_aliases.review.md');
+  }
 
   const prodCols = (await client.query(
     "select column_name from information_schema.columns where table_schema='public' and table_name='products'",

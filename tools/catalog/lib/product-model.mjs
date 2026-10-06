@@ -176,6 +176,7 @@ export function withModelAliases(index, aliases) {
   if (!aliases || !Object.keys(aliases).length) return index;
   const byKey = new Map(index);
   for (const [alias, target] of Object.entries(aliases)) {
+    if (String(alias).startsWith('_')) continue; // 元数据键（_note 等）不参与
     const hit = byKey.get(compactKey(target));
     if (!hit) continue; // 目标必须是目录里真实存在的型号，否则整条忽略
     const k = compactKey(alias);
@@ -183,6 +184,61 @@ export function withModelAliases(index, aliases) {
     byKey.set(k, hit);
   }
   return byKey;
+}
+
+/**
+ * 别名文件加载（**默认不启用 → 只认「甲方已确认」的那部分**）
+ * =============================================================================
+ * 文件形态（tools/catalog/catalog_model_aliases.candidate.json）：
+ *   { _schema, _note…, accepted: {写法:目录型号}, pending: {...}, rejected: [{alias,target,status,decidedAt,verdict,…}] }
+ * 兼容旧的**扁平**写法（{ "106HC": "106" }）：所有非 `_` 开头的键都按 accepted 处理。
+ *
+ * 硬约束（防「将来误启用」）：
+ *   · **pending / rejected 一律不生效** —— 只有 accepted 会交给 withModelAliases；
+ *   · 同一个写法同时出现在 accepted 与 rejected → **直接抛错**（自相矛盾的文件必须人工修，
+ *     绝不静默丢掉一边，否则等于悄悄启用了被驳回的写法）；
+ *   · rejected 条目缺 alias/verdict 也算格式错误（驳回必须写明甲方裁定，便于追溯）。
+ *
+ * @returns {{ accepted, rejected, pending, structured, rejectedKeys }}
+ *   rejected: [{ alias, target, status, decidedAt, verdict }]（供脚本打印「永不启用」清单）
+ */
+export function loadAliasFile(textOrObj, sourceName) {
+  const raw = typeof textOrObj === 'string' ? JSON.parse(textOrObj) : textOrObj;
+  const where = sourceName ? sourceName + '：' : '别名文件：';
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(where + '格式不正确（应为 JSON 对象）');
+  }
+  const structured = raw._schema !== undefined || raw.rejected !== undefined || raw.accepted !== undefined;
+  const rejected = [];
+  if (raw.rejected !== undefined) {
+    if (!Array.isArray(raw.rejected)) throw new Error(where + 'rejected 区应为数组');
+    for (const r of raw.rejected) {
+      if (!r || !r.alias || !r.verdict) {
+        throw new Error(where + 'rejected 条目必须写明 alias 与 verdict（甲方裁定原文）：' + JSON.stringify(r));
+      }
+      rejected.push({
+        alias: String(r.alias), target: r.target == null ? null : String(r.target),
+        status: r.status ?? 'rejected', decidedAt: r.decidedAt ?? null, verdict: String(r.verdict),
+      });
+    }
+  }
+  const accepted = {};
+  if (structured) {
+    for (const [k, v] of Object.entries(raw.accepted ?? {})) accepted[k] = v;
+  } else {
+    for (const [k, v] of Object.entries(raw)) {
+      if (k.startsWith('_')) continue;
+      accepted[k] = v;
+    }
+  }
+  const rejectedKeys = new Set(rejected.map((r) => compactKey(r.alias)));
+  const conflicts = Object.keys(accepted).filter((k) => rejectedKeys.has(compactKey(k)));
+  if (conflicts.length) {
+    throw new Error(where + '自相矛盾：写法 ' + conflicts.join('、')
+      + ' 同时出现在 accepted 与 rejected —— 被甲方驳回的写法绝不允许启用，请人工修正文件');
+  }
+  const pending = structured ? { ...(raw.pending ?? {}) } : {};
+  return { accepted, rejected, pending, structured, rejectedKeys };
 }
 
 /** 只要结论：锚定不到目录（或尺寸有歧义）时返回 null */

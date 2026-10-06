@@ -1,6 +1,34 @@
 {
-  "_note": "候选型号别名（**默认不启用**）：只有甲方确认「这些写法就是目录里的型号」之后，才用 --aliases 本文件跑归一。未确认前脚本一律不认，绝不臆造。",
-  "_note2": "键 = 产品名里出现的型号写法（紧凑键，忽略 -/空格/大小写）；值 = 官方目录里的型号代码。目标必须是目录真实型号，否则整条忽略。",
-  "106HC": "106",
-  "102HC": "102"
+  "_schema": "fms-catalog-model-aliases/1",
+  "_note": "候选型号别名（**默认不启用**）：只有甲方确认「这些写法就是目录里的型号」之后，才会被 --aliases 启用去跑归一。未确认前脚本一律不认，绝不臆造。",
+  "_note2": "alias = 产品名里出现的型号写法（紧凑键，忽略 -/空格/大小写）；target = 官方目录里的型号代码。target 必须是目录真实型号，否则整条忽略。",
+  "_statusLegend": {
+    "accepted": "甲方已确认「就是这个目录型号」→ 只有本区会被 --aliases 启用",
+    "pending": "甲方尚未勾选 → 脚本一律不应用（建议见 tools/catalog/catalog_model_aliases.review.md）",
+    "rejected": "甲方已驳回 → **永不启用**；保留记录以防将来误启用"
+  },
+  "_rejectedWarning": "rejected 区里的写法**任何情况下都不得写进 accepted**：一旦同名写法同时出现在两区，加载器会直接报错拒绝启动（见 lib/product-model.mjs 的 loadAliasFile）。",
+  "accepted": {},
+  "pending": {},
+  "rejected": [
+    {
+      "alias": "106HC",
+      "target": "106",
+      "status": "rejected",
+      "decidedAt": "2026-10-06",
+      "verdict": "甲方裁定：**106HC 与目录型号 106 不是同一型号**，不得把 106HC 当作 106 的别名归一。",
+      "evidence": "现网 106HC 写法 42 条档案（106HC-0 / 106HC-1 … 106HC-10、106HC-00、KOIKE 106HC 割嘴 83克 5# 分体式6个孔、106HC-6直通、106HC-7 3.6 …）；106 是 KOIKE 日式另一型号。",
+      "consequence": "本文件生效别名归零：docs/catalog-normalize.md §5.5 里「启用候选别名 → 37 条新提炼 + 36 条合并 / 档案 643→607」的推演**作废**，不作为执行依据。"
+    },
+    {
+      "alias": "102HC",
+      "target": "102",
+      "status": "rejected",
+      "decidedAt": "2026-10-06",
+      "verdict": "甲方裁定：**102HC 与目录型号 102 不是同一型号**，不得把 102HC 当作 102 的别名归一。",
+      "evidence": "现网 102HC 写法 14 条档案（102HC-1 0300 / 102HC-2 0301 / 102HC-3 0302、WS202308乙炔割嘴 102HC-3 全铜 重86.5g、102HC-5、102HC-6 …）。",
+      "consequence": "同上；102HC / 106HC 若确为独立型号，应作为**新型号补进目录**（本次不做，脚本不臆造目录）。"
+    }
+  ],
+  "_familySuggestions": "其它族（PNME18/PNME9、ANM/PNM、W 族、MFA/MFN、6290VVC、GPP 等）只做过分类统计与逐族建议，**一律未应用**；逐族清单与勾选表见 tools/catalog/catalog_model_aliases.review.md。"
 }

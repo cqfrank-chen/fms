@@ -50,13 +50,15 @@
 | **dedupe_products.mjs** | **去重合并**：同一（基础型号 + size）的多条档案合并为一条（重挂 8 张外键后删除），类型以目录为准；默认 dry-run / 单事务 / 幂等 | 见下「去重合并」 |
 | **lib/dedupe-core.mjs** | 去重的**纯函数核心**（解析 → 分组 → 选存活记录），被 CLI 与单测共用 | 被 import |
 | **lib/catalog-type.mjs** | 目录（系列 + 气体）→ 系统产品类型（type）推导；映射不到保持 tbd | 被 import |
-| **dedupe_products.test.mjs** | 去重判定**单元测试**（13 项：写法等价 / 不跨 size / 分组 / 存活选择 / 类型推导 / 真实 1444 条） | `node --test tools/catalog/dedupe_products.test.mjs` |
+| **dedupe_products.test.mjs** | 去重判定**单元测试**（18 项：写法等价 / 不跨 size / 分组 / 存活选择 / **甲方点名手工合并** / 类型推导 / 真实 1444 条） | `node --test tools/catalog/dedupe_products.test.mjs` |
+| **lib/product-model.mjs → loadAliasFile** | 别名文件加载：**只有 `accepted` 生效**，`pending` 不应用、`rejected` 永不启用；两区同名 → 直接报错 | 被 import |
 | **dedupe_audit.sql** | 合并后**只读**核对 SQL：条数 / 悬空引用 / 同型号同 size 只剩 1 条 / 前导零三档 / 类型分布 | `psql "<DSN>" -f tools/catalog/dedupe_audit.sql` |
 | **normalize_products.mjs** | **产品名归一**：统一成 `{size}-{model}`、从名称提炼型号、归一后再次去重、多余信息归位到「默认包装 / 备注」；默认 dry-run / 单事务 / 幂等 | 见下「产品名归一」 |
 | **lib/normalize-core.mjs** | 归一的**纯函数核心**（解析 → 标准名 → 包装/备注归位 → 分组选存活），被 CLI 与单测共用 | 被 import |
 | **lib/rehang.mjs** | 引用 products 的外键「重挂 + 唯一约束冲突行清理」**共享实现**（dedupe 与 normalize 共用同一口径） | 被 import |
-| **normalize_products.test.mjs** | 归一判定**单元测试**（19 项：命名规则 / 前导零 / 归位 / 多包装去重 / 幂等 / 别名 / 不臆造） | `node --test tools/catalog/normalize_products.test.mjs` |
-| **catalog_model_aliases.candidate.json** | **候选**型号别名（默认不启用）：确认「106HC 就是 106」这类写法后才用 `--aliases` 启用 | `--aliases tools/catalog/catalog_model_aliases.candidate.json` |
+| **normalize_products.test.mjs** | 归一判定**单元测试**（24 项：命名规则 / 前导零 / 归位 / 多包装去重 / 幂等 / **别名文件口径与防误启用** / 不臆造） | `node --test tools/catalog/normalize_products.test.mjs` |
+| **catalog_model_aliases.candidate.json** | 型号别名状态文件：`accepted`（甲方已确认，才会被 `--aliases` 启用）/ `pending`（待勾选，**一律不应用**）/ `rejected`（甲方已驳回，**永不启用**，含裁定原文与日期） | `--aliases tools/catalog/catalog_model_aliases.candidate.json` |
+| **catalog_model_aliases.review.md** | 逐族**建议清单 + 甲方勾选表**（PNME18/PNME9、ANM/PNM、W 族、MFA/MFN、6290VVC、GPP…），仅建议、未应用 | 人工阅读 / 签字 |
 
 产物（跑 `dedupe_products.mjs` 时自动写出）：
 `dedupe_product_merges.csv`（被合并清单：分组键 / 系列 / 气体 / 类型 / 存活 id+名字 / 被合并 id+名字）、
@@ -144,7 +146,15 @@ node tools/catalog/normalize_products.mjs --dsn "<DSN>" --apply
 node tools/catalog/normalize_products.mjs --dsn "<DSN>" --apply
 
 # ④ 甲方确认「其它型号写法」之后再启用别名（默认不启用，绝不臆造）
-node tools/catalog/normalize_products.mjs --dsn "<DSN>" --aliases tools/catalog/catalog_model_aliases.candidate.json --apply
+#    注意：106HC / 102HC 已被甲方**驳回**（不是 106 / 102），写在文件的 rejected 区，永不启用；
+#    待勾选的族只写在 review.md（pending 区为空），未经签字不会生效。
+node tools/catalog/normalize_products.mjs --dsn "<DSN>" --aliases tools/catalog/catalog_model_aliases.candidate.json
+node tools/catalog/normalize_products.mjs --dsn "<DSN>" --aliases tools/catalog/catalog_model_aliases.candidate.json --apply   # 确认后再加 --apply
+
+# ④b 甲方点名的「重名两条」手工合并（不论 (型号,size) 自动分组是否相同；存活规则沿用既有）
+node tools/catalog/dedupe_products.mjs --dsn "<DSN>" --merge-ids 18,24                            # dry-run
+node tools/catalog/dedupe_products.mjs --dsn "<DSN>" --merge-ids 18,24 --apply                    # 单事务写入
+node tools/catalog/dedupe_products.mjs --dsn "<DSN>" --merge-ids 18,24 --apply                    # 幂等复跑应写 0 行
 
 # 单测 / 端到端
 node --test tools/catalog/normalize_products.test.mjs

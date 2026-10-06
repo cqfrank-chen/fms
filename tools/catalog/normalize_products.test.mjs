@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildModelIndex, withModelAliases } from './lib/product-model.mjs';
+import { buildModelIndex, loadAliasFile, withModelAliases } from './lib/product-model.mjs';
 import {
   canonicalProductName, extractExtras, mergeRemark, planNormalize, splitFragments,
 } from './lib/normalize-core.mjs';
@@ -145,6 +145,63 @@ test('合并时被并入档案的包装挂到存活记录上（不随删除丢�
   const packs = plan.packagingRows.filter((p) => p.productId === 1).map((p) => p.packaging).sort();
   assert.deepEqual(packs, ['包装A', '包装B']);
   assert.ok(!plan.packagingRows.some((p) => p.productId === 2), '被合并档案不应再有包装行');
+});
+
+// =====================================================================================
+// 别名文件加载口径（甲方裁定 2026-10-06：106HC / 102HC **不是** 106 / 102）
+// =====================================================================================
+const ALIAS_FILE = path.join(__dirname, 'catalog_model_aliases.candidate.json');
+
+test('真实候选文件：生效别名 0 条，106HC / 102HC 已按甲方裁定标记 rejected（含裁定原文与日期）', () => {
+  const loaded = loadAliasFile(fs.readFileSync(ALIAS_FILE, 'utf8'), 'candidate.json');
+  assert.deepEqual(Object.keys(loaded.accepted), [], '驳回后不应有任何生效别名');
+  assert.deepEqual(Object.keys(loaded.pending), [], '其它族仅作建议，不进 pending 区（未经勾选一律不应用）');
+  const byAlias = new Map(loaded.rejected.map((r) => [r.alias, r]));
+  for (const a of ['106HC', '102HC']) {
+    const r = byAlias.get(a);
+    assert.ok(r, '应记录被驳回的写法：' + a);
+    assert.equal(r.status, 'rejected');
+    assert.match(r.decidedAt, /^\d{4}-\d{2}-\d{2}$/, a + ' 必须写明裁定日期');
+    assert.ok(r.verdict.includes('甲方裁定') && r.verdict.includes('不是同一型号'), a + ' 必须写明甲方裁定原文');
+  }
+  assert.equal(byAlias.get('106HC').target, '106');
+  assert.equal(byAlias.get('102HC').target, '102');
+});
+
+test('驳回后 --aliases 不再认 106HC / 102HC（真跑一遍判定，而不是只看文件）', () => {
+  const loaded = loadAliasFile(fs.readFileSync(ALIAS_FILE, 'utf8'));
+  const aliased = withModelAliases(idx, loaded.accepted);
+  const plan = planNormalize([row(1, '106HC-2'), row(2, '102HC-3')], aliased);
+  assert.equal(plan.merges.length, 0);
+  assert.equal(plan.entries[0].canonical, null, '106HC-2 仍不锚定（未被误当 106）');
+  assert.equal(plan.entries[1].canonical, null, '102HC-3 仍不锚定（未被误当 102）');
+  assert.equal(plan.stat.renamed, 0);
+});
+
+test('别名文件硬约束：同一写法同时出现在 accepted 与 rejected → 直接报错（绝不静默启用）', () => {
+  const bad = {
+    accepted: { '106HC': '106' },
+    rejected: [{ alias: '106HC', target: '106', status: 'rejected', decidedAt: '2026-10-06', verdict: '甲方裁定：不是同一型号' }],
+  };
+  assert.throws(() => loadAliasFile(bad), /自相矛盾/);
+});
+
+test('别名文件硬约束：rejected 条目缺 alias / verdict → 格式错误（驳回必须可追溯）', () => {
+  assert.throws(() => loadAliasFile({ rejected: [{ alias: '106HC' }] }), /verdict/);
+  assert.throws(() => loadAliasFile({ rejected: [{ verdict: '甲方裁定' }] }), /alias/);
+  assert.throws(() => loadAliasFile({ rejected: 'not-array' }), /数组/);
+});
+
+test('loadAliasFile：pending 一律不生效；旧的扁平写法仍按 accepted 处理（向后兼容）', () => {
+  const withPending = loadAliasFile({ accepted: {}, pending: { '6290VVC': '6290' }, rejected: [] });
+  assert.deepEqual(Object.keys(withPending.accepted), []);
+  assert.deepEqual(Object.keys(withPending.pending), ['6290VVC']);
+  assert.equal(withModelAliases(idx, withPending.accepted).get('6290vvc'), undefined, '待勾选的写法不得进入索引');
+
+  const flat = loadAliasFile({ _note: '忽略我', '106HC': '106' });
+  assert.equal(flat.structured, false);
+  assert.deepEqual(Object.keys(flat.accepted), ['106HC'], '旧的扁平写法仍按 accepted 处理');
+  assert.deepEqual(flat.rejected, []);
 });
 
 test('别名默认不生效；甲方确认后 withModelAliases 才把 106HC 认成 106', () => {
