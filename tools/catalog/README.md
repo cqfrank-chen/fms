@@ -56,7 +56,7 @@
 | **normalize_products.mjs** | **产品名归一**：统一成 `{size}-{model}`、从名称提炼型号、归一后再次去重、多余信息归位到「默认包装 / 备注」；默认 dry-run / 单事务 / 幂等 | 见下「产品名归一」 |
 | **lib/normalize-core.mjs** | 归一的**纯函数核心**（解析 → 标准名 → 包装/备注归位 → 分组选存活），被 CLI 与单测共用 | 被 import |
 | **lib/rehang.mjs** | 引用 products 的外键「重挂 + 唯一约束冲突行清理」**共享实现**（dedupe 与 normalize 共用同一口径） | 被 import |
-| **normalize_products.test.mjs** | 归一判定**单元测试**（24 项：命名规则 / 前导零 / 归位 / 多包装去重 / 幂等 / **别名文件口径与防误启用** / 不臆造） | `node --test tools/catalog/normalize_products.test.mjs` |
+| **normalize_products.test.mjs** | 归一判定**单元测试**（30 项：命名规则 / **前缀数字优先（3-GPN）** / 前导零 / 归位 / 多包装去重 / 幂等 / **别名文件口径与防误启用** / 不臆造） | `node --test tools/catalog/normalize_products.test.mjs` |
 | **catalog_model_aliases.candidate.json** | 型号别名状态文件：`accepted`（甲方已确认，才会被 `--aliases` 启用）/ `pending`（待勾选，**一律不应用**）/ `rejected`（甲方已驳回，**永不启用**，含裁定原文与日期） | `--aliases tools/catalog/catalog_model_aliases.candidate.json` |
 | **catalog_model_aliases.review.md** | 逐族**建议清单 + 甲方勾选表**（PNME18/PNME9、ANM/PNM、W 族、MFA/MFN、6290VVC、GPP…），仅建议、未应用 | 人工阅读 / 签字 |
 
@@ -84,6 +84,8 @@ node tools/catalog/apply_catalog_correction.mjs --dsn "<DSN>" --fill-only --limi
 ## 去重合并（`dedupe_products.mjs`，**默认 dry-run**）
 
 甲方规则：**型号前后带的数字 / # 号后的数字 / 「size」二字后的数字 = size**；
+**前缀数字优先**：`数字 + -/_/# 紧贴型号左侧` 且该数字是该型号目录档位时，这个数字是 size、其余部分是型号
+（**`3-GPN` = GPN 的 size 3**，与 `GPN-3` 是同一个产品；型号 `3GPN` 由 `3-3GPN` 这类写法独立承载）；
 同一（基础型号 + size）的多种写法（`0-1-101` ≡ `1-101 割嘴 0#` ≡ `1-101 size0`）是**同一个产品**，合并为一条。
 `0` / `00` / `000` 是**不同 size，绝不合并**；型号未锚定目录、或名字没写 size 的**保持现状**（只列清单，不猜）。
 
@@ -134,6 +136,8 @@ node apps/api/test/dedupe-products-e2e.mjs
 甲方 2026 规则：**产品名统一为 `{size}-{model}`**（size 用目录原值，**不补零不删零**；model 用目录型号代码），
 例如 `0-1-101` / `000-3-101` / `0-261`；**从名称提炼型号后按 (model, size) 再去重**；
 **产品号码 / 塑料盖贴 → 默认包装（1:N）**，其余（品牌 / 刻字 / 重量 / 货号 / 尺寸描述）→ **备注**。
+**前缀数字优先解释为 size**（甲方 2026 关键纠正）：`3-GPN` = size 3 + 型号 `GPN`，规范名 `3-GPN`，
+并与其它 GPN size 3 的记录合并 —— 详见 `docs/catalog-normalize.md` 的「〇」节。
 
 ```powershell
 # ① dry-run（只报告）：命名变更 / 新提炼型号 / 新合并 / 包装·备注归位 / 未锚定清单
@@ -184,5 +188,6 @@ node apps/api/test/normalize-products-e2e.mjs
 3. 型号边界必须干净：左侧是分隔符/串首，右侧是分隔符/串尾或紧跟一个**合法 size**
    —— 所以货号 `4154` 不会被当成型号 `41`、`1380` 不会被当成 `138` 的 size `0`；
 4. 型号前后**同时**出现数字且不同 → 「尺寸有歧义」，**不出结论**（如 `割嘴 1-GPN 2#`）；
+   前缀 size 只影响**候选顺序**（左端优先），冲突时仍换下一个候选，绝不硬猜；
 5. 型号锚定到了、但旁边数字不是目录档位（如 `PNME18` 的 `18`）→ 同样不锚定（尺寸没定死就不放过）；
 6. 锚定不到的**保持现状**，进 `product_anchor_report.md` 的「待甲方确认清单」，绝不臆造。

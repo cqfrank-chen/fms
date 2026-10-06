@@ -5,6 +5,9 @@
  *   · 0-GPN / 00-GPN / 000-GPN  →  型号 GPN，size 0 / 00 / 000（三档不同尺寸，各自是独立产品）
  *   · 106 #1 / 106 1#            →  型号 106，size 1
  *   · 1-1-101                    →  型号 1-101，size 1（前导数字 = size）
+ *   · **3-GPN                     →  型号 GPN，size 3**（甲方 2026 关键纠正：前缀数字**优先**解释为 size，
+ *     只要「数字-其余部分」的其余部分能锚定到目录型号 —— 3-GPN 不是型号 3GPN，而是 GPN 的 size 3；
+ *     它因此与其它「GPN size 3」的记录（GPN-3 / 3-GPN 割嘴 3# …）归一到同一条产品）
  *   · 1-101 size0 / 1-101 size 0 →  型号 1-101，size 0（「size」二字显式标注；与 0-1-101 同一产品）
  *   · Victor 乙炔割嘴 1-1-101      →  同上（品牌 / 描述前缀不影响）
  *   · 割嘴 1#-3-101 / 乙炔割嘴1-101-2 → 型号 3-101 size 1 / 型号 1-101 size 2
@@ -41,12 +44,14 @@ const PREFIX_RE = new RegExp('(?:^|[^0-9])' + SIZE + '\\s*#?[\\s\\-_]*$');
 const SUF_NEAR_RE = new RegExp('^[#\\s\\-_]+(?:[A-Za-z][\\s\\-_]+)?' + SIZE + '(?![0-9])\\s*#?');
 // 型号后（紧贴，仅当型号键以字母结尾时允许）：G1-P16/10、6290NX2
 const SUF_GLUED_RE = new RegExp('^' + SIZE + '(?![0-9])\\s*#?');
-// 型号后（隔一段描述文字，但数字必须带 # 标记）：割嘴 0# / 丙烷割嘴 #4
-const SUF_HASH_AFTER_RE = new RegExp('^[^0-9]{1,14}?' + SIZE + '(?![0-9])\\s*#');
-const SUF_HASH_BEFORE_RE = new RegExp('^[^0-9]{1,14}?#\\s*' + SIZE + '(?![0-9])');
+// 型号后（隔一段描述文字，但数字必须带 # 标记）：割嘴 0# / 丙烷割嘴 #4 / 1503 Cutting nozzles 4#
+// 窗口 14 → 20：实测真实数据里最长的「描述段」是「 Cutting nozzles 」（17 字符），
+// 仍在**必须有 # 号**这条硬约束下（不会因为窗口放宽就随便捡一个数字当 size）。
+const SUF_HASH_AFTER_RE = new RegExp('^[^0-9]{1,20}?' + SIZE + '(?![0-9])\\s*#');
+const SUF_HASH_BEFORE_RE = new RegExp('^[^0-9]{1,20}?#\\s*' + SIZE + '(?![0-9])');
 // 型号后用「size」二字**显式**标注尺寸（甲方点名的第三种写法）：1-101 size0 / 1-101 size 0 / GPN size #1
 // 只在前面几种写法都没命中时才用；取到的数字仍必须逐字符命中该型号的目录档位，否则整个候选作废
-const SUF_SIZE_WORD_RE = new RegExp('^[^0-9]{0,14}?(?:^|[^A-Za-z])size[\\s\\-_]*#?[\\s\\-_]*' + SIZE + '(?![0-9])\\s*#?', 'i');
+const SUF_SIZE_WORD_RE = new RegExp('^[^0-9]{0,20}?(?:^|[^A-Za-z])size[\\s\\-_]*#?[\\s\\-_]*' + SIZE + '(?![0-9])\\s*#?', 'i');
 
 /**
  * 型号条目 → 索引。key = compactKey(型号或别名)。
@@ -72,7 +77,35 @@ export function buildModelIndex(catalog) {
   return byKey;
 }
 
-/** 名字里所有「目录型号」候选（按紧凑键长度从长到短，同长取靠左） */
+/**
+ * 「前缀 size」写法判定（甲方规则②，**关键纠正**）：
+ * 「数字 + -/_/# 紧贴型号左侧」且该数字是**该型号目录里的合法 size** 时，这个数字就是 size、其余部分是型号
+ * —— 例：3-GPN = size 3 + 型号 GPN（不是型号 3GPN）。这种写法在候选排序里**提到最前**，
+ * 于是它会越过更长的紧凑型号（3GPN）优先成立；多条同时成立时取**最靠左**的那条
+ * （割嘴 1-3-GPN = size 1 + 型号 3GPN，而不是 size 3 + 型号 GPN：1 在 3 左边）。
+ *
+ * 两条安全约束（不臆造；实测数据里的两个反例）：
+ *   · 数字与型号之间必须由 -/_/# 紧贴 —— 空格分隔不算，否则「乙炔割嘴1-101-2 102g」会把克重 102 当型号；
+ *   · 数字必须**自成令牌**（左边不能是字母数字或 -/_/#）—— 否则「SC-12-4」里的 12 会被当成型号 41 的 size。
+ * @returns {number|null} size 数字在 raw 上的起始下标；null = 不是前缀 size 写法
+ */
+function prefixSizeAt(raw, cand) {
+  const m = raw.slice(0, cand.start).match(PREFIX_RE);
+  if (!m) return null;
+  const size = m[1];
+  if (!cand.hit.bySize.has(size)) return null;
+  const at = m.index + m[0].indexOf(size);
+  const tail = m[0].slice(m[0].indexOf(size) + size.length);
+  if (!/[-_#]/.test(tail)) return null;
+  if (at > 0 && /[0-9A-Za-z\-_#]/.test(raw[at - 1])) return null;
+  return at;
+}
+
+/**
+ * 名字里所有「目录型号」候选。排序（决定"先试谁"）：
+ *   ① 前缀 size 写法（上面的 prefixSizeAt）优先，多条按数字位置**从左到右**；
+ *   ② 其余按紧凑键长度从长到短，同长取靠左（原口径，保持不变）。
+ */
 function candidates(raw, index) {
   let c = '';
   const rawAt = []; // 紧凑串第 i 位对应的原串下标
@@ -90,7 +123,14 @@ function candidates(raw, index) {
       from = p + 1;
     }
   }
-  out.sort((a, b) => (b.key.length - a.key.length) || (a.start - b.start));
+  const preAt = new Map(out.map((cand) => [cand, prefixSizeAt(raw, cand)]));
+  out.sort((a, b) => {
+    const pa = preAt.get(a);
+    const pb = preAt.get(b);
+    if ((pa != null) !== (pb != null)) return pa != null ? -1 : 1;
+    if (pa != null && pb != null && pa !== pb) return pa - pb;
+    return (b.key.length - a.key.length) || (a.start - b.start);
+  });
   return out;
 }
 
@@ -130,7 +170,8 @@ export function explainProductModelSpans(name, index) {
     const pre = preM ? preM[1] : null;
     const suf = sufM ? sufM[1] : null;
 
-    // ② 前后都有数字且不同 → 尺寸有歧义，不猜（换下一个候选）
+    // ② 前后都有数字且不同 → 尺寸有歧义，不猜（换下一个候选；例：3-GPN 割嘴 2# → 前缀 3 与后缀 2 冲突，
+    //    于是退到「型号 3GPN + size 2」这个候选，得 (3GPN, 2)，与旧口径一致）
     if (pre && suf && pre !== suf) { reason = '尺寸有歧义（型号前 ' + pre + ' / 型号后 ' + suf + '）'; continue; }
 
     const base = { series: cand.hit.series, seriesCode: cand.hit.seriesCode, model: cand.hit.model,

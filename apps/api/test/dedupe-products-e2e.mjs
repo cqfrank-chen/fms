@@ -8,7 +8,9 @@
  *      唯一约束冲突行（inventory 同批次、product_processes 同工序）按设计删除并计数；
  *   ④ 未锚定 / 未写尺寸的档案保持现状（不猜）：ZZDEDUPE 106HC-2 / ZZDEDUPE 1-101；
  *   ⑤ **幂等**：复跑 --apply 必须 0 改动、0 删除、残留差异 0；
- *   ⑥ **甲方点名的手工合并 --merge-ids**（同名两条 3-GPN）：存活规则沿用既有（完整度优先于 id）、
+ *   ⑥ **前缀数字优先解释为 size**：ZZDEDUPE 3-GPN ≡ ZZDEDUPE「割嘴 3-GPN 产品号码6029」→ 合并成一条
+ *      （型号 GPN / size 3），而型号 3GPN 的 3-3GPN **保持独立**（不同型号绝不合并）；
+ *   ⑦ **甲方点名的手工合并 --merge-ids**（名字解析不出结论的两条）：存活规则沿用既有（完整度优先于 id）、
  *      存活记录身份以**库内既有值**为准（名字有歧义时不用名字重解析覆盖）、只动点名的组（不误伤别的档案）、
  *      重挂订单行 / 报价 / 默认包装、幂等复跑写 0 行、无悬空引用、业务行数不减少。
  *
@@ -109,6 +111,11 @@ async function main() {
   const p4 = await addProduct(MARK + ' 00-1-101', 'tbd', null, 0);
   const p5 = await addProduct(MARK + ' 106HC-2', 'tbd', null, 0);
   const p6 = await addProduct(MARK + ' 1-101', 'tbd', null, 0);
+  // 甲方 2026 关键纠正：3-GPN = size 3 + 型号 GPN（前缀数字优先解释为 size）→ 自动归到同一组
+  const p7 = await addProduct(MARK + ' 3-GPN', 'us_propane', null, 0);
+  const p8 = await addProduct(MARK + ' 割嘴 3-GPN 产品号码6029', 'tbd', null, 0);
+  // 另一个目录型号 3GPN 的 size 3：与 3-GPN **不是**同一个产品，绝不合并
+  const p9 = await addProduct(MARK + ' 3-3GPN', 'tbd', null, 0);
 
   const orderId = (await q(
     "insert into orders(order_no, customer_id, due_date, status) values($1,$2, now() + interval '30 day', 'draft') returning id",
@@ -131,7 +138,7 @@ async function main() {
   }
   await q('insert into product_processes(product_id, process_id, seq) values($1,$2,$3)', [p1, procId, 1]);
   await q('insert into product_processes(product_id, process_id, seq) values($1,$2,$3)', [p2, procId, 1]);
-  ok('测试数据就绪（6 条产品 / 3 条订单行 / 2 条报价 / 2 条库存 / 2 条工序路线）', true);
+  ok('测试数据就绪（9 条产品 / 3 条订单行 / 2 条报价 / 2 条库存 / 2 条工序路线）', true);
 
   const count = async (sql, params) => Number((await q(sql, params)).rows[0].n);
   const before = await count('select count(*)::int as n from products');
@@ -153,7 +160,8 @@ async function main() {
   console.log('【apply】正式写入（单事务）');
   const apply = runScript(['--apply', '--quiet']);
   ok('apply 退出码 0', apply.code === 0, apply.code);
-  ok('products 删除 2 行', /products 删除行数\s+2（目标 2）/.test(apply.out), (apply.out.match(/products 删除行数.*/) ?? [''])[0].trim());
+  // 两组合并：1-101 size 0（2 条）+ GPN size 3（1 条，来自「3-GPN」的两种写法）
+  ok('products 删除 3 行', /products 删除行数\s+3（目标 3）/.test(apply.out), (apply.out.match(/products 删除行数.*/) ?? [''])[0].trim());
   ok('引用重挂合计 4 行（订单行 2 + 报价 2；库存/工序那 2 行撞唯一约束改为删除）', /引用重挂行数合计\s+4/.test(apply.out), (apply.out.match(/引用重挂行数合计.*/) ?? [''])[0].trim());
   ok('唯一约束冲突删除 2 行', /唯一约束冲突删除行数\s+2/.test(apply.out), (apply.out.match(/唯一约束冲突删除行数.*/) ?? [''])[0].trim());
   ok('type 以目录为准（写入条数 > 0）', /type 写入行数\s+[1-9]/.test(apply.out), (apply.out.match(/type 写入行数.*/) ?? [''])[0].trim());
@@ -183,6 +191,15 @@ async function main() {
   eq('未锚定档案保持现状（anchor=unmatched，目录列仍为空）', [s5?.catalog_anchor, s5?.catalog_model, s5?.size_spec], ['unmatched', null, null]);
   const s6 = await row(p6);
   eq('未写 size 的档案保持现状（anchor=matched 但不猜 size）', [s6?.catalog_anchor, s6?.catalog_model, s6?.size_spec], ['matched', '1-101', null]);
+
+  // 甲方 2026 关键纠正：3-GPN = size 3 + 型号 GPN，并与「割嘴 3-GPN 产品号码6029」自动合并
+  ok('被合并档案 #' + p8 + '（割嘴 3-GPN 产品号码6029）已并入 #' + p7, await gone(p8));
+  const s7 = await row(p7);
+  eq('3-GPN 的目录身份 = 型号 GPN / size 3（前缀数字优先解释为 size）',
+    [s7?.catalog_model, s7?.size_spec, s7?.gas_type, s7?.catalog_anchor], ['GPN', '3', 'LPG', 'matched']);
+  const s9 = await row(p9);
+  eq('3-3GPN（型号 3GPN 的 size 3）**保持独立**，绝不与 3-GPN（型号 GPN 的 size 3）合并',
+    [s9?.catalog_model, s9?.size_spec], ['3GPN', '3']);
 
   eq('订单行全部改指存活记录（3 行）',
     (await q('select count(*)::int as n from order_lines where order_id = $1', [orderId])).rows[0].n, 3);
@@ -220,7 +237,7 @@ async function main() {
   ok('复跑 products 删除行数 0', /products 删除行数\s+0（目标 0）/.test(again.out), (again.out.match(/products 删除行数.*/) ?? [''])[0].trim());
   ok('复跑引用重挂 0 行', /引用重挂行数合计\s+0/.test(again.out), (again.out.match(/引用重挂行数合计.*/) ?? [''])[0].trim());
   ok('复跑残留差异 0（幂等）', /复跑残留差异行数\s+0\s+✅/.test(again.out), (again.out.match(/复跑残留差异行数.*/) ?? [''])[0].trim());
-  eq('复跑后 products 条数不再下降', await count('select count(*)::int as n from products'), before - 2);
+  eq('复跑后 products 条数不再下降', await count('select count(*)::int as n from products'), before - 3);
 
   // =====================================================================================
   // 【本轮新增】甲方点名的手工合并 --merge-ids：同名两条（3-GPN）并成一条
@@ -231,13 +248,16 @@ async function main() {
   //   注意：本段的存活记录 **id 更大**，靠「完整度更高」胜出 —— 证明规则②真的在生效。
   // =====================================================================================
   console.log('');
-  console.log('【手工合并 --merge-ids】同名两条 3-GPN 并成一条（存活规则沿用既有 / 身份以库内既有值为准）');
-  const mB = await addProduct(MARK + ' 3-GPN', 'us_propane', null, 0);                      // 先建：id 更小，身份 = 3GPN 未写 size
-  const mA = await addProduct(MARK + ' 3-GPN', 'us_propane', '塑壳 蓝盖 不干胶 50只/中盒', 0); // 后建：id 更大，身份 = GPN size 3
-  await q("update products set catalog_model='3GPN', size_spec=null, series='AMERICAN STYLE CUTTING TIP',"
+  console.log('【手工合并 --merge-ids】名字**解析不出结论**的两条并成一条（存活规则沿用既有 / 身份以库内既有值为准）');
+  // 注意：3-GPN 的歧义已被本轮规则解决（上面的自动分组覆盖了它），
+  // 所以这里换用**规则也判不出结论**的名字：「ZZDEDUPE 1-GPN 2#」= 前后数字冲突（尺寸有歧义）→ 不进任何自动分组，
+  // 只有甲方点名（--merge-ids）才合并；存活记录的身份以**库内既有值**为准（不用歧义名字重解析覆盖）。
+  const mB = await addProduct(MARK + ' 1-GPN 2#', 'us_propane', null, 0);                      // 先建：id 更小
+  const mA = await addProduct(MARK + ' 1-GPN 2#', 'us_propane', '塑壳 蓝盖 不干胶 50只/中盒', 0); // 后建：id 更大，完整度更高
+  await q("update products set catalog_model='GPN', size_spec='2', series='AMERICAN STYLE CUTTING TIP',"
     + " gas_type='LPG', catalog_anchor='matched', catalog_note='名称未写尺寸（size 待人工确认）' where id=$1", [mB]);
-  await q("update products set catalog_model='GPN', size_spec='3', series='AMERICAN STYLE CUTTING TIP',"
-    + " gas_type='LPG', orifice_mm='1.8', thickness_range='40-60', catalog_anchor='matched' where id=$1", [mA]);
+  await q("update products set catalog_model='GPN', size_spec='2', series='AMERICAN STYLE CUTTING TIP',"
+    + " gas_type='LPG', orifice_mm='1.5', thickness_range='20-40', catalog_anchor='matched' where id=$1", [mA]);
 
   // 另有一对「本该被自动合并」的档案：用来证明 --merge-ids 模式**只动点名的组**，不误伤别的档案
   const oA = await addProduct(MARK + ' 4-GPN', 'us_propane', null, 0);
@@ -257,7 +277,7 @@ async function main() {
   ok('dry-run（--merge-ids）退出码 0', manDry.code === 0, manDry.code);
   ok('dry-run 打印「甲方点名的手工合并」段', manDry.out.includes('甲方点名的手工合并'), '');
   ok('dry-run 存活记录 = 完整度更高的 #' + mA + '（id 更大者胜出 → 规则②生效）', manDry.out.includes('存活 #' + mA), (manDry.out.match(/\[.*?\].*/) ?? [''])[0].trim());
-  ok('dry-run 合并身份 = GPN size 3（以库内既有值为准）', manDry.out.includes('[GPN 3]'), (manDry.out.match(/\[.*?\]/) ?? [''])[0]);
+  ok('dry-run 合并身份 = GPN size 2（以库内既有值为准）', manDry.out.includes('[GPN 2]'), (manDry.out.match(/\[.*?\]/) ?? [''])[0]);
   ok('dry-run 明示「其余自动分组不处理 1 组」（不误伤 4-GPN 那一对）',
     /其余自动分组不处理\s+1\s+组/.test(manDry.out), (manDry.out.match(/其余自动分组不处理.*/) ?? [''])[0].trim());
   ok('dry-run order_lines 重挂 1 行', /order_lines\s+重挂\s+1\s+行/.test(manDry.out), (manDry.out.match(/order_lines.*/) ?? [''])[0].trim());
@@ -289,10 +309,10 @@ async function main() {
   console.log('【SQL 核对】合并结果 / 身份保持 / 重挂 / 无悬空引用 / 业务行数不减少');
   ok('被合并档案 #' + mB + ' 已删除', await gone(mB));
   const sa = await row(mA);
-  eq('存活记录身份保持库内既有值（GPN / size 3 / 阈值口径未被名字重解析覆盖）',
+  eq('存活记录身份保持库内既有值（GPN / size 2 / 阈值口径未被名字重解析覆盖）',
     [sa?.catalog_model, sa?.size_spec, sa?.series, sa?.gas_type, sa?.orifice_mm, sa?.thickness_range, sa?.catalog_anchor],
-    ['GPN', '3', 'AMERICAN STYLE CUTTING TIP', 'LPG', '1.8', '40-60', 'matched']);
-  eq('存活记录名字未被改动（甲方未要求改名，仍是有歧义的 3-GPN）', sa?.name, MARK + ' 3-GPN');
+    ['GPN', '2', 'AMERICAN STYLE CUTTING TIP', 'LPG', '1.5', '20-40', 'matched']);
+  eq('存活记录名字未被改动（甲方未要求改名，仍是有歧义的 1-GPN 2#）', sa?.name, MARK + ' 1-GPN 2#');
   ok('存活记录写明「甲方点名合并」并含被合并 id #' + mB,
     String(sa?.catalog_note ?? '').includes('点名合并') && String(sa?.catalog_note ?? '').includes('#' + mB), sa?.catalog_note);
   ok('存活记录补齐了被合并档案的默认包装（信息不丢）', sa?.default_packaging === '塑壳 蓝盖 不干胶 50只/中盒', sa?.default_packaging);

@@ -96,7 +96,7 @@ describe('parseProductModel：型号前 / 后 / # 后的数字 = size', () => {
     expect(p('VICTOR 乙炔割嘴 1-1-101')).toMatchObject({ model: '1-101', size: '1' });
   });
 
-  it('连字符 / 空格差异自动等价：3-GPN ↔ 3GPN、MC-12 ↔ MC12、6290-NX ↔ 6290NX', () => {
+  it('连字符 / 空格差异自动等价（型号内部）：MC-12 ↔ MC12、6290-NX ↔ 6290NX、SC-50 ↔ SC50', () => {
     expect(p('割嘴 1-3-GPN 产品号码6031')).toMatchObject({ model: '3GPN', size: '1' });
     expect(p('割嘴 2-3-GPN 产品号码6032')).toMatchObject({ model: '3GPN', size: '2' });
     expect(p('SC50-1')).toMatchObject({ model: 'SC50', size: '1' });
@@ -112,6 +112,41 @@ describe('parseProductModel：型号前 / 后 / # 后的数字 = size', () => {
     expect(p('1503丙烷割嘴 #4 包装：塑料盒贴型号')).toMatchObject({ model: '1503', size: '4' });
     expect(p('M(ACE) 1#')).toMatchObject({ model: 'M(ACE)', gasType: 'ACETYLENE', size: '1' });
     expect(p('A(LPG) 2#')).toMatchObject({ model: 'A(LPG)', gasType: 'LPG', size: '2' });
+  });
+
+  it('前缀数字**优先**解释为 size：3-GPN = size 3 + 型号 GPN（甲方 2026 关键纠正）', () => {
+    expect(p('3-GPN')).toMatchObject({ model: 'GPN', size: '3', gasType: 'LPG', sizeKnown: true });
+    expect(p('割嘴 3-GPN 产品号码6029')).toMatchObject({ model: 'GPN', size: '3' });
+    expect(p('割嘴 3#-GPN')).toMatchObject({ model: 'GPN', size: '3' });
+    // 与「GPN size 3」的其它写法是同一个产品；与型号 3GPN（另一个目录型号）**不是**
+    expect(sameCatalogProduct('3-GPN', 'GPN-3')).toBe(true);
+    expect(sameCatalogProduct('3-GPN', 'GPN 割嘴 3#')).toBe(true);
+    expect(sameCatalogProduct('3-GPN', '3-3GPN')).toBe(false);
+    expect(p('3-3GPN')).toMatchObject({ model: '3GPN', size: '3' });
+    // 不同 size 绝不互相命中
+    expect(sameCatalogProduct('3-GPN', '2-GPN')).toBe(false);
+    expect(sameCatalogProduct('3-GPN', '00-3GPN')).toBe(false);
+  });
+
+  it('前缀 size 取最靠左的一条（割嘴 1-3-GPN = size 1 + 型号 3GPN）', () => {
+    expect(p('割嘴 1-3-GPN 产品号码6031')).toMatchObject({ model: '3GPN', size: '1' });
+    expect(p('割嘴 2-3-GPN 产品号码6032')).toMatchObject({ model: '3GPN', size: '2' });
+  });
+
+  it('前缀 size 的安全边界：数字自成令牌 + 与型号由 -/_/# 紧贴（不臆造）', () => {
+    // 「SC-12-4」里的 12 是型号 SC12 的写法，不许被当成型号 41 的 size
+    expect(p('smith 乙炔割嘴 SC-12-4 103g')).toMatchObject({ model: 'SC12', size: '4' });
+    // 「1-101-2 102g」里的 102 是克重，不许被当成型号（空格分隔不算前缀 size）
+    expect(p('乙炔割嘴1-101-2 102g 货号：4191')).toMatchObject({ model: '1-101', size: '2' });
+    // 前缀 size 必须真在目录档位里，否则照旧不锚定
+    expect(p('10-GPN')).toBeNull();
+    expect(p('割嘴 1-GPN 2#')).toBeNull(); // 前后冲突 → 不猜
+  });
+
+  it('后缀 #N / N# 的描述段窗口放宽到 20 字符（甲方点名的写法）', () => {
+    expect(p('1503 Cutting nozzles 4#')).toMatchObject({ model: '1503', size: '4' });
+    expect(p('1503 cutting nozzles #6镀铬')).toMatchObject({ model: '1503', size: '6' });
+    expect(p('GPN CUTTING NOZZLE 2#')).toMatchObject({ model: 'GPN', size: '2' });
   });
 
   it('目录档位之外 / 数字歧义 / 货号误认 —— 一律不锚定（宁缺勿错）', () => {
@@ -146,6 +181,12 @@ describe('sameCatalogProduct：基础型号 + size 相同才算命中', () => {
     expect(sameCatalogProduct('2-1-101', '乙炔割嘴1-101-2 82g 货号：4191')).toBe(true);
     expect(sameCatalogProduct('1-GPN', 'victor 丙烷割嘴 GPN-1')).toBe(true);
     expect(sameCatalogProduct('106 #1', '106 1#')).toBe(true);
+  });
+
+  it('前缀数字优先后仍不跨 size：3-GPN 只认 GPN 的 size 3', () => {
+    expect(sameCatalogProduct('3-GPN', '3-3GPN')).toBe(false); // 型号 3GPN ≠ 型号 GPN
+    expect(sameCatalogProduct('3-GPN', '00-GPN')).toBe(false);
+    expect(sameCatalogProduct('3-GPN', 'GPN 割嘴 2#')).toBe(false);
   });
 
   it('跨 size 一律不命中（含前导零 / 型号前数字 / # 号数差异）', () => {

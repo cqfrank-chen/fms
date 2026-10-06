@@ -258,8 +258,14 @@ async function main() {
   }
 
   // ---- CSV 存档（dry-run 也写，便于甲方先审）----
-  writeCsv(CSV_RENAMES, ['id', '归一前', '归一后', '目录型号', 'size'],
-    renameRows.map((r) => [r.id, r.from, r.to, r.model, r.size]));
+  // 命名变更清单：**只在本次确实有改名时写**，否则保留上一轮存档
+  // （复跑 0 行时把历史清单清空 = 销毁甲方审计线索；与 dedupe 脚本的「被合并清单」同一口径）
+  if (renameRows.length) {
+    writeCsv(CSV_RENAMES, ['id', '归一前', '归一后', '目录型号', 'size'],
+      renameRows.map((r) => [r.id, r.from, r.to, r.model, r.size]));
+  } else {
+    console.log('  本次无命名变更，保留上一轮的命名变更清单存档：' + CSV_RENAMES);
+  }
   writeCsv(CSV_UNANCHORED, ['类别', 'id', '产品名', '目录型号', '原因'],
     plan.unanchored.map((u) => [u.category, u.id, u.name, u.model, u.reason]));
   writeCsv(CSV_MOVED, ['id', '产品名', '类型', '内容'],

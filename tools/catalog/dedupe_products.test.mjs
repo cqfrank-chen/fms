@@ -7,6 +7,7 @@
  *   ① 写法等价判定：0-1-101 ≡ 1-101 割嘴 0# ≡ 1-101 size0（同一产品）
  *   ② 不同 size 绝不合并：00-1-101 ≠ 0-1-101；1-101 #1 ≠ #0；0/00/000-GPN 三档
  *   ③ 分组正确性：合成数据 + **真实 1444 条产品名**（product_anchor.csv）逐项比对
+ *   ③' **前缀数字优先解释为 size**（甲方 2026 关键纠正）：3-GPN = 型号 GPN + size 3；型号 3GPN 的 3-3GPN 独立
  *   ④ 存活记录选择规则：完整度打分 → id 最小
  *   ⑤ 类型以目录为准：ACE→ACETYLENE、LPG→LPG；款式映射不到 → tbd（不臆造）
  */
@@ -156,12 +157,16 @@ test('pickSurvivor 规则①：已锚定目录的优先当存活记录（未锚�
   assert.equal(pickSurvivor([unnamed, matched]).row.id, 9, '规则①优先于完整度');
 });
 
-test('planManualMerges：真实场景 3-GPN —— #18(GPN size3) 与 #24(型号 3GPN 未写 size) 同名两条并成一条', () => {
-  // 前提：名字 `3-GPN` 有歧义 —— 解析器认的是「型号 3GPN、没写 size」，因此两条并不同键
+test('真实场景 3-GPN：前缀数字优先 → 自动归到 GPN size 3（甲方 2026 关键纠正，不再需要 --merge-ids）', () => {
+  // 修复前：名字 `3-GPN` 被解析成「型号 3GPN、没写 size」→ 与另一条「GPN size 3」的档案并不同键；
+  // 修复后：前缀数字**优先**解释为 size → 3-GPN 就是 GPN 的 size 3，两条自动进同一组。
   const amb = targetOf('3-GPN', idx);
-  assert.equal(amb.catalog_model, '3GPN');
-  assert.equal(amb.size_spec, null);
-  assert.equal(dedupeKeyOf(amb), null, '名字有歧义 → 不可能靠名字拿到 (型号,size) 身份');
+  assert.equal(amb.catalog_model, 'GPN');
+  assert.equal(amb.size_spec, '3');
+  assert.equal(dedupeKeyOf(amb), 'GPN 3', '前缀数字优先解释为 size');
+  // 型号 3GPN（3-3GPN / 1-3-GPN …）是**另一个目录型号**，键不同 → 绝不与 GPN 混在一起
+  assert.equal(dedupeKeyOf(targetOf('3-3GPN', idx)), '3GPN 3');
+  assert.equal(dedupeKeyOf(targetOf('割嘴 1-3-GPN 产品号码6031', idx)), '3GPN 1');
 
   const rows = [
     // #18：库内身份 = GPN 的 size 3（来自归一前的 legacy_name=GPN-3），完整度更高
@@ -169,28 +174,47 @@ test('planManualMerges：真实场景 3-GPN —— #18(GPN size3) 与 #24(型号
       type: 'us_propane', default_packaging: '塑壳 蓝盖 不干胶 50只/中盒',
       catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '3',
     }),
-    // #24：库内身份 = 型号 3GPN、未写 size
+    // #24：修复前入库时被解析成「型号 3GPN、未写 size」（库里遗留的错误身份）—— 但**名字**已能锚定
     row(24, '3-GPN', { type: 'us_propane', catalog_anchor: 'matched', catalog_model: '3GPN', size_spec: null }),
     // 另一条真实档案（型号 3GPN 的 size 3）—— 绝不该被卷进来
     row(144, '3-3GPN', { type: 'us_propane', catalog_anchor: 'matched', catalog_model: '3GPN', size_spec: '3' }),
   ];
   const planned = planDedupe(rows, idx);
-  assert.equal(planned.mergeGroups.length, 0, '自动分组不该包含 3-GPN 同名两条（名字歧义 → 键为 null）');
+  assert.equal(planned.mergeGroups.length, 1, '3-GPN 两条同名档案自动进同一 (型号,size) 组');
+  const g = planned.mergeGroups[0];
+  assert.equal(g.key, 'GPN 3');
+  assert.equal(g.survivor.row.id, 18, '存活规则：同为 matched → 完整度高者 #18 存活（其次才是 id 最小）');
+  assert.deepEqual(g.merged.map((x) => x.row.id), [24]);
+  assert.equal([g.survivor, ...g.merged].some((x) => x.row.id === 144), false, '另一型号 3GPN 的 #144 不被卷进来');
+  assert.deepEqual([...planned.groups.keys()].sort(), ['3GPN 3', 'GPN 3']);
+});
 
-  const m = planManualMerges(planned.parsed, planned.mergeGroups, [18, 24]);
+test('planManualMerges：名字**规则判不出来**的两条（1-GPN 2# 尺寸歧义）仍可甲方点名合并', () => {
+  // --merge-ids 的兜底场景：名字有歧义 → 键为 null → 不进任何自动分组；甲方点名后按**库内身份**合并
+  const amb = targetOf('割嘴 1-GPN 2#\n产品号码6028', idx);
+  assert.equal(amb.catalog_anchor, 'unmatched');
+  assert.equal(dedupeKeyOf(amb), null, '名字有歧义 → 不可能靠名字拿到 (型号,size) 身份');
+
+  const rows = [
+    // 甲方已确认：这两条其实是 GPN 的 size 2（身份以**库内既有值**为准，不按歧义名字重解析）
+    row(19, '割嘴 1-GPN 2#\n产品号码6028', { type: 'us_propane', catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '2' }),
+    row(24, '割嘴 1-GPN 2#\n产品号码6028', {
+      type: 'us_propane', default_packaging: '塑壳 蓝盖 不干胶 50只/中盒',
+      catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '2',
+    }),
+  ];
+  const planned = planDedupe(rows, idx);
+  assert.equal(planned.mergeGroups.length, 0, '名字歧义 → 自动分组不碰它们');
+  const m = planManualMerges(planned.parsed, planned.mergeGroups, [19, 24]);
   assert.equal(m.refused, null);
   assert.deepEqual(m.missing, []);
   assert.equal(m.manualGroups.length, 1);
   const g = m.manualGroups[0];
-  assert.equal(g.key, 'GPN 3', '合并后的身份 = 存活记录**库内既有**身份（不是名字重解析出来的）');
+  assert.equal(g.key, 'GPN 2', '合并后的身份 = 存活记录**库内既有**身份');
   assert.equal(g.manual, true);
-  assert.equal(g.survivor.row.id, 18, '存活规则：同为 matched → 完整度高者 #18 存活（其次才是 id 最小）');
-  assert.deepEqual(g.merged.map((x) => x.row.id), [24]);
-  // 关键：同名之外的档案（#144 = 3GPN size 3）**不被卷进来**
-  assert.equal([g.survivor, ...g.merged].some((x) => x.row.id === 144), false);
-  // 被点名（含吸收）的行里「库内身份齐备」的才用于自校验核对：#18 齐全；#24 没写 size，不算
-  assert.deepEqual(m.identityLocked.map((x) => x.id), [18]);
-  assert.deepEqual(m.identityLocked[0], { id: 18, name: '3-GPN', model: 'GPN', size: '3', key: 'GPN 3' });
+  assert.equal(g.survivor.row.id, 24, '存活规则：完整度高者 #24 存活（即便 id 更大）');
+  assert.deepEqual(g.merged.map((x) => x.row.id), [19]);
+  assert.deepEqual(m.identityLocked.map((x) => x.id), [19, 24]);
 });
 
 test('planManualMerges：与自动分组取并集（相交的自动组整体吸收，不漏合并也不重复处理）', () => {
@@ -300,14 +324,18 @@ test('真实 1444 条产品名：分组统计与逐条判定（与本地库实�
 
   const { stat, groups, mergeGroups, singleGroups } = planDedupe(rows, idx);
   assert.equal(stat.matched, 1046);
-  assert.equal(stat.matchedSized, 993);
-  assert.equal(stat.sizeUnknown, 53);
+  // 甲方 2026 前缀数字优先后：3-GPN 等 14 条从「未写 size / 未锚定」变成可锚定（993 → 1007，53 → 39）
+  assert.equal(stat.matchedSized, 1007);
+  assert.equal(stat.sizeUnknown, 39);
   assert.equal(stat.unmatched, 398);
   assert.equal(groups.size, 191, '可合并分组（型号+尺寸）应为 191 组');
   assert.equal(mergeGroups.length, 145, '组内多于一条的应为 145 组');
   assert.equal(singleGroups.length, 46);
-  assert.equal(mergeGroups.reduce((s, g) => s + g.merged.length, 0), 802, '待合并档案应为 802 条');
-  assert.equal(stat.total - 802, 642, '合并后应为 642 条');
+  assert.equal(mergeGroups.reduce((s, g) => s + g.merged.length, 0), 816, '待合并档案应为 816 条');
+  assert.equal(stat.total - 816, 628, '合并后应为 628 条');
+  // 3-GPN / 3-GPN 割嘴 3# 这类写法归到 GPN 的 size 3（而不是型号 3GPN）
+  assert.equal(key('3-GPN'), 'GPN 3');
+  assert.equal(key('3-3GPN'), '3GPN 3');
 
   // 组内成员必须**同型号同 size**，且不同 size 不共组
   for (const g of mergeGroups) {

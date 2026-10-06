@@ -52,6 +52,71 @@ test('命名规则：size 用目录原值，不补零不删零（000-3-101 / 00-
   assert.equal(canonicalOf('0-3-101'), '0-3-101');
 });
 
+// =====================================================================================
+// 甲方 2026 关键纠正：**前缀数字优先解释为 size**（3-GPN = size 3 + 型号 GPN，不是型号 3GPN）
+// =====================================================================================
+test('前缀数字优先：3-GPN → size 3 + 型号 GPN → 规范名 3-GPN（甲方关键纠正）', () => {
+  const e = one('3-GPN');
+  assert.equal(e.parse.model, 'GPN');
+  assert.equal(e.parse.size, '3');
+  assert.equal(e.canonical, '3-GPN');
+  assert.equal(one('割嘴 3-GPN 产品号码6029').canonical, '3-GPN');
+  assert.equal(one('割嘴 3#-GPN').canonical, '3-GPN');
+  // 与其它「GPN size 3」写法同一条产品（GPN-3 归一后就是 3-GPN）
+  assert.equal(canonicalOf('GPN-3'), '3-GPN');
+  assert.equal(canonicalOf('GPN 割嘴 3#'), '3-GPN');
+});
+
+test('3-GPN 与其它 GPN size 3 的记录合并成一条（不同 size 仍独立）', () => {
+  const plan = planNormalize([
+    row(1, 'GPN-3', { default_packaging: '塑壳 蓝盖' }),
+    row(2, '割嘴 3-GPN 产品号码6029'),
+    row(3, 'GPN 割嘴 3#'),
+    row(4, '2-GPN'),          // GPN size 2：不同 size 绝不合并
+    row(5, '3-3GPN'),         // 型号 3GPN size 3：另一个型号，同样不合并
+  ], idx);
+  const g = plan.merges.filter((m) => m.key === 'GPN 3');
+  assert.equal(g.length, 1);
+  assert.equal(g[0].merged.length, 2);
+  assert.equal(g[0].survivor.row.id, 1); // 完整度：有默认包装 → 最高
+  assert.deepEqual(g[0].merged.map((m) => m.row.id), [2, 3]);
+  assert.deepEqual(plan.survivors.map((s) => s.key).sort(), ['3GPN 3', 'GPN 2', 'GPN 3']);
+});
+
+test('前缀 size 取最靠左的一条：割嘴 1-3-GPN = size 1 + 型号 3GPN（不是 size 3 + GPN）', () => {
+  const e = one('割嘴 1-3-GPN 产品号码6031');
+  assert.equal(e.parse.model, '3GPN');
+  assert.equal(e.parse.size, '1');
+  assert.equal(e.canonical, '1-3GPN');
+  assert.equal(canonicalOf('割嘴 2-3-GPN 产品号码6032'), '2-3GPN');
+});
+
+test('前缀 size 的安全边界：数字必须自成令牌、且与型号由 -/_/# 紧贴', () => {
+  // 「SC-12-4」里的 12 不许被当成型号 41 的 size（令牌边界）
+  const sc = one('smith 乙炔割嘴 SC-12-4 103g');
+  assert.equal(sc.parse.model, 'SC12');
+  assert.equal(sc.parse.size, '4');
+  // 「1-101-2 102g」里的 102 是克重，不许被当成型号（空格分隔不算前缀 size）
+  const w = one('乙炔割嘴1-101-2 102g\n代码：4191');
+  assert.equal(w.parse.model, '1-101');
+  assert.equal(w.parse.size, '2');
+});
+
+test('后缀 #N / N# 的描述段窗口放宽到 20 字符（1503 Cutting nozzles 4#）', () => {
+  assert.equal(canonicalOf('1503 Cutting nozzles 4#'), '4-1503');
+  assert.equal(canonicalOf('GPN CUTTING NOZZLE 2#'), '2-GPN');
+  assert.equal(canonicalOf('1503 cutting nozzles #6镀铬'), '6-1503');
+});
+
+test('前后数字冲突时不猜：割嘴 1-GPN 2# 进人工确认清单', () => {
+  const e = one('割嘴 1-GPN 2#');
+  assert.equal(e.canonical, null);
+  assert.equal(e.parse, null);
+  assert.equal(e.reason, '尺寸有歧义（型号前 1 / 型号后 2）');
+  const e2 = one('3-GPN 割嘴 000#');
+  assert.equal(e2.canonical, null); // 3-GPN 前缀 size 3 与后缀 000 冲突 → 退到 3GPN 候选，000 不在档位 → 不锚定
+});
+
 test('不同 size 绝不合并（0 / 00 / 000 分成三组）', () => {
   const plan = planNormalize([row(1, '0-1-101'), row(2, '00-1-101'), row(3, '000-1-101')], idx);
   assert.equal(plan.merges.length, 0);

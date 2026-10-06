@@ -124,6 +124,11 @@ async function main() {
   // ④ 不臆造：未锚定 / 未写 size
   const p7 = await addProduct(MARK + ' 106HC-2', 'tbd', null, 0);
   const p8 = await addProduct(MARK + ' 乙炔割嘴 1-101', 'tbd', null, 0);
+  // ⑤ 甲方 2026 关键纠正：前缀数字**优先**解释为 size —— 3-GPN = size 3 + 型号 GPN，
+  //    于是它与「割嘴 3-GPN 产品号码6029」是**同一个产品**（合并）；而型号 3GPN 的 3-3GPN 必须保持独立。
+  const p9 = await addProduct(MARK + ' 3-GPN', 'tbd', null, 0);
+  const p10 = await addProduct(MARK + ' 割嘴 3-GPN 产品号码6029', 'tbd', null, 0);
+  const p11 = await addProduct(MARK + ' 3-3GPN', 'tbd', null, 0);
 
   const orderId = (await q(
     "insert into orders(order_no, customer_id, due_date, status) values($1,$2, now() + interval '30 day', 'draft') returning id",
@@ -145,7 +150,7 @@ async function main() {
       [MARK + '_proc', MARK + ' 工序', MARK + '_wc'])).rows[0].id;
   }
   for (const pid of [p1, p2]) await q('insert into product_processes(product_id, process_id, seq) values($1,$2,$3)', [pid, procId, 1]);
-  ok('测试数据就绪（8 条产品 / 2 条订单行 / 2 条报价 / 2 条库存 / 2 条工序路线）', true);
+  ok('测试数据就绪（11 条产品 / 2 条订单行 / 2 条报价 / 2 条库存 / 2 条工序路线）', true);
 
   const count = async (sql, params) => Number((await q(sql, params)).rows[0].n);
   const bizBefore = {
@@ -159,7 +164,9 @@ async function main() {
   const dry = runScript(['--sample', '5']);
   ok('dry-run 退出码 0', dry.code === 0, dry.code);
   ok('识别出命名变更（含 261 割嘴 0# → 0-261）', dry.out.includes('命名变更条数'), (dry.out.match(/命名变更条数.*/) ?? [''])[0].trim());
-  ok('识别出合并组（1-101 size 0 的三种写法 → 合并 2 条 / 1 个分组）', /新合并条数\**\s+2（1 个/.test(dry.out), (dry.out.match(/新合并条数.*/) ?? [''])[0].trim());
+  // 两个合并组：1-101 size 0 的三种写法（合并 2 条）+ GPN size 3（3-GPN 两条写法合并 1 条）
+  ok('识别出合并组（1-101 size 0 三种写法 + GPN size 3 两种写法 → 合并 3 条 / 2 个分组）',
+    /新合并条数\**\s+3（2 个/.test(dry.out), (dry.out.match(/新合并条数.*/) ?? [''])[0].trim());
   ok('不同 size 不参与合并（size 00 的组不在合并组里）', !dry.out.includes('00-1-101') || true);
   eq('dry-run 未写库（products 条数不变）', await count('select count(*)::int as n from products'), bizBefore.products);
   ok('dry-run 明确提示未写库', dry.out.includes('（dry-run）未写库'));
@@ -168,7 +175,8 @@ async function main() {
   console.log('【apply】正式写入（单事务）');
   const apply = runScript(['--apply', '--quiet']);
   ok('apply 退出码 0', apply.code === 0, apply.code);
-  ok('products 删除 2 行（size 0 的三合一）', /products 删除行数\s+2（目标 2）/.test(apply.out), (apply.out.match(/products 删除行数.*/) ?? [''])[0].trim());
+  ok('products 删除 3 行（1-101 size 0 三合一 + GPN size 3 二合一）',
+    /products 删除行数\s+3（目标 3）/.test(apply.out), (apply.out.match(/products 删除行数.*/) ?? [''])[0].trim());
   // 订单行：p1 / p3 各 1 行 → 2 行；报价：只有 p3 的 1 条要改指（p2 本来就是存活记录）→ 合计 3 行
   ok('引用重挂合计 3 行（订单行 2 + 报价 1；库存/工序各 1 行撞唯一约束改为删除）',
     /引用重挂行数合计\s+3/.test(apply.out), (apply.out.match(/引用重挂行数合计.*/) ?? [''])[0].trim());
@@ -201,6 +209,16 @@ async function main() {
     packs.some((x) => x.source === 'legacy' && x.packaging === '1-101割嘴')
     && packs.some((x) => x.source === 'name' && x.packaging.includes('产品号码6023')), packs);
   ok('既有 default_packaging 文本字段保留（向后兼容）', String(s?.default_packaging ?? '').includes('1-101割嘴'), s?.default_packaging);
+
+  // ⑤ 前缀数字优先：3-GPN = size 3 + 型号 GPN（甲方关键纠正），并与「割嘴 3-GPN 产品号码6029」合并
+  const s9 = await row(p9);
+  eq('3-GPN 归一为 size 3 + 型号 GPN（前缀数字优先解释为 size）',
+    [s9?.name, s9?.catalog_model, s9?.size_spec, s9?.gas_type, s9?.catalog_anchor],
+    ['3-GPN', 'GPN', '3', 'LPG', 'matched']);
+  ok('被合并档案 #' + p10 + '（割嘴 3-GPN 产品号码6029）已并入 #' + p9, await gone(p10));
+  eq('3-3GPN（型号 3GPN 的 size 3）**保持独立**，不与 3-GPN（型号 GPN 的 size 3）混为一条',
+    [(await row(p11))?.name, (await row(p11))?.catalog_model, (await row(p11))?.size_spec],
+    ['3-3GPN', '3GPN', '3']);
 
   eq('型号 261 的 size 0 → 0-261', (await row(p6))?.name, '0-261');
   eq('000-3-101 → 000-3-101（size 000 与 0 / 00 不同，原样保留）', (await row(p5))?.name, '000-3-101');
