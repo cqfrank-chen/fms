@@ -56,6 +56,13 @@
 * 存活记录的 `catalog_note`：`已合并同一「型号+尺寸」的 N 条档案（#a、#b…），存活 #s；目录：<型号> size <size>`
 * 存档 CSV：`tools/catalog/dedupe_product_merges.csv`（**802 行**，含分组键 / 系列 / 气体 / 类型 / 存活 id+名字 / 被合并 id+名字）
 
+**未合并清单**（保持现状，脚本不猜）逐条写入 `tools/catalog/dedupe_unmerged_products.csv`（**452 行**）：
+
+| 类别 | 条数 | 例 |
+| --- | --- | --- |
+| 型号未锚定目录 | **399** | `割嘴 1-GPN 2# 产品号码6028`（尺寸有歧义）、`106HC-2`（目录无此型号）、`1380` / `4154`（货号不得当型号） |
+| 名称未写 size（型号已锚定） | **53** | `3-GPN`、`乙炔割嘴 1-101`、`丙烷割嘴 G1-P 单只重78g`、`G1-P 割嘴` |
+
 ### 1.3 命名口径（**不臆造**）
 
 * 目录对产品的命名 = `catalog_model` + `size_spec`，这两列**一律以目录为准**；
@@ -169,6 +176,11 @@ node tools/catalog/dedupe_products.mjs --dsn "postgres://fms:fms@localhost:15433
     tbd -> us_acetylene          31
     tbd -> uk_acetylene          13
     tbd -> uk_propane            11
+
+=== 三b、未合并清单（保持现状，脚本不猜） ===
+  型号未锚定目录                   399 条
+  名称未写 size（型号已锚定）          53 条
+  合计 452 条 → 明细写入 tools/catalog/dedupe_unmerged_products.csv
 
 === 四、目录列差异 ===
   catalog_model 0 / size_spec 0 / series 0 / gas_type 0 / orifice_mm 0 / thickness_range 0
@@ -392,6 +404,7 @@ psql "postgresql://fms:<密码>@<云端主机>:5432/fms" -v ON_ERROR_STOP=1 -f t
 * `tools/catalog/dedupe_products.test.mjs` —— 去重判定单测（13 项）
 * `tools/catalog/dedupe_audit.sql` —— 合并后只读核对 SQL
 * `tools/catalog/dedupe_product_merges.csv` —— 被合并清单存档（802 行）
+* `tools/catalog/dedupe_unmerged_products.csv` —— **未合并清单**存档（452 行：型号未锚定 399 + 名称未写 size 53，含逐条原因）
 
 **新增（服务端测试）**
 * `apps/api/test/dedupe-products-e2e.mjs` —— 去重端到端自测（38 项）

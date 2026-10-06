@@ -53,6 +53,10 @@
 | **dedupe_products.test.mjs** | 去重判定**单元测试**（13 项：写法等价 / 不跨 size / 分组 / 存活选择 / 类型推导 / 真实 1444 条） | `node --test tools/catalog/dedupe_products.test.mjs` |
 | **dedupe_audit.sql** | 合并后**只读**核对 SQL：条数 / 悬空引用 / 同型号同 size 只剩 1 条 / 前导零三档 / 类型分布 | `psql "<DSN>" -f tools/catalog/dedupe_audit.sql` |
 
+产物（跑 `dedupe_products.mjs` 时自动写出）：
+`dedupe_product_merges.csv`（被合并清单：分组键 / 系列 / 气体 / 类型 / 存活 id+名字 / 被合并 id+名字）、
+`dedupe_unmerged_products.csv`（**未合并清单**：型号未锚定 或 名字没写 size 的逐条档案 + 原因 —— 交甲方逐族确认，脚本不猜）。
+
 ## 修正脚本用法（**默认 dry-run，不写库**）
 
 ```powershell
@@ -99,6 +103,8 @@ node apps/api/test/dedupe-products-e2e.mjs
 ② 完整度打分（type 具体 +2 / 默认包装 +1 / 默认工序路线 +1 / 安全库存>0 +1）高者优先 →
 ③ id 最小（最早建档）。**不丢信息**：存活记录为空的默认包装 / 工序路线从被合并记录补齐，安全库存取最大值；
 被合并写法写入 `catalog_note` + 存档 CSV（`dedupe_product_merges.csv`）。
+**未合并的两类档案**（型号未锚定目录 / 名字没写 size）保持现状，逐条写入
+`dedupe_unmerged_products.csv`（类别 / id / 产品名 / 目录型号 / 原因），控制台同步打印分类计数。
 
 **重挂范围**：`order_lines` / `plan_sheet_lines` / `goods_receipt_lines` / `outbound_lines` /
 `stocktakes` / `product_quotes` / `inventory` / `product_processes`（运行时从 `information_schema` 查真实外键，

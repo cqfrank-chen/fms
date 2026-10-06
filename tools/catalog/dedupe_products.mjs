@@ -82,6 +82,8 @@ const SAMPLE = Number(valOf('--sample') ?? 15) || 0;
 const QUIET = has('--quiet');
 const CANONICAL_NAME = has('--canonical-name');
 const CSV_PATH = valOf('--csv') ?? (APPLY ? path.join(__dirname, 'dedupe_product_merges.csv') : null);
+// 「未合并清单」存档（型号未锚定 / 名字没写 size）——无论 dry-run 还是 apply 都写，便于甲方逐族确认
+const CSV_UNMERGED = valOf('--csv-unmerged') ?? path.join(__dirname, 'dedupe_unmerged_products.csv');
 
 if (!DSN) {
   console.error('缺少数据库连接：请给 --dsn <url> 或设置 DATABASE_URL / DB_HOST 等环境变量。');
@@ -246,6 +248,17 @@ async function main() {
     }
   }
 
+  // 未合并清单（保持现状，脚本不猜）：型号未锚定目录 / 名字没写 size 两类
+  const unmergedRecords = parsed
+    .filter((p) => p.key == null)
+    .map((p) => ({
+      category: p.target.catalog_anchor === 'matched' ? '名称未写 size（型号已锚定）' : '型号未锚定目录',
+      id: p.row.id,
+      name: p.row.name,
+      model: p.target.catalog_model,
+      reason: p.target.catalog_anchor === 'matched' ? '名称未写尺寸（size 待人工确认）' : p.target.catalog_note,
+    }));
+
   const survivorUpdates = [];
   const mergeRecords = [];
   let fillFieldCount = 0;
@@ -323,6 +336,15 @@ async function main() {
   console.log('  保持 tbd 的原因：既有枚举承载不了（日/法/澳/巴西式）或目录查不到 —— 见报告「待甲方确认」');
 
   console.log('');
+  console.log('=== 三b、未合并清单（保持现状，脚本不猜） ===');
+  {
+    const byCat = {};
+    for (const u of unmergedRecords) byCat[u.category] = (byCat[u.category] ?? 0) + 1;
+    for (const [k, n] of Object.entries(byCat)) console.log('  ' + k.padEnd(26) + n + ' 条');
+    console.log('  合计 ' + unmergedRecords.length + ' 条 → 明细写入 ' + CSV_UNMERGED);
+  }
+
+  console.log('');
   console.log('=== 四、目录列差异 ===');
   for (const f of CATALOG_FIELDS) console.log('  ' + f.padEnd(18) + (catalogFieldChanges[f] ?? 0));
   console.log('  ' + 'type'.padEnd(16) + typeChangeCount);
@@ -347,6 +369,8 @@ async function main() {
       writeCsv(CSV_PATH, mergeRecords, totalMoved, totalDropped);
       console.log('被合并清单已写出：' + CSV_PATH + '（' + mergeRecords.reduce((s, m) => s + m.merged.length, 0) + ' 行）');
     }
+    writeUnmergedCsv(CSV_UNMERGED, unmergedRecords);
+    console.log('未合并清单已写出：' + CSV_UNMERGED + '（' + unmergedRecords.length + ' 行）');
     await client.end();
     return;
   }
@@ -480,8 +504,24 @@ async function main() {
   } else if (CSV_PATH) {
     console.log('  本次无合并，保留上一轮的被合并清单存档：' + CSV_PATH);
   }
+  writeUnmergedCsv(CSV_UNMERGED, unmergedRecords);
+  console.log('  未合并清单已写出：' + CSV_UNMERGED + '（' + unmergedRecords.length + ' 行）');
   await client.end();
   if (residual !== 0 || dupLeft !== 0) process.exit(5);
+}
+
+/**
+ * 未合并清单 CSV —— **保持现状、不猜**的两类档案：
+ *   ① 型号未锚定目录（目录里没有该型号 / 边界不干净 / 尺寸有歧义，原因逐条写明）
+ *   ② 型号已锚定但名字没写 size（size 未定死，绝不默认成某个档位）
+ * 供甲方逐族确认后，再决定建立型号别名或补 size。
+ */
+function writeUnmergedCsv(file, records) {
+  const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = ['类别,id,产品名,目录型号,原因'];
+  for (const r of records) lines.push([r.category, r.id, r.name, r.model, r.reason].map(esc).join(','));
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, String.fromCharCode(0xFEFF) + lines.join(String.fromCharCode(13, 10)) + String.fromCharCode(13, 10), 'utf8');
 }
 
 /** 被合并清单 CSV（存活记录 + 被并入的每条：id 与原始名字） */
