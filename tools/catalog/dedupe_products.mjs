@@ -41,6 +41,11 @@
  *   --apply            真正写库（不加 = dry-run）
  *   --csv <path>       把「被合并清单」写到 CSV（默认 dry-run 不写，--apply 时默认写
  *                      tools/catalog/dedupe_product_merges.csv）
+ *   --merge-ids 18,24  【甲方点名的手工合并】把点名的几条档案并成**一条**（不论 (型号,size) 自动
+ *                      分组是否相同），存活规则与自动合并**完全一致**（①matched ②完整度 ③id 最小）；
+ *                      与自动分组取并集（相交的自动组整体吸收）。给了本参数时**只处理这些组**，
+ *                      其余自动分组一律不动 —— 生产环境点名合并不误伤别的档案（幂等：目标已不存在
+ *                      时报告「已合并」并写 0 行）。
  *   --limit N          只处理前 N 个合并组（联调 / 抽样验收）
  *   --sample N         控制台打印的合并样例条数（默认 15）
  *   --quiet            只打印汇总
@@ -60,7 +65,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { buildModelIndex } from './lib/product-model.mjs';
 import {
-  CATALOG_FIELDS, canonicalName, dedupeKeyOf, norm, planDedupe, richness, targetOf,
+  CATALOG_FIELDS, canonicalName, dedupeKeyOf, norm, planDedupe, planManualMerges, richness, targetOf,
 } from './lib/dedupe-core.mjs';
 // 重挂引用 products 的外键：与 normalize_products.mjs **共用同一实现**（lib/rehang.mjs），
 // 保证两条合并路径的口径完全一致。
@@ -81,6 +86,9 @@ const DSN = valOf('--dsn') ?? process.env.DATABASE_URL
     : null);
 const APPLY = has('--apply');
 const LIMIT = Number(valOf('--limit') ?? 0) || 0;
+/** 甲方点名的手工合并 id（--merge-ids 18,24；逗号/空格分隔） */
+const MANUAL_IDS = String(valOf('--merge-ids') ?? '').split(/[,\s]+/).filter(Boolean).map(Number)
+  .filter((n) => Number.isInteger(n) && n > 0);
 const SAMPLE = Number(valOf('--sample') ?? 15) || 0;
 const QUIET = has('--quiet');
 const CANONICAL_NAME = has('--canonical-name');
@@ -129,8 +137,21 @@ async function main() {
   )).rows;
 
   // ---- ① 逐行解析目录锚定 + ② 分组 / 选存活记录（纯函数，见 lib/dedupe-core.mjs） ----
-  const { parsed, stat, groups, mergeGroups, singleGroups } = planDedupe(rows, idx);
-  const planGroups = LIMIT > 0 ? mergeGroups.slice(0, LIMIT) : mergeGroups;
+  const planned = planDedupe(rows, idx);
+  const { parsed, stat, groups, singleGroups } = planned;
+  const autoMergeGroups = planned.mergeGroups;
+  // 甲方点名的手工合并（--merge-ids）：与自动分组取并集、存活规则完全一致；见 lib/dedupe-core.mjs
+  const manual = MANUAL_IDS.length ? planManualMerges(parsed, autoMergeGroups, MANUAL_IDS) : null;
+  if (manual && manual.refused) {
+    console.error('拒绝执行：' + manual.refused);
+    await client.end();
+    process.exit(6);
+  }
+  const mergeGroups = manual ? [...manual.manualGroups, ...manual.groups] : autoMergeGroups;
+  // 给了 --merge-ids → **只处理点名的手工组**（生产点名合并不误伤别的档案）
+  const planGroups = manual
+    ? manual.manualGroups
+    : (LIMIT > 0 ? mergeGroups.slice(0, LIMIT) : mergeGroups);
   const plannedDupIds = new Set();
   for (const g of planGroups) for (const m of g.merged) plannedDupIds.add(m.row.id);
 
@@ -189,14 +210,16 @@ async function main() {
   let typeChangeCount = 0;
   const catalogFieldChanges = {};
   const noteWrites = [];
+  /** 目录列与「按名字解析出的目标值」不一致的**非合并**行（自校验 / 复跑对账用） */
+  const catalogFieldDiffRows = [];
 
   for (const p of parsed) {
     const t = p.target;
     const isDup = plannedDupIds.has(p.row.id);   // 被合并档案将被删除，不计入「改动列」统计
     if (!isDup) {
-      for (const f of CATALOG_FIELDS) {
-        if (norm(p.row[f]) !== norm(t[f])) catalogFieldChanges[f] = (catalogFieldChanges[f] ?? 0) + 1;
-      }
+      const diffFields = CATALOG_FIELDS.filter((f) => norm(p.row[f]) !== norm(t[f]));
+      for (const f of diffFields) catalogFieldChanges[f] = (catalogFieldChanges[f] ?? 0) + 1;
+      if (diffFields.length) catalogFieldDiffRows.push({ id: p.row.id, name: p.row.name, fields: diffFields });
       // type：**只对 matched 行以目录为准**；未锚定行保持现状（不臆造，也不擅自降级成 tbd）
       if (t.catalog_anchor === 'matched' && p.row.type !== t.type) {
         typeChangeCount += 1;
@@ -227,26 +250,36 @@ async function main() {
   for (const g of planGroups) {
     const s = g.survivor.row;
     const t = g.survivor.target;
+    // 手工合并（--merge-ids）：存活记录的目录身份 = **库内既有值**（点名合并的起因就是名字有歧义，
+    // 不能再用名字重新解析一遍，否则等于用歧义覆盖已确认的事实）。见 lib/dedupe-core.mjs。
+    const model = g.manual ? s.catalog_model : t.catalog_model;
+    const size = g.manual ? s.size_spec : t.size_spec;
+    const series = g.manual ? s.series : t.series;
+    const gasType = g.manual ? s.gas_type : t.gas_type;
+    const type = g.manual ? s.type : t.type;
     const mergedNames = g.merged.map((m) => ({ id: m.row.id, name: m.row.name }));
-    const note = '已合并同一「型号+尺寸」的 ' + g.merged.length + ' 条档案（'
-      + mergedNames.map((m) => '#' + m.id).join('、') + '），存活 #' + s.id
-      + '；目录：' + t.catalog_model + ' size ' + t.size_spec;
+    const note = (g.manual ? '甲方点名合并重名档案（--merge-ids ' + MANUAL_IDS.join(',') + '）：' : '已合并同一「型号+尺寸」的 ')
+      + g.merged.length + ' 条档案（' + mergedNames.map((m) => '#' + m.id).join('、') + '），存活 #' + s.id
+      + '；目录：' + model + ' size ' + size
+      + (g.manual ? '（身份以库内既有值为准，未按名字重新解析）' : '');
     const fillPkg = norm(s.default_packaging) ?? norm(g.merged.map((m) => m.row.default_packaging).find((v) => norm(v)));
     const fillRoute = norm(s.default_routing) ?? norm(g.merged.map((m) => m.row.default_routing).find((v) => norm(v)));
     const maxSafety = Math.max(Number(s.safety_stock ?? 0), ...g.merged.map((m) => Number(m.row.safety_stock ?? 0)));
-    const sets = {
-      catalog_model: t.catalog_model, size_spec: t.size_spec, series: t.series, gas_type: t.gas_type,
-      orifice_mm: t.orifice_mm, thickness_range: t.thickness_range, catalog_anchor: 'matched',
-      type: t.type, catalog_note: note,
-    };
-    if (CANONICAL_NAME) sets.name = canonicalName(t.catalog_model, t.size_spec);
+    const sets = g.manual
+      ? { catalog_note: note }   // 手工合并：只写合并说明，目录身份（型号/size/系列/气体/口径/厚度/type）一律不动
+      : {
+        catalog_model: t.catalog_model, size_spec: t.size_spec, series: t.series, gas_type: t.gas_type,
+        orifice_mm: t.orifice_mm, thickness_range: t.thickness_range, catalog_anchor: 'matched',
+        type: t.type, catalog_note: note,
+      };
+    if (!g.manual && CANONICAL_NAME) sets.name = canonicalName(t.catalog_model, t.size_spec);
     const extra = {};
     if (norm(fillPkg) && norm(fillPkg) !== norm(s.default_packaging)) { extra.default_packaging = fillPkg; fillFieldCount += 1; }
     if (norm(fillRoute) && norm(fillRoute) !== norm(s.default_routing)) { extra.default_routing = fillRoute; fillFieldCount += 1; }
     if (maxSafety !== Number(s.safety_stock ?? 0)) { extra.safety_stock = maxSafety; fillFieldCount += 1; }
-    survivorUpdates.push({ id: s.id, sets, extra, type: t.type });
+    survivorUpdates.push({ id: s.id, sets, extra, type });
     mergeRecords.push({
-      key: g.key, size: t.size_spec, series: t.series, gas_type: t.gas_type, type: t.type,
+      key: g.key, size, series, gas_type: gasType, type,
       survivor_id: s.id, survivor_name: s.name, merged: mergedNames,
     });
   }
@@ -263,6 +296,22 @@ async function main() {
   console.log('  —— 组内 >1 条的组         ' + mergeGroups.length + ' 组（涉及 ' + mergeGroups.reduce((s, g) => s + g.merged.length, 0) + ' 条待合并档案）');
   console.log('  —— 组内 =1 条的组         ' + singleGroups.length + ' 组（无需合并）');
   console.log('  本次计划处理的组          ' + planGroups.length + (LIMIT > 0 ? '（--limit ' + LIMIT + '）' : ''));
+  if (manual) {
+    console.log('  ── 甲方点名的手工合并（--merge-ids ' + MANUAL_IDS.join(',') + '）──');
+    console.log('     点名的 id                ' + MANUAL_IDS.join('、'));
+    if (manual.missing.length) {
+      console.log('     ⚠ 库里已不存在的 id      ' + manual.missing.join('、')
+        + '（多半是上一轮已合并掉 —— 幂等复跑，本轮写 0 行）');
+    }
+    console.log('     吸收的自动分组            ' + manual.absorbed + ' 组');
+    console.log('     其余自动分组不处理        ' + manual.groups.length + ' 组（--merge-ids 模式下只动点名的组，不误伤）');
+    for (const g of manual.manualGroups) {
+      console.log('     [' + g.key + ']  存活 #' + g.survivor.row.id + ' ' + JSON.stringify(String(g.survivor.row.name))
+        + '（完整度 ' + g.survivor.richness + '） ← 并入 '
+        + g.merged.map((m) => '#' + m.row.id + ' ' + JSON.stringify(String(m.row.name))).join('、'));
+    }
+    if (!manual.manualGroups.length) console.log('     （点名 id 少于 2 条可合并，无手工组）');
+  }
   console.log('  合并前档案数              ' + stat.total);
   console.log('  合并后档案数（预计）      ' + afterTotal + '（减少 ' + dupIds.length + '）');
 
@@ -311,6 +360,12 @@ async function main() {
   for (const f of CATALOG_FIELDS) console.log('  ' + f.padEnd(18) + (catalogFieldChanges[f] ?? 0));
   console.log('  ' + 'type'.padEnd(16) + typeChangeCount);
   console.log('  存活记录字段补齐（默认包装/工序路线/安全库存）  ' + fillFieldCount);
+  if (catalogFieldDiffRows.length) {
+    console.log('  ⚠ 目录列待修正行（非合并行，' + catalogFieldDiffRows.length + ' 条，前 10）：');
+    for (const r of catalogFieldDiffRows.slice(0, 10)) {
+      console.log('      #' + r.id + ' ' + JSON.stringify(String(r.name).slice(0, 50)) + '  差异列：' + r.fields.join('/'));
+    }
+  }
 
   if (!QUIET && mergeRecords.length) {
     console.log('');
@@ -346,7 +401,10 @@ async function main() {
     await client.query('begin');
 
     // ① 写「非合并」行的目录列 + type
-    for (const p of parsed) {
+    //    --merge-ids 模式（manual）下**整段跳过**：点名合并只动点名的组，不做全局目录列对齐，
+    //    绝不因为「别的档案名字解析出的目标值不同」而顺手改写它们（含被点名存活的记录本身 ——
+    //    它的名字有歧义，重解析会覆盖掉库内已确认的身份）。
+    for (const p of (manual ? [] : parsed)) {
       if (plannedDupIds.has(p.row.id)) continue;
       const t = p.target;
       const sets = [];
@@ -423,8 +481,22 @@ async function main() {
   )).rows;
   const stillDup = new Map();
   let residual = 0;
+  // 点名合并（--merge-ids）的存活记录：名字本身有歧义（如 3-GPN 会被解析成型号 3GPN），
+  // 自校验改按**库内既有身份**核对，不按名字重新解析；逐条打印，口径透明。
+  const lockedById = new Map((manual ? manual.identityLocked : []).map((x) => [x.id, x]));
+  const lockedReport = [];
   for (const r of again) {
     const t = targetOf(r.name, idx);
+    const lock = lockedById.get(r.id);
+    if (lock) {
+      const kept = r.catalog_anchor === 'matched'
+        && norm(r.catalog_model) === norm(lock.model) && norm(r.size_spec) === norm(lock.size);
+      if (!kept) residual += 1;
+      lockedReport.push('#' + r.id + ' ' + JSON.stringify(String(r.name)) + '  名字解析 → ' + String(dedupeKeyOf(t))
+        + '　库内身份 → ' + lock.key + '　' + (kept ? '一致 ✅' : '不一致 ❌'));
+      stillDup.set(lock.key, (stillDup.get(lock.key) ?? 0) + 1);
+      continue;
+    }
     let bad = false;
     if (t.catalog_anchor === 'unmatched') {
       // 未锚定行：只要求 anchor 兜底 + 原因写明（目录列保持现状，不比对）
@@ -440,6 +512,10 @@ async function main() {
     if (k) stillDup.set(k, (stillDup.get(k) ?? 0) + 1);
   }
   const dupLeft = [...stillDup.values()].filter((n) => n > 1).length;
+  if (lockedReport.length) {
+    console.log('  ── 点名合并存活记录的自校验口径（名字有歧义 → 按库内身份核对，跳过名字重解析）──');
+    for (const line of lockedReport) console.log('     ' + line);
+  }
   const post = await client.query('select catalog_anchor, count(*)::int as n from products group by 1 order by 1 nulls first');
   console.log('  products 现有行数         ' + again.length);
   console.log('  复跑残留差异行数          ' + residual + (residual === 0 ? '  ✅ 幂等（第二次跑应改 0 行）' : '  ❌ 请检查'));

@@ -75,9 +75,20 @@ export function canonicalName(model, size) {
   return size == null ? String(model ?? '') : model + ' ' + size + '#';
 }
 
-/** 组内选存活记录：完整度最高 → id 最小（确定性、可复算，与本文件顶部规则一一对应） */
+/** 锚定等级（存活规则①）：已锚定目录 = 1，未锚定 = 0 */
+export const anchorRank = (m) => (m && m.target && m.target.catalog_anchor === 'matched' ? 1 : 0);
+
+/**
+ * 组内选存活记录：**规则与文件顶部一致** ——
+ *   ① 优先 catalog_anchor='matched'（未锚定的不配当存活记录）；
+ *   ② 其次完整度最高（richness）；
+ *   ③ 其次 id 最小（最早建档）。
+ * 确定性、可复算、不随机；对既有「自动分组」是无变化的一步
+ * （自动分组的成员天然全 matched，①恒等）。
+ */
 export function pickSurvivor(members) {
-  return [...members].sort((a, b) => (b.richness - a.richness) || (a.row.id - b.row.id))[0];
+  return [...members].sort((a, b) =>
+    (anchorRank(b) - anchorRank(a)) || (b.richness - a.richness) || (a.row.id - b.row.id))[0];
 }
 
 /**
@@ -117,4 +128,77 @@ export function planDedupe(rows, index) {
   }
   mergeGroups.sort((a, b) => a.survivor.row.id - b.survivor.row.id);
   return { parsed, stat, groups, mergeGroups, singleGroups };
+}
+
+/**
+ * 甲方点名的「重名两条」手工合并组（纯函数）—— 与自动分组**取并集**，存活规则完全沿用。
+ * =============================================================================
+ * 场景：`3-GPN` 这种写法可以解析成「GPN 的 size 3」，也可以解析成「型号 3GPN（未写 size）」，
+ * 于是两条档案归一后**同名**，但它们不在同一个 (型号,size) 自动分组里，通用去重不会碰它们。
+ * 甲方批准后，用 --merge-ids 18,24 明确点名：把这几条并成**一条**。
+ *
+ * 口径（不新造规则）：
+ *   · 成员 = 点名的 id ∪ 与它们相交的自动分组的全部成员（吸收，保证不漏合并、不重复处理）；
+ *   · 存活记录 = pickSurvivor（①matched ②完整度 ③id 最小）—— 与自动合并**同一套**；
+ *   · **身份以库内既有值为准**（manual: true，调用方据此不重写存活记录的目录列）：
+ *     点名合并的起因正是「名字有歧义」，若再拿名字重新解析一边，等于用歧义覆盖已确认的事实。
+ *   · **安全闸**：存活记录必须「库里已 anchored + 型号 + size 齐全」，否则拒绝合并
+ *     （身份写不死就等于把不同尺寸的东西并到一起 —— 脚本不猜）。
+ *
+ * @returns groups 剩余自动分组（被手工组吸收的已剔除）/ manualGroups 手工合并组（0 或 1 组）/
+ *          absorbed 被吸收的自动分组数 / missing 点名但库里不存在的 id（幂等复跑会出现）/
+ *          identityLocked 点名里「库内身份已齐全」的行（自校验按库内身份核对，不按名字重解析）/
+ *          refused 拒绝原因（中文；非空时调用方必须终止，不得写库）
+ */
+export function planManualMerges(parsed, autoMergeGroups, manualIds) {
+  const byId = new Map(parsed.map((p) => [p.row.id, p]));
+  const wanted = [...new Set(manualIds.map(Number).filter((n) => Number.isInteger(n)))];
+  const missing = wanted.filter((id) => !byId.has(id));
+  const picked = wanted.filter((id) => byId.has(id));
+  const absorbed = new Set();
+  const ids = new Set(picked);
+  const parts = picked.map((id) => byId.get(id));
+  // 吸收与点名 id 相交的自动分组（并集闭包：吸收进来的成员若又引出别的组，继续吸收）
+  let grew = true;
+  while (grew) {
+    grew = false;
+    autoMergeGroups.forEach((g, i) => {
+      if (absorbed.has(i)) return;
+      const members = [g.survivor, ...g.merged];
+      if (!members.some((m) => ids.has(m.row.id))) return;
+      absorbed.add(i);
+      for (const m of members) {
+        if (ids.has(m.row.id)) continue;
+        ids.add(m.row.id);
+        parts.push(m);
+      }
+      grew = true;
+    });
+  }
+  const groups = autoMergeGroups.filter((_, i) => !absorbed.has(i));
+  const manualGroups = [];
+  /** 库内身份（型号 + size）齐备的已锚定行：自校验按它核对，不按名字重解析 */
+  const identityLocked = parts
+    .filter((p) => p.row.catalog_anchor === 'matched' && p.row.catalog_model != null && p.row.size_spec != null)
+    .map((p) => ({
+      id: p.row.id, name: p.row.name, model: p.row.catalog_model, size: p.row.size_spec,
+      key: p.row.catalog_model + ' ' + p.row.size_spec,
+    }));
+  let refused = null;
+  if (parts.length >= 2) {
+    const survivor = pickSurvivor(parts);
+    const lock = identityLocked.find((x) => x.id === survivor.row.id);
+    if (!lock) {
+      refused = '点名合并的存活记录 #' + survivor.row.id + '（' + survivor.row.name
+        + '）在库里不是「已锚定 + 型号 + size 齐全」的档案，合并后的身份没法写死 —— 拒绝合并（脚本不猜 size）';
+    } else {
+      manualGroups.push({
+        key: lock.key,
+        survivor,
+        merged: parts.filter((p) => p !== survivor).sort((a, b) => a.row.id - b.row.id),
+        manual: true,
+      });
+    }
+  }
+  return { groups, manualGroups, absorbed: absorbed.size, missing, identityLocked, refused };
 }

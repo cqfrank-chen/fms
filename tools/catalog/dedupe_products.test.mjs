@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { buildModelIndex } from './lib/product-model.mjs';
 import { deriveProductType, typeDerivable } from './lib/catalog-type.mjs';
 import {
-  canonicalName, dedupeKeyOf, planDedupe, pickSurvivor, richness, targetOf,
+  anchorRank, canonicalName, dedupeKeyOf, planDedupe, planManualMerges, pickSurvivor, richness, targetOf,
 } from './lib/dedupe-core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -138,6 +138,97 @@ test('richness + pickSurvivor：字段最全优先，其次 id 最小', () => {
   d.richness = richness(d.row);
   assert.equal(c.richness, d.richness);
   assert.equal(pickSurvivor([d, c]).row.id, 30); // 同完整度 → id 小者存活
+});
+
+// =====================================================================================
+// ④b 甲方点名的手工合并（--merge-ids）：解决「同名两条但不在同一 (型号,size) 分组」
+// =====================================================================================
+test('pickSurvivor 规则①：已锚定目录的优先当存活记录（未锚定的不配）', () => {
+  const unnamed = { row: row(3, '随便写的名字', { type: 'us_propane', default_packaging: 'A' }) };
+  const matched = { row: row(9, '1-GPN', { type: 'tbd' }) };
+  unnamed.target = targetOf(unnamed.row.name, idx);
+  matched.target = targetOf(matched.row.name, idx);
+  unnamed.richness = richness(unnamed.row);   // 完整度更高（type 具体 + 包装）
+  matched.richness = richness(matched.row);
+  assert.ok(unnamed.richness > matched.richness, '构造：未锚定那条完整度更高');
+  assert.equal(anchorRank(matched), 1);
+  assert.equal(anchorRank(unnamed), 0);
+  assert.equal(pickSurvivor([unnamed, matched]).row.id, 9, '规则①优先于完整度');
+});
+
+test('planManualMerges：真实场景 3-GPN —— #18(GPN size3) 与 #24(型号 3GPN 未写 size) 同名两条并成一条', () => {
+  // 前提：名字 `3-GPN` 有歧义 —— 解析器认的是「型号 3GPN、没写 size」，因此两条并不同键
+  const amb = targetOf('3-GPN', idx);
+  assert.equal(amb.catalog_model, '3GPN');
+  assert.equal(amb.size_spec, null);
+  assert.equal(dedupeKeyOf(amb), null, '名字有歧义 → 不可能靠名字拿到 (型号,size) 身份');
+
+  const rows = [
+    // #18：库内身份 = GPN 的 size 3（来自归一前的 legacy_name=GPN-3），完整度更高
+    row(18, '3-GPN', {
+      type: 'us_propane', default_packaging: '塑壳 蓝盖 不干胶 50只/中盒',
+      catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '3',
+    }),
+    // #24：库内身份 = 型号 3GPN、未写 size
+    row(24, '3-GPN', { type: 'us_propane', catalog_anchor: 'matched', catalog_model: '3GPN', size_spec: null }),
+    // 另一条真实档案（型号 3GPN 的 size 3）—— 绝不该被卷进来
+    row(144, '3-3GPN', { type: 'us_propane', catalog_anchor: 'matched', catalog_model: '3GPN', size_spec: '3' }),
+  ];
+  const planned = planDedupe(rows, idx);
+  assert.equal(planned.mergeGroups.length, 0, '自动分组不该包含 3-GPN 同名两条（名字歧义 → 键为 null）');
+
+  const m = planManualMerges(planned.parsed, planned.mergeGroups, [18, 24]);
+  assert.equal(m.refused, null);
+  assert.deepEqual(m.missing, []);
+  assert.equal(m.manualGroups.length, 1);
+  const g = m.manualGroups[0];
+  assert.equal(g.key, 'GPN 3', '合并后的身份 = 存活记录**库内既有**身份（不是名字重解析出来的）');
+  assert.equal(g.manual, true);
+  assert.equal(g.survivor.row.id, 18, '存活规则：同为 matched → 完整度高者 #18 存活（其次才是 id 最小）');
+  assert.deepEqual(g.merged.map((x) => x.row.id), [24]);
+  // 关键：同名之外的档案（#144 = 3GPN size 3）**不被卷进来**
+  assert.equal([g.survivor, ...g.merged].some((x) => x.row.id === 144), false);
+  // 被点名（含吸收）的行里「库内身份齐备」的才用于自校验核对：#18 齐全；#24 没写 size，不算
+  assert.deepEqual(m.identityLocked.map((x) => x.id), [18]);
+  assert.deepEqual(m.identityLocked[0], { id: 18, name: '3-GPN', model: 'GPN', size: '3', key: 'GPN 3' });
+});
+
+test('planManualMerges：与自动分组取并集（相交的自动组整体吸收，不漏合并也不重复处理）', () => {
+  const ident = { catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '1' };
+  const rows = [
+    row(1, '1-GPN', ident), row(2, 'GPN-1', ident),   // 自动组：GPN size 1（两条）
+    row(5, '1-GPN', ident),                            // 再一条同键（三条一组）
+    row(9, '2-GPN', { catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '2' }), // 无关档案
+  ];
+  const planned = planDedupe(rows, idx);
+  assert.equal(planned.mergeGroups.length, 1);
+  const m = planManualMerges(planned.parsed, planned.mergeGroups, [1, 5]);
+  assert.equal(m.absorbed, 1, '相交的自动组被整体吸收');
+  assert.equal(m.groups.length, 0, '被吸收后不再残留自动组');
+  assert.deepEqual([m.manualGroups[0].survivor, ...m.manualGroups[0].merged].map((x) => x.row.id).sort((a, b) => a - b), [1, 2, 5]);
+});
+
+test('planManualMerges：目标不存在的 id → missing（幂等复跑：上一轮已合并，本轮写 0 行）', () => {
+  const rows = [row(18, '3-GPN', {
+    type: 'us_propane', catalog_anchor: 'matched', catalog_model: 'GPN', size_spec: '3',
+  })];
+  const planned = planDedupe(rows, idx);
+  const m = planManualMerges(planned.parsed, planned.mergeGroups, [18, 24]);
+  assert.deepEqual(m.missing, [24]);
+  assert.equal(m.manualGroups.length, 0, '只剩 1 条 → 无手工组，不写库');
+  assert.equal(m.refused, null);
+});
+
+test('planManualMerges 安全闸：库里身份不齐（未锚定 / 没 size）→ refused，拒绝写库（脚本不猜）', () => {
+  // 两条都未锚定目录
+  const a = planDedupe([row(7, '1380'), row(8, '4154')], idx);
+  assert.ok(planManualMerges(a.parsed, a.mergeGroups, [7, 8]).refused.includes('拒绝合并'));
+  // 已锚定但库里没写 size 的那条不能当存活记录（完整度高也没用 —— 身份写不死）
+  const rows = [row(3, '1-GPN', { default_packaging: '盒子' }), row(4, '1-GPN', { catalog_anchor: 'matched', catalog_model: '1-101' })];
+  const b = planDedupe(rows, idx);
+  const m = planManualMerges(b.parsed, b.mergeGroups, [3, 4]);
+  assert.ok(m.refused && m.refused.includes('拒绝合并'), JSON.stringify(m.refused));
+  assert.equal(m.manualGroups.length, 0);
 });
 
 // =====================================================================================
