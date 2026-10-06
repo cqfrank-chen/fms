@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Button, Card, DatePicker, Form, Input, InputNumber,
   Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message,
+  type TableProps,
 } from 'antd'
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { SortOrder } from 'antd/es/table/interface'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_LABEL, CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PENDING_CODE, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
@@ -702,6 +704,69 @@ function OrderLinesDetail({ order }: { order: Order }) {
   )
 }
 
+// =====================================================================================
+// 订单列表排序（多列组合排序）
+// -------------------------------------------------------------------------------------
+// 口径与后端 apps/api/src/orders/order-sort.ts **一一对应**（字段白名单 / 优先级 / 默认值）：
+//   · 默认排序 = 交期 DESC（后端缺省同此）。「交期待定」的哨兵日单据（2099-12-31 + due_date_tbd）
+//     被后端当成「无交期」恒定排在最后 —— 前端不做二次排序，只信接口返回的顺序；
+//   · 点击表头 = 把该列加入组合排序（**新列优先级最低，排在末尾**），再点切换升/降序，
+//     点第三次移除该列；全部移除后自动回到默认排序（交期 DESC）；
+//   · 表头标题后的小数字 = 组合排序优先级（1 最先比较），与发给后端的
+//     sort 参数（逗号分隔、从左到右）严格同序，用户一眼能看清「先按什么排、再按什么排」；
+//   · 排序在后端完成（sorter 只配置 multiple、不配置 compare → AntD 不做本地排序），
+//     以免出现「接口按交期排、界面按本地再排一遍」的两套口径。
+// =====================================================================================
+type OrderSortDir = 'asc' | 'desc'
+type OrderSortField =
+  | 'dueDate' | 'orderNo' | 'poNo' | 'customer' | 'status' | 'invoiceState'
+  | 'amount' | 'invoiced' | 'pendingCount' | 'createdAt' | 'lineCount'
+
+interface OrderSortKey { field: OrderSortField; dir: OrderSortDir }
+
+/** 排序字段中文名（排序状态条 / 表头提示用），顺序 = 后端白名单顺序 */
+const ORDER_SORT_LABEL: Record<OrderSortField, string> = {
+  dueDate: '交期',
+  orderNo: '订单号',
+  poNo: '客户 PO 号',
+  customer: '客户',
+  status: '状态',
+  invoiceState: '开票状态',
+  amount: '订单金额',
+  invoiced: '已开票金额',
+  pendingCount: '待补项数量',
+  createdAt: '创建时间',
+  lineCount: '产品行数',
+}
+
+const ORDER_SORT_FIELDS = Object.keys(ORDER_SORT_LABEL) as OrderSortField[]
+
+/** 默认排序：交期 DESC（与后端 sort 缺省一致） */
+const DEFAULT_ORDER_SORT: OrderSortKey[] = [{ field: 'dueDate', dir: 'desc' }]
+
+/** 是否默认排序（「重置排序」按钮的禁用条件） */
+const isDefaultOrderSort = (keys: OrderSortKey[]) =>
+  keys.length === 1 && keys[0].field === 'dueDate' && keys[0].dir === 'desc'
+
+/** 表头标题 + 组合排序序号（1/2/3…）：序号 = 该列在组合排序中的优先级 */
+function SortTitle({ text, order }: { text: string; order?: number }) {
+  return (
+    <span style={{ whiteSpace: 'nowrap' }}>
+      {text}
+      {order ? (
+        // 用原生 title（而不是 AntD Tooltip）：表头本身已被 AntD 的排序提示 Tooltip 包裹，
+        // 再嵌一层会出现两个浮层同时弹出
+        <sup
+          title={`组合排序优先级 ${order}：数字越小越先比较。再点表头切换升/降序，点第三次取消该列。`}
+          style={{ marginLeft: 3, fontSize: 10, fontWeight: 700, color: '#1677ff', cursor: 'help' }}
+        >
+          {order}
+        </sup>
+      ) : null}
+    </span>
+  )
+}
+
 /** 订单列表 / 归档（archived=已完成）；draft 行提供 编辑/确认（I05 驳回重做闭环） */
 function OrderListTable({ archived, refreshTick, onEdit }: {
   archived: boolean
@@ -714,6 +779,11 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [status, setStatus] = useState<string>('')
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [kw, setKw] = useState('')
+  /**
+   * 组合排序键（有序：下标 0 = 优先级最高）。
+   * 默认 = 交期 DESC；顺序即发给后端的 sort 参数顺序，也是表头显示 1/2/3 的依据。
+   */
+  const [sortKeys, setSortKeys] = useState<OrderSortKey[]>(DEFAULT_ORDER_SORT)
   /** I17：只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
   const [pendingOnly, setPendingOnly] = useState(false)
   /** I17 裁定②：「显示占位档案」开关（默认关闭 = 隐藏未建档客户/产品占位档案相关单据） */
@@ -764,12 +834,14 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       if (pendingOnly) params.set('hasPending', '1')
       // I17 裁定②：默认隐藏占位档案相关单据；打开开关才带 includePlaceholders=1
       if (showPlaceholders) params.set('includePlaceholders', '1')
+      // 组合排序：字段白名单与优先级由后端校验/执行（非法字段会 400 中文提示）
+      if (sortKeys.length) params.set('sort', sortKeys.map((k) => `${k.field}:${k.dir}`).join(','))
       setRows(await api<Order[]>(`/orders?${params.toString()}`))
     } catch (e) {
       message.error('加载失败：' + (e as Error).message)
     } finally { setLoading(false) }
   }
-  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick, pendingOnly, showPlaceholders]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRows() }, [archived, status, customerId, refreshTick, pendingOnly, showPlaceholders, sortKeys]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 取消订单（五态收敛）：未投产可取消，未开工计划单与未核销应收同步冲销 */
   async function doCancel(r: Order) {
@@ -782,21 +854,72 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     finally { setCancelingId(null) }
   }
 
+  // ---- 组合排序：优先级 / 方向 / sorter.multiple ----
+  /** 该字段在组合排序中的优先级（1 起；未参与 → undefined） */
+  const sortIndex = (field: OrderSortField): number | undefined => {
+    const i = sortKeys.findIndex((k) => k.field === field)
+    return i < 0 ? undefined : i + 1
+  }
+  /** 受控排序方向（AntD 表头箭头） */
+  const sortDirOf = (field: OrderSortField): SortOrder | null => {
+    const k = sortKeys.find((x) => x.field === field)
+    return k ? (k.dir === 'desc' ? 'descend' : 'ascend') : null
+  }
+  /**
+   * sorter.multiple：参与组合排序 → 当前优先级；未参与 → 「加入后」的优先级。
+   * 必须恒为数字（不能是 false/缺省），否则 AntD 会退回单列排序模式、点第二列会清掉第一列。
+   * 这里只配置 multiple（不配 compare）→ AntD **不做本地排序**，排序一律由后端 sort 参数执行。
+   */
+  const sortMultiple = (field: OrderSortField): number => sortIndex(field) ?? sortKeys.length + 1
+
+  /** 表头点击回调（AntD 受控排序）：维护「排序键 + 方向」，顺序 = 优先级顺序 */
+  const handleTableChange: TableProps<Order>['onChange'] = (_pagination, _filters, sorter, extra) => {
+    if (extra?.action !== 'sort') return
+    const list = Array.isArray(sorter) ? sorter : [sorter]
+    const active = new Map<OrderSortField, OrderSortDir>()
+    for (const s of list) {
+      const field = s?.columnKey as OrderSortField | undefined
+      if (!s?.order || !field || !ORDER_SORT_FIELDS.includes(field)) continue
+      active.set(field, s.order === 'descend' ? 'desc' : 'asc')
+    }
+    // ① 原有键保持相对优先级（只更新方向）；② 新加入的键追加到末尾（优先级最低）
+    const next: OrderSortKey[] = []
+    for (const k of sortKeys) {
+      const dir = active.get(k.field)
+      if (dir) next.push({ field: k.field, dir })
+    }
+    for (const field of ORDER_SORT_FIELDS) {
+      const dir = active.get(field)
+      if (dir && !next.some((k) => k.field === field)) next.push({ field, dir })
+    }
+    // 全部取消排序 → 回到默认（交期 DESC），列表永远有确定的顺序
+    setSortKeys(next.length ? next : DEFAULT_ORDER_SORT)
+  }
+
   const columns: ColumnsType<Order> = useMemo(() => [
-    { title: '订单号', dataIndex: 'orderNo', width: 126, fixed: 'left', ellipsis: { showTitle: false }, render: (v: string) => <Tooltip title={v}><Text strong>{v}</Text></Tooltip> },
+    {
+      title: <SortTitle text="订单号" order={sortIndex('orderNo')} />, dataIndex: 'orderNo', key: 'orderNo', width: 126, fixed: 'left',
+      sorter: { multiple: sortMultiple('orderNo') }, sortOrder: sortDirOf('orderNo'),
+      ellipsis: { showTitle: false }, render: (v: string) => <Tooltip title={v}><Text strong>{v}</Text></Tooltip>,
+    },
     {
       // I18：PO 号紧贴订单号并纳入**左侧固定区**（左固定列必须从最左连续排列）——
       // 横向滚动核对开票/对账时，订单号与客户 PO 号始终同屏可见，不会一个滚走一个留下
-      title: 'PO号', dataIndex: 'poNo', width: 80, fixed: 'left', ellipsis: { showTitle: false },
+      title: <SortTitle text="PO号" order={sortIndex('poNo')} />, dataIndex: 'poNo', key: 'poNo', width: 80, fixed: 'left',
+      sorter: { multiple: sortMultiple('poNo') }, sortOrder: sortDirOf('poNo'),
+      ellipsis: { showTitle: false },
       render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">—</Text>),
     },
     {
-      title: '客户', dataIndex: 'customerName', width: 90, ellipsis: { showTitle: false },
+      title: <SortTitle text="客户" order={sortIndex('customer')} />, dataIndex: 'customerName', key: 'customer', width: 90,
+      sorter: { multiple: sortMultiple('customer') }, sortOrder: sortDirOf('customer'),
+      ellipsis: { showTitle: false },
       render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : '—'),
     },
     // 开票三列（I16 交互简化）：价格 / 已开票 / 开票状态 —— 未开票余额仍在「详情」与开票弹窗中可见
     {
-      title: '价格(元)', width: 88, align: 'right',
+      title: <SortTitle text="价格(元)" order={sortIndex('amount')} />, key: 'amount', width: 88, align: 'right',
+      sorter: { multiple: sortMultiple('amount') }, sortOrder: sortDirOf('amount'),
       render: (_: unknown, r: Order) => (
         <Text strong>{r.totalAmountCents != null
           ? fmtCents(r.totalAmountCents)
@@ -804,7 +927,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       ),
     },
     {
-      title: '已开票(元)', width: 84, align: 'right',
+      title: <SortTitle text="已开票(元)" order={sortIndex('invoiced')} />, key: 'invoiced', width: 84, align: 'right',
+      sorter: { multiple: sortMultiple('invoiced') }, sortOrder: sortDirOf('invoiced'),
       render: (_: unknown, r: Order) => (
         r.invoicedCents
           ? <Text>{fmtCents(r.invoicedCents)}</Text>
@@ -812,7 +936,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       ),
     },
     {
-      title: '开票状态', width: 78,
+      title: <SortTitle text="开票状态" order={sortIndex('invoiceState')} />, key: 'invoiceState', width: 78,
+      sorter: { multiple: sortMultiple('invoiceState') }, sortOrder: sortDirOf('invoiceState'),
       render: (_: unknown, r: Order) => {
         const state = r.invoiceState ?? (r.invoicedCents ? 'partial' : 'none')
         return <Tag color={INVOICE_STATE_COLOR[state]}>{INVOICE_STATE_LABEL[state] ?? state}</Tag>
@@ -820,11 +945,13 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     },
     {
       // 折叠态只给摘要（详见 OrderLinesSummary）：多产品不再把单元格撑成多行
-      title: '产品摘要', key: 'products', width: 218,
+      title: <SortTitle text="产品摘要" order={sortIndex('lineCount')} />, key: 'lineCount', width: 218,
+      sorter: { multiple: sortMultiple('lineCount') }, sortOrder: sortDirOf('lineCount'),
       render: (_: unknown, r: Order) => <OrderLinesSummary order={r} />,
     },
     {
-      title: '交期', dataIndex: 'dueDate', width: 92,
+      title: <SortTitle text="交期" order={sortIndex('dueDate')} />, dataIndex: 'dueDate', key: 'dueDate', width: 92,
+      sorter: { multiple: sortMultiple('dueDate') }, sortOrder: sortDirOf('dueDate'),
       // 交期待定（I17）：库里的 due_date 是**哨兵日 2099-12-31**（orders.due_date 是 NOT NULL），
       // 界面只认 due_date_tbd=true → 显示「待定」，绝不把哨兵日当成真实交期展示/预填。
       render: (v: string, r: Order) => (r.dueDateTbd
@@ -837,7 +964,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     },
     {
       // I17 待补列：识单落草稿的单据在此一眼看出还缺什么（中文诊断，悬停看全部）
-      title: '待补', key: 'pending', width: 86,
+      title: <SortTitle text="待补" order={sortIndex('pendingCount')} />, key: 'pendingCount', width: 86,
+      sorter: { multiple: sortMultiple('pendingCount') }, sortOrder: sortDirOf('pendingCount'),
       render: (_: unknown, r: Order) => {
         const items = r.pendingItems
         if (!Array.isArray(items)) return <Text type="secondary">—</Text>
@@ -850,7 +978,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       },
     },
     {
-      title: '状态', dataIndex: 'status', width: 62,
+      title: <SortTitle text="状态" order={sortIndex('status')} />, dataIndex: 'status', key: 'status', width: 62,
+      sorter: { multiple: sortMultiple('status') }, sortOrder: sortDirOf('status'),
       render: (v: string) => <Tag color={v === 'completed' ? 'success' : v === 'draft' ? 'default' : 'processing'}>{STATUS_LABEL[v] ?? v}</Tag>,
     },
     {
@@ -858,7 +987,16 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">未绑定</Text>),
     },
     {
-      // 只显示到日：1920 一屏要放下 13 列 + 展开列，秒/分钟放进 Tooltip（悬停看完整时间）
+      // 创建时间（排序白名单字段）：同交期/同客户的单据靠它看出先后；默认排序的兜底键也是它
+      title: <SortTitle text="创建时间" order={sortIndex('createdAt')} />, dataIndex: 'createdAt', key: 'createdAt', width: 88,
+      sorter: { multiple: sortMultiple('createdAt') }, sortOrder: sortDirOf('createdAt'),
+      ellipsis: { showTitle: false },
+      render: (v?: string) => (v
+        ? <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}><Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD')}</Text></Tooltip>
+        : '—'),
+    },
+    {
+      // 只显示到日：1920 一屏要放下 14 列 + 展开列，秒/分钟放进 Tooltip（悬停看完整时间）
       title: '更新时间', dataIndex: 'updatedAt', width: 88, ellipsis: { showTitle: false },
       render: (v?: string) => (v
         ? <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}><Text type="secondary" style={{ fontSize: 12 }}>{dayjs(v).format('YYYY-MM-DD')}</Text></Tooltip>
@@ -911,7 +1049,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         </Space>
       ),
     },
-  ], [confirmingId, deletingId, cancelingId, setInvoiceFor]) // eslint-disable-line react-hooks/exhaustive-deps
+  ], [confirmingId, deletingId, cancelingId, setInvoiceFor, sortKeys]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filterBar = !archived && (
     <Space wrap style={{ marginBottom: 12 }}>
@@ -942,6 +1080,21 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   return (
     <Card title={archived ? '归档（已完成订单 · 可反查）' : '订单列表'} size="small">
       {filterBar}
+      {/* 组合排序状态条：与表头序号 1/2/3 同源，用户随时看清「先按什么排、再按什么排」 */}
+      <Space wrap size={8} style={{ marginBottom: 8 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>排序：</Text>
+        {sortKeys.map((k, i) => (
+          <Tag key={k.field} color="blue" style={{ marginInlineEnd: 0 }}>
+            {i + 1}. {ORDER_SORT_LABEL[k.field]} {k.dir === 'desc' ? '降序' : '升序'}
+          </Tag>
+        ))}
+        <Button size="small" onClick={() => setSortKeys(DEFAULT_ORDER_SORT)} disabled={isDefaultOrderSort(sortKeys)}>
+          重置排序
+        </Button>
+        {isDefaultOrderSort(sortKeys) && (
+          <Text type="secondary" style={{ fontSize: 12 }}>默认排序（交期 降序；「待定交期」的草稿排最后）</Text>
+        )}
+      </Space>
       {archived && rows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '16px 0', color: '#999' }}>
           暂无已完成订单 —— 订单全部完成后自动进入归档
@@ -949,8 +1102,10 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       )}
       <Table<Order>
         rowKey="id" loading={loading} size="small" columns={columns} dataSource={rows}
+        // 组合排序：受控排序键（sortOrder）+ 表头点击回调（onChange），实际排序由后端 sort 参数执行
+        onChange={handleTableChange}
         // 列宽固定 + 横向滚动：窄屏不再把各列挤成换行；订单号/操作 两侧固定，滚动时仍可见
-        scroll={{ x: 1642 }}
+        scroll={{ x: 1730 }}
         expandable={{
           // 展开行 = 该单产品明细小表格（默认全部收起）
           expandedRowRender: (r) => <OrderLinesDetail order={r} />,

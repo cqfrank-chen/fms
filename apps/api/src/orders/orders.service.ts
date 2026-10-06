@@ -19,6 +19,7 @@ import { normName } from '../ai/order-parser.service';
 import { sameProductDigits } from '../ai/table-parser.service';
 import { findProductCandidates } from '../ai/product-model';
 import { computeLinePending, computeOrderPending, PENDING_CODES, pendingText } from './pending-items';
+import { orderToSortValues, parseOrderSort, sortOrdersByKeys } from './order-sort';
 import { quoteFillTargets, resolveQuoteFills } from './draft-quote-fill';
 import type { DraftQuoteFill } from './draft-quote-fill';
 
@@ -54,6 +55,11 @@ export interface OrderListQuery {
    * I17 裁定：**默认隐藏**占位档案相关的订单；打开「显示占位档案」开关（或按「有未补全项的草稿单」筛选）时显示。
    */
   includePlaceholders?: string;
+  /**
+   * 多列组合排序：'dueDate:desc,customer:asc,...'（逗号分隔，从左到右 = 优先级从高到低）。
+   * 字段必须在白名单内（见 orders/order-sort.ts），非法字段/方向 → 400 中文提示；缺省 = 交期 DESC。
+   */
+  sort?: string;
 }
 
 /** 落草稿的单行入参（识单结果一行；数量/单价可空 = 原始单据本来就没有） */
@@ -192,8 +198,18 @@ export class OrdersService {
     return this.findOne(id);
   }
 
-  /** 列表（可选筛选：状态/客户/单号PO关键字） */
+  /**
+   * 列表（可选筛选：状态/客户/单号PO关键字；可选多列排序 sort）。
+   *
+   * 排序：sort 参数先过**字段白名单**（非法字段/方向 → 400 中文提示），默认 `dueDate:desc`。
+   * 交期待定（哨兵日 2099-12-31 / due_date_tbd=true）视为「无交期」恒定沉底，
+   * 全部键相等时按「创建时间 DESC → 取数顺序（SQL 的 id DESC）」兜底 —— 规则详见 orders/order-sort.ts。
+   * 这里在 SQL 取数（保持 id DESC 的稳定基准序）之后做**视图排序**：订单金额/已开票/开票状态/
+   * 待补项数/产品行数都是 attachLines 实时派生的列，SQL 里没有同源值，放在 JS 侧排序才能保证
+   * 「排序依据」与「列表显示」严格一致。
+   */
   async findAll(q: OrderListQuery) {
+    const sortKeys = parseOrderSort(q.sort); // 非法参数在此抛 400
     const conds = [];
     if (q.status) conds.push(eq(orders.status, q.status));
     if (q.customerId) conds.push(eq(orders.customerId, q.customerId));
@@ -229,7 +245,8 @@ export class OrdersService {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(orders.id));
     const rows = await base;
-    return this.attachLines(rows);
+    const list = await this.attachLines(rows);
+    return sortOrdersByKeys(list, sortKeys, orderToSortValues);
   }
 
   /** 详情（404 保护） */

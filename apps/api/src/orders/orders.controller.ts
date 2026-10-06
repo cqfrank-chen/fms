@@ -118,6 +118,10 @@ export class OrdersController {
    * 订单列表。
    * I17 裁定：占位档案（未建档客户·待补 / 未建档产品·待补）相关单据**默认隐藏**；
    * includePlaceholders=1（界面「显示占位档案」开关）或 hasPending=1（补全工作流）时显示。
+   *
+   * sort：多列组合排序，如 `sort=dueDate:desc,customer:asc,status:asc`（从左到右 = 优先级从高到低）。
+   * 字段白名单 + 方向校验在 service 内完成（orders/order-sort.ts），非法字段/方向返回 400 中文提示；
+   * 缺省 = 交期 DESC（「交期待定」的哨兵日单据视为无交期，恒定沉底）。
    */
   @Get()
   findAll(
@@ -126,6 +130,7 @@ export class OrdersController {
     @Query('kw') kw?: string,
     @Query('hasPending') hasPending?: string,
     @Query('includePlaceholders') includePlaceholders?: string,
+    @Query('sort') sort?: string,
   ) {
     return this.service.findAll({
       status,
@@ -133,6 +138,7 @@ export class OrdersController {
       kw,
       hasPending,
       includePlaceholders,
+      sort,
     });
   }
 
