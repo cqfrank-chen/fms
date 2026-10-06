@@ -928,11 +928,15 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     },
     {
       // I18：PO 号紧贴订单号并纳入**左侧固定区**（左固定列必须从最左连续排列）——
-      // 横向滚动核对开票/对账时，订单号与客户 PO 号始终同屏可见，不会一个滚走一个留下
-      title: <SortTitle text="PO号" order={sortIndex('poNo')} />, dataIndex: 'poNo', key: 'poNo', width: 80, fixed: 'left',
+      // 横向滚动核对开票/对账时，订单号与客户 PO 号始终同屏可见，不会一个滚走一个留下。
+      // 甲方要求（2026-10-06）：PO 号**完整显示**，不用省略号截断、不再把全文藏进 Tooltip ——
+      //   去掉 ellipsis（原来是 80px + 截断），列宽加到 150px，长 PO 走**换行**（wordBreak 兜底防撑破列）；
+      //   表格本身已有横向滚动（scroll.x），加宽只增加内部横滚，不会造成页面横向溢出。
+      title: <SortTitle text="PO号" order={sortIndex('poNo')} />, dataIndex: 'poNo', key: 'poNo', width: 150, fixed: 'left',
       sorter: { multiple: sortMultiple('poNo') }, sortOrder: sortDirOf('poNo'),
-      ellipsis: { showTitle: false },
-      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">—</Text>),
+      render: (v?: string | null) => (v
+        ? <span style={{ whiteSpace: 'normal', wordBreak: 'break-all', lineHeight: 1.35 }}>{v}</span>
+        : <Text type="secondary">—</Text>),
     },
     {
       title: <SortTitle text="客户" order={sortIndex('customer')} />, dataIndex: 'customerName', key: 'customer', width: 90,
@@ -1141,7 +1145,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         // 组合排序：受控排序键（sortOrder）+ 表头点击回调（onChange），实际排序由后端 sort 参数执行
         onChange={handleTableChange}
         // 列宽固定 + 横向滚动：窄屏不再把各列挤成换行；订单号/操作 两侧固定，滚动时仍可见
-        scroll={{ x: 1780 }}
+        scroll={{ x: 1850 }}
         expandable={{
           // 展开行 = 该单产品明细小表格（默认全部收起）
           expandedRowRender: (r) => <OrderLinesDetail order={r} />,
