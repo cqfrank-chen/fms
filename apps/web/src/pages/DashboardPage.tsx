@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Col, Empty, List, Row, Spin, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Col, Empty, List, Row, Spin, Table, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   AccountBookOutlined, AppstoreOutlined, AuditOutlined, BarChartOutlined, ClockCircleOutlined,
@@ -27,7 +27,7 @@ interface DashboardData {
   }
   todo: Array<{ level: 'warn' | 'info'; text: string; page: PageKey }>
   lowStock: Array<{ id: number; name: string; safetyStock: number; stock: number; gap: number }>
-  recentOrders: Array<{ id: number; orderNo: string; status: string; dueDate: string; customerName: string; totalAmount: number }>
+  recentOrders: Array<{ id: number; orderNo: string; poNo: string | null; status: string; dueDate: string; customerName: string; totalAmount: number }>
   overdueTop: Array<{ id: number; recvNo: string; customerName: string; orderNo: string; remain: number; ageDays: number; dueDate: string }>
   generatedAt: string
 }
@@ -88,6 +88,12 @@ export default function DashboardPage({ onNavigate }: { onNavigate: (p: PageKey)
   const k = data?.kpi
   const orderColumns: ColumnsType<DashboardData['recentOrders'][number]> = [
     { title: '订单号', dataIndex: 'orderNo', width: 150 },
+    {
+      // 客户 PO 号紧贴订单号（与订单列表口径一致）：空值显示「—」，超长省略悬停看全文
+      title: 'PO号', dataIndex: 'poNo', width: 150,
+      ellipsis: { showTitle: false },
+      render: (v?: string | null) => (v ? <Tooltip title={v}>{v}</Tooltip> : <Text type="secondary">—</Text>),
+    },
     { title: '客户', dataIndex: 'customerName', ellipsis: true },
     { title: '交期', dataIndex: 'dueDate', width: 110, render: (v: string) => dateText(v) },
     { title: '金额', dataIndex: 'totalAmount', width: 130, align: 'right', render: (v: number) => money(v) },
@@ -200,6 +206,7 @@ export default function DashboardPage({ onNavigate }: { onNavigate: (p: PageKey)
               rowKey="id"
               pagination={false}
               columns={orderColumns}
+              scroll={{ x: 800 }}
               dataSource={data?.recentOrders ?? []}
               locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无订单" /> }}
             />

@@ -36,13 +36,14 @@ export class DashboardService {
            LIMIT 20`),
         this.accounting.receivablesList(),
         this.accounting.payablesList(),
+        // 最近订单：带上客户 PO 号（po_no 可空，前端空值显示「—」）
         db.execute(sql`
-          SELECT o.id, o.order_no AS "orderNo", o.status, o.due_date AS "dueDate", c.name AS "customerName",
+          SELECT o.id, o.order_no AS "orderNo", o.po_no AS "poNo", o.status, o.due_date AS "dueDate", c.name AS "customerName",
                  COALESCE(SUM(ol.quantity * ROUND(ol.unit_price * 100)), 0)::bigint AS "totalCents"
             FROM orders o
             LEFT JOIN customers c ON c.id = o.customer_id
             LEFT JOIN order_lines ol ON ol.order_id = o.id
-           GROUP BY o.id, o.order_no, o.status, o.due_date, c.name
+           GROUP BY o.id, o.order_no, o.po_no, o.status, o.due_date, c.name
            ORDER BY o.id DESC
            LIMIT 8`),
         this.accounting.profit(month),
@@ -101,6 +102,7 @@ export class DashboardService {
       recentOrders: (((recentRes as any).rows ?? []) as Array<Record<string, any>>).map((r) => ({
         id: r.id,
         orderNo: r.orderNo,
+        poNo: r.poNo ?? null,
         status: r.status,
         dueDate: r.dueDate,
         customerName: r.customerName ?? '',
