@@ -1,5 +1,5 @@
-import { Button, Card, Divider, Form, Input, Popconfirm, Space, Switch, Tag, Tooltip, Typography, message } from 'antd'
-import { useEffect, useState } from 'react'
+import { Button, Card, Divider, Form, Input, Popconfirm, Select, Space, Switch, Tag, Tooltip, Typography, message } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
 import CrudResource from '../components/CrudResource'
 import type { FieldConfig } from '../components/CrudResource'
 import MasterImportCard from '../components/MasterImportCard'
@@ -8,7 +8,10 @@ import ProcessRouteCard from '../components/ProcessRouteCard'
 import InvoiceSettingsCard from '../components/InvoiceSettingsCard'
 import UpdateCard from '../components/UpdateCard'
 import UserManageCard from '../components/UserManageCard'
-import { PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL } from '../lib/labels'
+import {
+  CATALOG_ANCHOR_LABEL, CATALOG_ANCHOR_OPTIONS, CATALOG_GAS_LABEL, CATALOG_GAS_OPTIONS,
+  CATALOG_SERIES_LABEL, CATALOG_SERIES_OPTIONS, CATALOG_SERIES_SHORT, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL,
+} from '../lib/labels'
 import { PLACEHOLDER_HINT, useShowPlaceholders, withPlaceholders } from '../lib/placeholders'
 import { api } from '../lib/api'
 import type { ColumnsType } from 'antd/es/table'
@@ -18,7 +21,28 @@ const { Text } = Typography
 const PRODUCT_TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => ({ value, label }))
 const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_LABEL).map(([value, label]) => ({ value, label }))
 
-interface ProductRow { id: number; name: string; type: string; defaultPackaging?: string | null; defaultRouting?: string | null; safetyStock: number; updatedAt?: string }
+interface ProductRow {
+  id: number
+  name: string
+  type: string
+  defaultPackaging?: string | null
+  defaultRouting?: string | null
+  safetyStock: number
+  updatedAt?: string
+  // ---- 官方目录锚定列（2026 目录更正；迁移 0023 新增，未锚定时为 null）----
+  /** 目录基础型号（1-101 / GPN / 6290NX…） */
+  catalogModel?: string | null
+  /** 目录 size（000 / 00 / 0 / 1…，前导零原样） */
+  sizeSpec?: string | null
+  /** 目录系列 / 款式（AMERICAN STYLE CUTTING TIP…） */
+  series?: string | null
+  /** 目录气体类型：LPG / ACETYLENE */
+  gasType?: string | null
+  /** 锚定状态：matched 已锚定 / unmatched 未锚定 */
+  catalogAnchor?: string | null
+  /** 锚定说明 / 未锚定原因 / 合并说明 */
+  catalogNote?: string | null
+}
 interface CustomerRow { id: number; name: string; contact?: string | null; settlement?: string | null; creditDays: number; updatedAt?: string }
 interface SupplierRow { id: number; name: string; contact?: string | null; settlement?: string | null; updatedAt?: string }
 interface OperatorRow { id: number; name: string; boundPc?: string | null; note?: string | null; updatedAt?: string }
@@ -26,13 +50,45 @@ interface OperatorRow { id: number; name: string; boundPc?: string | null; note?
 /** 更新时间格式化（列共用） */
 const fmtDt = (v?: string) => (v ? v.slice(0, 16).replace('T', ' ') : '—')
 
+/** 名称列：产品名常带换行（包装/刻字描述），单元格只显示第一行，悬停看全文 */
+const firstLine = (v?: string | null) => String(v ?? '').split('\n')[0].trim()
+
+/** 目录列统一「空 → —」展示 */
+const dash = (v?: string | null) => (v ? v : '—')
+
+/**
+ * 产品目录列（本轮新增：型号 / size / 系列 / 气体类型 —— 目录锚定结果）；
+ * 「类型」由目录推导（美式/英式 × 乙炔/丙烷；其余款式保持 tbd 不臆造），与「气体」列一起看即完整。
+ */
 const PRODUCT_COLUMNS: ColumnsType<ProductRow> = [
-  { title: '产品', dataIndex: 'name' },
-  { title: '类型', dataIndex: 'type', width: 110, render: (v: string) => PRODUCT_TYPE_LABEL[v] ?? v },
-  { title: '默认包装', dataIndex: 'defaultPackaging', render: (v?: string | null) => v || '—' },
-  { title: '默认工序路线', dataIndex: 'defaultRouting', render: (v?: string | null) => v || '—' },
-  { title: '安全库存', dataIndex: 'safetyStock', width: 90, align: 'right' },
-  { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
+  {
+    title: '产品名', dataIndex: 'name', width: 240, ellipsis: { showTitle: false },
+    render: (v?: string | null) => <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{firstLine(v)}</Tooltip>,
+  },
+  { title: '型号', dataIndex: 'catalogModel', width: 96, render: dash },
+  { title: 'size', dataIndex: 'sizeSpec', width: 66, render: dash },
+  {
+    title: '系列', dataIndex: 'series', width: 90,
+    render: (v?: string | null) => (v ? <Tooltip title={CATALOG_SERIES_LABEL[v] ?? v}>{CATALOG_SERIES_SHORT[v] ?? v}</Tooltip> : '—'),
+  },
+  { title: '气体', dataIndex: 'gasType', width: 108, render: (v?: string | null) => (v ? CATALOG_GAS_LABEL[v] ?? v : '—') },
+  { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => PRODUCT_TYPE_LABEL[v] ?? v },
+  {
+    title: '锚定', dataIndex: 'catalogAnchor', width: 84,
+    render: (v?: string | null) => (v === 'matched'
+      ? <Tag color="green">{CATALOG_ANCHOR_LABEL.matched}</Tag>
+      : v === 'unmatched' ? <Tag>{CATALOG_ANCHOR_LABEL.unmatched}</Tag> : '—'),
+  },
+  {
+    title: '默认包装', dataIndex: 'defaultPackaging', width: 130, ellipsis: { showTitle: false },
+    render: (v?: string | null) => <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{v || '—'}</Tooltip>,
+  },
+  {
+    title: '默认工序路线', dataIndex: 'defaultRouting', width: 150, ellipsis: { showTitle: false },
+    render: (v?: string | null) => <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{v}</span>}>{v || '—'}</Tooltip>,
+  },
+  { title: '安全库存', dataIndex: 'safetyStock', width: 84, align: 'right' },
+  { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
 ]
 
 const CUSTOMER_COLUMNS: ColumnsType<CustomerRow> = [
@@ -56,6 +112,100 @@ const OPERATOR_COLUMNS: ColumnsType<OperatorRow> = [
   { title: '备注', dataIndex: 'note', render: (v?: string | null) => v || '—' },
   { title: '更新时间', dataIndex: 'updatedAt', width: 140, render: (v?: string) => <Text type="secondary" style={{ fontSize: 12 }}>{fmtDt(v)}</Text> },
 ]
+
+// =====================================================================================
+// 产品目录筛选（本轮新增：系列 / 气体类型 / 锚定状态 + 关键词）
+// -------------------------------------------------------------------------------------
+// 口径：
+//   · 与既有关键词搜索**并存**（AND 关系），筛选与搜索都下推到后端（GET /products?…）；
+//   · 状态**保留在地址栏**（?series=…&gas=…&anchor=…&kw=…），刷新/分享链接后筛选不丢；
+//     本应用是极简 pathname 路由（lib/router.ts），只用 replaceState 改 query，不影响路由。
+// =====================================================================================
+const CATALOG_FILTER_KEYS = ['series', 'gas', 'anchor', 'kw'] as const
+type CatalogFilterState = { series: string; gas: string; anchor: string; kw: string }
+
+/** 从地址栏读回筛选状态（首次渲染用） */
+function readCatalogFilters(): CatalogFilterState {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return { series: p.get('series') ?? '', gas: p.get('gas') ?? '', anchor: p.get('anchor') ?? '', kw: p.get('kw') ?? '' }
+  } catch {
+    return { series: '', gas: '', anchor: '', kw: '' }
+  }
+}
+
+/** 把筛选状态写回地址栏（replaceState：不新增历史记录、不影响 pathname 路由） */
+function writeCatalogFilters(v: CatalogFilterState): void {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    for (const k of CATALOG_FILTER_KEYS) {
+      const val = v[k]
+      if (val) p.set(k, val)
+      else p.delete(k)
+    }
+    const qs = p.toString()
+    window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''))
+  } catch {
+    /* 隐私模式等不可写时忽略（仅本次会话生效） */
+  }
+}
+
+/**
+ * 产品目录卡片：默认**按系列分组排序**（同一系列排一起，组内按 型号 → size；无系列排最后），
+ * 并提供 系列 / 气体类型 / 锚定状态 三个筛选 + 关键词搜索（与既有搜索并存）。
+ */
+function ProductCatalogCard({ showPlaceholders, onChanged }: { showPlaceholders: boolean; onChanged: () => void }) {
+  const init = useMemo(readCatalogFilters, [])
+  const [series, setSeries] = useState(init.series)
+  const [gas, setGas] = useState(init.gas)
+  const [anchor, setAnchor] = useState(init.anchor)
+  const [kwInput, setKwInput] = useState(init.kw)   // 输入框里的文字
+  const [kw, setKw] = useState(init.kw)             // 已提交的关键词（回车/点搜索才生效）
+
+  useEffect(() => { writeCatalogFilters({ series, gas, anchor, kw }) }, [series, gas, anchor, kw])
+
+  const listQuery = useMemo(() => {
+    const p = new URLSearchParams()
+    if (series) p.set('series', series)
+    if (gas) p.set('gasType', gas)
+    if (anchor) p.set('anchor', anchor)
+    if (kw.trim()) p.set('kw', kw.trim())
+    const qs = p.toString()
+    return withPlaceholders(qs ? '?' + qs : '', showPlaceholders)
+  }, [series, gas, anchor, kw, showPlaceholders])
+
+  const reset = () => { setSeries(''); setGas(''); setAnchor(''); setKwInput(''); setKw('') }
+
+  const toolbar = (
+    <Space wrap size={8}>
+      <Select size="small" style={{ width: 168 }} allowClear placeholder="全部系列"
+        value={series || undefined} onChange={(v?: string) => setSeries(v ?? '')} options={CATALOG_SERIES_OPTIONS} />
+      <Select size="small" style={{ width: 140 }} allowClear placeholder="全部气体类型"
+        value={gas || undefined} onChange={(v?: string) => setGas(v ?? '')} options={CATALOG_GAS_OPTIONS} />
+      <Select size="small" style={{ width: 124 }} allowClear placeholder="全部锚定状态"
+        value={anchor || undefined} onChange={(v?: string) => setAnchor(v ?? '')} options={CATALOG_ANCHOR_OPTIONS} />
+      <Input.Search size="small" style={{ width: 230 }} allowClear placeholder="产品名 / 型号 / size / 系列"
+        value={kwInput} onChange={(e) => setKwInput(e.target.value)}
+        onSearch={(v) => setKw(v)} />
+      <Button size="small" onClick={reset}>重置筛选</Button>
+      <Text type="secondary" style={{ fontSize: 12 }}>按系列分组排序（官方目录顺序）· 筛选状态保留在地址栏</Text>
+    </Space>
+  )
+
+  return (
+    <CrudResource<ProductRow>
+      title="产品目录"
+      resource="products"
+      columns={PRODUCT_COLUMNS}
+      fields={PRODUCT_FIELDS}
+      initialValues={{ safetyStock: 0 }}
+      onChanged={onChanged}
+      listQuery={listQuery}
+      toolbar={toolbar}
+      scrollX={1560}
+    />
+  )
+}
 
 const PRODUCT_FIELDS: FieldConfig[] = [
   { name: 'name', label: '产品名', required: true, placeholder: '如：ANM 1/32" 乙炔' },
@@ -135,15 +285,7 @@ export default function SetupPage() {
         </Tooltip>
       </Space>
       <div style={{ display: 'grid', gap: 16, marginTop: 12 }}>
-        <CrudResource<ProductRow>
-          title="产品目录"
-          resource="products"
-          columns={PRODUCT_COLUMNS}
-          fields={PRODUCT_FIELDS}
-          initialValues={{ safetyStock: 0 }}
-          onChanged={bumpData}
-          listQuery={withPlaceholders('', showPlaceholders)}
-        />
+        <ProductCatalogCard showPlaceholders={showPlaceholders} onChanged={bumpData} />
         <MasterImportCard target="products" title="产品目录 · 批量导入（Excel / CSV）" onChanged={bumpData} />
         <CrudResource<CustomerRow>
           title="客户档案"

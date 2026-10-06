@@ -47,6 +47,11 @@
 | **apply_catalog_correction.mjs** | **修正脚本**：把锚定结果写进产品档案的 8 个新列（幂等 / 默认 dry-run / 只 update products） | 见下 |
 | **verify_parity.mjs** | 工具侧 JS 与服务端 TS **双实现一致性校验**（1525 个真实名称逐条比对） | `node tools/catalog/verify_parity.mjs`（需先 build api） |
 | **catalog_anchor_audit.sql** | 云端核对 SQL（**只读**）：锚定计数 / 前导零三档 / 未锚定抽样 | `psql "<DSN>" -f tools/catalog/catalog_anchor_audit.sql` |
+| **dedupe_products.mjs** | **去重合并**：同一（基础型号 + size）的多条档案合并为一条（重挂 8 张外键后删除），类型以目录为准；默认 dry-run / 单事务 / 幂等 | 见下「去重合并」 |
+| **lib/dedupe-core.mjs** | 去重的**纯函数核心**（解析 → 分组 → 选存活记录），被 CLI 与单测共用 | 被 import |
+| **lib/catalog-type.mjs** | 目录（系列 + 气体）→ 系统产品类型（type）推导；映射不到保持 tbd | 被 import |
+| **dedupe_products.test.mjs** | 去重判定**单元测试**（13 项：写法等价 / 不跨 size / 分组 / 存活选择 / 类型推导 / 真实 1444 条） | `node --test tools/catalog/dedupe_products.test.mjs` |
+| **dedupe_audit.sql** | 合并后**只读**核对 SQL：条数 / 悬空引用 / 同型号同 size 只剩 1 条 / 前导零三档 / 类型分布 | `psql "<DSN>" -f tools/catalog/dedupe_audit.sql` |
 
 ## 修正脚本用法（**默认 dry-run，不写库**）
 
@@ -64,6 +69,52 @@ node tools/catalog/apply_catalog_correction.mjs --dsn "<DSN>" --fill-only --limi
 **硬约束**（脚本自身实现，不是靠人记）：只 `select` / `update products`；
 只写 `catalog_model / size_spec / series / gas_type / orifice_mm / thickness_range / catalog_anchor / catalog_note` 八列；
 **不改 name、不改 type、不新增行、不删除行、不合并任何不同 size**；未锚定的行只打标 + 写原因。
+
+## 去重合并（`dedupe_products.mjs`，**默认 dry-run**）
+
+甲方规则：**型号前后带的数字 / # 号后的数字 / 「size」二字后的数字 = size**；
+同一（基础型号 + size）的多种写法（`0-1-101` ≡ `1-101 割嘴 0#` ≡ `1-101 size0`）是**同一个产品**，合并为一条。
+`0` / `00` / `000` 是**不同 size，绝不合并**；型号未锚定目录、或名字没写 size 的**保持现状**（只列清单，不猜）。
+
+```powershell
+# ① dry-run（只报告）：看分组数 / 合并前后条数 / 重挂引用行数 / 类型填充
+node tools/catalog/dedupe_products.mjs --dsn "postgres://fms:<密码>@<主机>:5432/fms"
+
+# ② 确认后正式写入（单事务；失败自动回滚）
+node tools/catalog/dedupe_products.mjs --dsn "<DSN>" --apply
+
+# ③ 复核：复跑 ② 应显示「需要修正的行数 0 / 复跑残留差异 0」
+node tools/catalog/dedupe_products.mjs --dsn "<DSN>" --apply
+
+# ④ 只读核对（条数 / 悬空引用 / 同型号同尺寸唯一 / 前导零三档 / 类型分布）
+psql "<DSN>" -v ON_ERROR_STOP=1 -f tools/catalog/dedupe_audit.sql
+
+# 单测（零依赖，不连库）
+node --test tools/catalog/dedupe_products.test.mjs
+# 端到端（真实库；需要一个已跑过迁移的库）
+node apps/api/test/dedupe-products-e2e.mjs
+```
+
+**存活记录选择规则**（固定、可复算）：① 组内天然全是 `catalog_anchor=matched` →
+② 完整度打分（type 具体 +2 / 默认包装 +1 / 默认工序路线 +1 / 安全库存>0 +1）高者优先 →
+③ id 最小（最早建档）。**不丢信息**：存活记录为空的默认包装 / 工序路线从被合并记录补齐，安全库存取最大值；
+被合并写法写入 `catalog_note` + 存档 CSV（`dedupe_product_merges.csv`）。
+
+**重挂范围**：`order_lines` / `plan_sheet_lines` / `goods_receipt_lines` / `outbound_lines` /
+`stocktakes` / `product_quotes` / `inventory` / `product_processes`（运行时从 `information_schema` 查真实外键，
+不写死表名）。**唯一约束**（`inventory(product_id,batch_no)` / `product_processes(product_id,process_id)`）
+冲突的重复行先跳过、后删除并逐条计数上报。
+
+**命名口径**：目录对产品的命名 = `catalog_model` + `size_spec`（一律以目录为准）；
+显示名 `name` **保留存活记录原文**（甲方写法里带包装/刻字/重量/货号等目录没有的信息，改名会抹掉）——
+如需统一改成目录标准名（`--canonical-name`，形如 `1-101 0#`），**须甲方确认后再开**。
+
+**类型以目录为准**：matched 行的 `series` / `gas_type` / `type` 一律由目录推导
+（`ACE→ACETYLENE`、`LPG→LPG`；款式 美式→`us_*`、英式→`uk_*`）；
+日式 / 法式 / 澳式 / 巴西式在既有枚举（英式/美式 × 乙炔/丙烷）里**没有对应值** →
+保持 `tbd` 并标记，**不臆造**；未锚定行不改 type（保持现状）。
+
+---
 
 ## 口径边界（宁缺勿错）
 

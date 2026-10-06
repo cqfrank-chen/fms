@@ -70,6 +70,19 @@ describe('parseProductModel：型号前 / 后 / # 后的数字 = size', () => {
     expect(p('割嘴 1#-3-101 产品号码6019')).toMatchObject({ model: '3-101', size: '1' });
   });
 
+  it('「size」二字显式标注：1-101 size0 ≡ 0-1-101 ≡ 1-101 割嘴 0#（同一产品），且不跨 size', () => {
+    // 甲方点名的第三种写法；与「型号前数字」「# 号数」三种写法必须归一到同一个 (型号, size)
+    expect(p('1-101 size0')).toMatchObject({ model: '1-101', size: '0' });
+    expect(p('1-101 size 0')).toMatchObject({ model: '1-101', size: '0' });
+    expect(p('1-101 size #0')).toMatchObject({ model: '1-101', size: '0' });
+    expect(p('GPN size 1')).toMatchObject({ model: 'GPN', size: '1' });
+    // 前导零逐字符：size 00 ≠ size 0
+    expect(p('1-101 size00')).toMatchObject({ model: '1-101', size: '00' });
+    // 「size」后的数字不在该型号目录档位 → 尺寸未定死，整个候选作废（不当成「型号无尺寸」）
+    expect(p('1-101 size 9')).toBeNull();
+    expect(p('1-101 size 99')).toBeNull();
+  });
+
   it('型号后跟 size：乙炔割嘴1-101-2 / 6290NX-2 / 106D7-2 / MC-12-2#', () => {
     expect(p('乙炔割嘴1-101-2 82g 货号：4191')).toMatchObject({ model: '1-101', size: '2' });
     expect(p('HARRIS 丙烷割嘴6290-NX-0 53g')).toMatchObject({ model: '6290NX', size: '0' });

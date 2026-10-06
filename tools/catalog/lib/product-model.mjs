@@ -5,6 +5,7 @@
  *   · 0-GPN / 00-GPN / 000-GPN  →  型号 GPN，size 0 / 00 / 000（三档不同尺寸，各自是独立产品）
  *   · 106 #1 / 106 1#            →  型号 106，size 1
  *   · 1-1-101                    →  型号 1-101，size 1（前导数字 = size）
+ *   · 1-101 size0 / 1-101 size 0 →  型号 1-101，size 0（「size」二字显式标注；与 0-1-101 同一产品）
  *   · Victor 乙炔割嘴 1-1-101      →  同上（品牌 / 描述前缀不影响）
  *   · 割嘴 1#-3-101 / 乙炔割嘴1-101-2 → 型号 3-101 size 1 / 型号 1-101 size 2
  *
@@ -43,6 +44,9 @@ const SUF_GLUED_RE = new RegExp('^' + SIZE + '(?![0-9])\\s*#?');
 // 型号后（隔一段描述文字，但数字必须带 # 标记）：割嘴 0# / 丙烷割嘴 #4
 const SUF_HASH_AFTER_RE = new RegExp('^[^0-9]{1,14}?' + SIZE + '(?![0-9])\\s*#');
 const SUF_HASH_BEFORE_RE = new RegExp('^[^0-9]{1,14}?#\\s*' + SIZE + '(?![0-9])');
+// 型号后用「size」二字**显式**标注尺寸（甲方点名的第三种写法）：1-101 size0 / 1-101 size 0 / GPN size #1
+// 只在前面几种写法都没命中时才用；取到的数字仍必须逐字符命中该型号的目录档位，否则整个候选作废
+const SUF_SIZE_WORD_RE = new RegExp('^[^0-9]{0,14}?(?:^|[^A-Za-z])size[\\s\\-_]*#?[\\s\\-_]*' + SIZE + '(?![0-9])\\s*#?', 'i');
 
 /**
  * 型号条目 → 索引。key = compactKey(型号或别名)。
@@ -110,7 +114,7 @@ export function explainProductModel(name, index) {
     const preM = before.match(PREFIX_RE);
     const sufNear = after.match(SUF_NEAR_RE);
     const sufM = sufNear ?? (gluedOk ? after.match(SUF_GLUED_RE) : null)
-      ?? after.match(SUF_HASH_AFTER_RE) ?? after.match(SUF_HASH_BEFORE_RE);
+      ?? after.match(SUF_HASH_AFTER_RE) ?? after.match(SUF_HASH_BEFORE_RE) ?? after.match(SUF_SIZE_WORD_RE);
     const pre = preM ? preM[1] : null;
     const suf = sufM ? sufM[1] : null;
 

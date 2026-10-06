@@ -1,0 +1,3 @@
+﻿分组键,系列,气体类型,目录类型,存活id,存活名字,被合并id,被合并名字,引用重挂行数,唯一约束冲突删除行数
+"1-101 0","AMERICAN STYLE CUTTING TIP","ACETYLENE","us_acetylene","2","ZZDEDUPE 1-101 割嘴 0#","1","ZZDEDUPE 0-1-101","4","2"
+"1-101 0","AMERICAN STYLE CUTTING TIP","ACETYLENE","us_acetylene","2","ZZDEDUPE 1-101 割嘴 0#","3","ZZDEDUPE 1-101 size0","4","2"

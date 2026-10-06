@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import type { ReactNode } from 'react'
 import { api } from '../lib/api'
 
 /** 表单字段配置：驱动弹窗生成与基础校验 */
@@ -30,8 +31,13 @@ interface CrudResourceProps<T extends { id: number }> {
   /**
    * 列表请求附加查询串（含前导 '?' 或 '&'）。
    * I17：客户/产品列表默认隐藏占位档案，「显示占位档案」开关打开时传 '?includePlaceholders=1'。
+   * 本轮的筛选（系列 / 气体类型 / 锚定状态 / 关键词）也走这里；值变化即自动重新拉取。
    */
   listQuery?: string
+  /** 卡片顶部工具条（筛选控件等，放在「+ 新增」左侧的表头上方） */
+  toolbar?: ReactNode
+  /** 表格横向滚动宽度（列多时避免挤压换行；不传 = 不横向滚动） */
+  scrollX?: number
 }
 
 /** 通用主数据 CRUD：列表 + 弹窗表单增删改，直接生效无草稿态（对齐票 09 原型设置页） */
@@ -43,6 +49,8 @@ export default function CrudResource<T extends { id: number }>({
   initialValues,
   onChanged,
   listQuery = '',
+  toolbar,
+  scrollX,
 }: CrudResourceProps<T>) {
   const [rows, setRows] = useState<T[]>([])
   const [loading, setLoading] = useState(false)
@@ -140,12 +148,14 @@ export default function CrudResource<T extends { id: number }>({
       styles={{ body: { paddingTop: 8 } }}
       extra={<Button type="primary" size="small" onClick={openCreate}>+ 新增</Button>}
     >
+      {toolbar && <div style={{ marginBottom: 8 }}>{toolbar}</div>}
       <Table<T>
         rowKey="id"
         size="small"
         loading={loading}
         columns={[...columns, actionColumn]}
         dataSource={rows}
+        scroll={scrollX ? { x: scrollX } : undefined}
         pagination={rows.length > 10 ? { pageSize: 10 } : false}
       />
       <Modal

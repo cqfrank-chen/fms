@@ -45,9 +45,23 @@ export class ProductsController {
    *   便于把订单行**改指**到真实产品，或保留占位以维持待补状态；
    *   该参数还会幂等地**保证占位产品存在**（干净库里下拉同样能选到，见 common/pending-entities.ts）。
    */
+  /**
+   * 列表查询参数（除 includePlaceholders 外，本轮新增四个筛选；不传 = 不筛）：
+   *   · series    目录系列 / 款式（精确匹配，如 'AMERICAN STYLE CUTTING TIP'）
+   *   · gasType   目录气体类型：LPG / ACETYLENE（兼容写法 'ACE' 即乙炔）
+   *   · anchor    锚定状态：matched（已锚定）/ unmatched（未锚定）
+   *   · kw        关键词（产品名 / 基础型号 / size / 系列 模糊匹配）
+   * 返回顺序固定为「按系列（官方目录顺序）分组 → 型号 → size → id」。
+   */
   @Get()
-  findAll(@Query('includePlaceholders') includePlaceholders?: string) {
-    return this.service.findAll({ includePlaceholders });
+  findAll(
+    @Query('includePlaceholders') includePlaceholders?: string,
+    @Query('series') series?: string,
+    @Query('gasType') gasType?: string,
+    @Query('anchor') anchor?: string,
+    @Query('kw') kw?: string,
+  ) {
+    return this.service.findAll({ includePlaceholders, series, gasType, anchor, kw });
   }
 
   @Roles('admin', 'planner')

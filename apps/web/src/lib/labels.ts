@@ -4,9 +4,61 @@ export const PRODUCT_TYPE_LABEL: Record<string, string> = {
   uk_propane: '英式丙烷',
   us_acetylene: '美式乙炔',
   us_propane: '美式丙烷',
-  // 待定：占位产品「（未建档产品·待补）」专用（I17 甲方裁定③：不再借用 uk_acetylene）
+  // 待定：占位产品「（未建档产品·待补）」专用（I17 甲方裁定③：不再借用 uk_acetylene）；
+  // 目录锚定后仍为 tbd 的：款式（日/法/澳/巴西式）在既有枚举里没有对应值，或目录查不到 —— 不臆造
   tbd: '待定',
 }
+
+// =====================================================================================
+// 官方产品目录（2026）锚定列的展示映射（与 tools/catalog/catalog_models.json 逐字符一致）
+// =====================================================================================
+
+/** 目录系列 / 款式 → 中文（长）标签；键为目录原文，顺序 = 官方目录 01→06 */
+export const CATALOG_SERIES_LABEL: Record<string, string> = {
+  'AMERICAN STYLE CUTTING TIP': '美式 AMERICAN',
+  'JAPANESE STYLE CUTTING TIP': '日式 JAPANESE',
+  'BRITISH STYLE CUTTING TIP': '英式 BRITISH',
+  'FRENCH STYLE CUTTING TIP': '法式 FRENCH',
+  'AUSTRALIAN STYLE CUTTING TIP': '澳式 AUSTRALIAN',
+  'BRAZILIAN STYLE CUTTING TIP': '巴西式 BRAZILIAN',
+}
+
+/** 目录系列 → 短标签（列表列宽有限，只显示款式） */
+export const CATALOG_SERIES_SHORT: Record<string, string> = {
+  'AMERICAN STYLE CUTTING TIP': '美式',
+  'JAPANESE STYLE CUTTING TIP': '日式',
+  'BRITISH STYLE CUTTING TIP': '英式',
+  'FRENCH STYLE CUTTING TIP': '法式',
+  'AUSTRALIAN STYLE CUTTING TIP': '澳式',
+  'BRAZILIAN STYLE CUTTING TIP': '巴西式',
+}
+
+/** 系列筛选下拉选项（顺序 = 官方目录顺序） */
+export const CATALOG_SERIES_OPTIONS = Object.entries(CATALOG_SERIES_LABEL).map(([value, label]) => ({ value, label }))
+
+/** 目录气体类型：LPG = 丙烷；ACETYLENE 目录写作 FOR ACE（甲方口径 ACE→ACETYLENE） */
+export const CATALOG_GAS_LABEL: Record<string, string> = {
+  LPG: 'LPG（丙烷）',
+  ACETYLENE: 'ACE（乙炔）',
+}
+
+/** 气体类型筛选下拉选项 */
+export const CATALOG_GAS_OPTIONS = [
+  { value: 'LPG', label: 'LPG（丙烷）' },
+  { value: 'ACETYLENE', label: 'ACE（乙炔）' },
+]
+
+/** 目录锚定状态（matched = 型号与 size 都锚定到官方目录） */
+export const CATALOG_ANCHOR_LABEL: Record<string, string> = {
+  matched: '已锚定',
+  unmatched: '未锚定',
+}
+
+/** 锚定状态筛选下拉选项 */
+export const CATALOG_ANCHOR_OPTIONS = [
+  { value: 'matched', label: '已锚定' },
+  { value: 'unmatched', label: '未锚定' },
+]
 
 export const SETTLEMENT_LABEL: Record<string, string> = {
   deposit_30_balance_before_ship: '30%定金+70%发货前',
