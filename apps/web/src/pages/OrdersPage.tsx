@@ -10,7 +10,7 @@ import type { SortOrder } from 'antd/es/table/interface'
 import dayjs from 'dayjs'
 import { api, loadOptions } from '../lib/api'
 import { CURRENCY_LABEL, CURRENCY_OPTIONS, INVOICE_STATE_COLOR, INVOICE_STATE_LABEL, PENDING_CODE, PRODUCT_TYPE_LABEL, SETTLEMENT_LABEL, STATUS_LABEL } from '../lib/labels'
-import { optionLabel, optionsPath, PLACEHOLDER_HINT, useShowPlaceholders } from '../lib/placeholders'
+import { optionLabel, optionsPath, ORDER_PLACEHOLDER_HINT, useShowPlaceholders } from '../lib/placeholders'
 import { fmtCents, toCents } from '../lib/money'
 import type { Customer, Order, OrderLine, PlanSheet, Product } from '../lib/types'
 import PackComboEditor from '../components/PackComboEditor'
@@ -586,6 +586,15 @@ function PendingTag({ items }: { items: OrderLine['pendingItems'] }) {
   )
 }
 
+/**
+ * 「占位产品行」计数：该订单里指向占位产品档案（未建档）的行数。
+ * 甲方裁定 2026-10-05（口径收窄「只看客户」）：这类订单**不再隐藏**，改为在单据上加醒目标记，
+ * 判定沿用后端待补编码 product_not_filed（message 由后端给，前端只按 code 定位）。
+ */
+function placeholderProductLineCount(order: Order): number {
+  return (order.lines ?? []).filter((l) => !!linePendingMsg(l, PENDING_CODE.PRODUCT_NOT_FILED)).length
+}
+
 /** 折叠态摘要：N 个产品 + 首个产品（名 × 数量）+ 等 M 项 + 行级待补汇总；单行不换行、超长省略 */
 function OrderLinesSummary({ order }: { order: Order }) {
   const lines = order.lines ?? []
@@ -595,9 +604,19 @@ function OrderLinesSummary({ order }: { order: Order }) {
   const firstName = lineName(first)
   const qtyMissing = !!linePendingMsg(first, PENDING_CODE.QUANTITY_MISSING)
   const firstText = `${firstName} × ${qtyMissing ? '待补' : fmtQty(first.quantity)}`
+  const unfiledCount = placeholderProductLineCount(order)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
       <Tag color="blue" style={{ marginInlineEnd: 0 }}>{lines.length} 个产品</Tag>
+      {/* 占位产品行：不再隐藏单据，改为醒目标记（红色 + 悬停说明怎么补） */}
+      {unfiledCount > 0 && (
+        <Tooltip title={`本单有 ${unfiledCount} 行产品未建档（挂在占位产品档案「（未建档产品·待补）」下，识别原文已留痕）。`
+          + '该单据不再被隐藏：展开「产品明细」看原文，或点右侧「补全」建档 / 改指到真实产品。'}>
+          <Tag color="error" style={{ marginInlineEnd: 0, cursor: 'help', fontWeight: 600 }}>
+            未建档产品行 {unfiledCount}
+          </Tag>
+        </Tooltip>
+      )}
       <Tooltip title={firstText}>
         <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{firstText}</span>
       </Tooltip>
@@ -786,7 +805,11 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
   const [sortKeys, setSortKeys] = useState<OrderSortKey[]>(DEFAULT_ORDER_SORT)
   /** I17：只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
   const [pendingOnly, setPendingOnly] = useState(false)
-  /** I17 裁定②：「显示占位档案」开关（默认关闭 = 隐藏未建档客户/产品占位档案相关单据） */
+  /**
+   * I17 裁定②「显示占位档案」开关（默认关闭）。
+   * 2026-10-05 甲方裁定收窄口径：**只看客户** —— 关时只隐藏「客户是占位档案」的订单；
+   * 「产品行挂占位产品」的订单照常显示（行上标待补 + 单据上红色「未建档产品行 N」标记）。
+   */
   const [showPlaceholders, setShowPlaceholders] = useShowPlaceholders()
   const [fillFor, setFillFor] = useState<Order | null>(null)
   const [detail, setDetail] = useState<Order | null>(null)
@@ -832,7 +855,8 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       if (customerId) params.set('customerId', String(customerId))
       if (kw.trim()) params.set('kw', kw.trim())
       if (pendingOnly) params.set('hasPending', '1')
-      // I17 裁定②：默认隐藏占位档案相关单据；打开开关才带 includePlaceholders=1
+      // I17 裁定②（口径收窄「只看客户」）：默认只隐藏占位**客户**的单据；
+      // 打开开关才带 includePlaceholders=1（连占位客户单一起显示，仅供排查）
       if (showPlaceholders) params.set('includePlaceholders', '1')
       // 组合排序：字段白名单与优先级由后端校验/执行（非法字段会 400 中文提示）
       if (sortKeys.length) params.set('sort', sortKeys.map((k) => `${k.field}:${k.dir}`).join(','))
@@ -945,7 +969,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
     },
     {
       // 折叠态只给摘要（详见 OrderLinesSummary）：多产品不再把单元格撑成多行
-      title: <SortTitle text="产品摘要" order={sortIndex('lineCount')} />, key: 'lineCount', width: 218,
+      title: <SortTitle text="产品摘要" order={sortIndex('lineCount')} />, key: 'lineCount', width: 268,
       sorter: { multiple: sortMultiple('lineCount') }, sortOrder: sortDirOf('lineCount'),
       render: (_: unknown, r: Order) => <OrderLinesSummary order={r} />,
     },
@@ -969,9 +993,21 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
       render: (_: unknown, r: Order) => {
         const items = r.pendingItems
         if (!Array.isArray(items)) return <Text type="secondary">—</Text>
-        if (!items.length) return <Tag color="success">已补全</Tag>
+        // 占位产品行提示（口径收窄后这类单据默认可见，用标记替代隐藏）
+        const unfiled = placeholderProductLineCount(r)
+        const unfiledTip = unfiled
+          ? `含 ${unfiled} 行「未建档产品」占位行（可展开明细看识别原文，或点「补全」建档）`
+          : null
+        if (!items.length) {
+          return unfiledTip
+            ? <Tooltip title={unfiledTip}><Tag color="error" style={{ cursor: 'help' }}>未建档产品行</Tag></Tooltip>
+            : <Tag color="success">已补全</Tag>
+        }
         return (
-          <Tooltip title={<div style={{ maxWidth: 420 }}>{items.map((x, i) => <div key={i}>· {x.message}</div>)}</div>}>
+          <Tooltip title={<div style={{ maxWidth: 420 }}>
+            {items.map((x, i) => <div key={i}>· {x.message}</div>)}
+            {unfiledTip && <div>· {unfiledTip}</div>}
+          </div>}>
             <Tag color="error" style={{ cursor: 'help' }}>待补 {items.length} 项</Tag>
           </Tooltip>
         )
@@ -1064,13 +1100,13 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         <Switch size="small" checked={pendingOnly} onChange={setPendingOnly} />
         <Text style={{ fontSize: 12 }}>仅看有未补全项的草稿单</Text>
       </Space>
-      {/* I17 裁定②：占位档案默认隐藏，此开关仅供排查 */}
+      {/* I17 裁定②（口径收窄「只看客户」）：默认只隐藏「客户是占位档案」的单据，此开关仅供排查 */}
       <Space size={4}>
-        <Tooltip title={PLACEHOLDER_HINT}>
+        <Tooltip title={ORDER_PLACEHOLDER_HINT}>
           <Switch size="small" checked={showPlaceholders} onChange={setShowPlaceholders} />
         </Tooltip>
-        <Tooltip title={PLACEHOLDER_HINT}>
-          <Text style={{ fontSize: 12, cursor: 'help' }}>显示占位档案</Text>
+        <Tooltip title={ORDER_PLACEHOLDER_HINT}>
+          <Text style={{ fontSize: 12, cursor: 'help' }}>显示占位客户档案</Text>
         </Tooltip>
       </Space>
       <Button onClick={fetchRows}>查询</Button>
@@ -1105,7 +1141,7 @@ function OrderListTable({ archived, refreshTick, onEdit }: {
         // 组合排序：受控排序键（sortOrder）+ 表头点击回调（onChange），实际排序由后端 sort 参数执行
         onChange={handleTableChange}
         // 列宽固定 + 横向滚动：窄屏不再把各列挤成换行；订单号/操作 两侧固定，滚动时仍可见
-        scroll={{ x: 1730 }}
+        scroll={{ x: 1780 }}
         expandable={{
           // 展开行 = 该单产品明细小表格（默认全部收起）
           expandedRowRender: (r) => <OrderLinesDetail order={r} />,

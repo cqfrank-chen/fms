@@ -1,5 +1,5 @@
 import { PENDING_CUSTOMER_NAME, PENDING_PRODUCT_NAME, PRODUCT_TYPE_LABELS, PRODUCT_TYPES, isPendingEntityName } from '../db/schema';
-import { hidePlaceholders, includePlaceholders } from './placeholders';
+import { hiddenCustomerIdForOrders, hidePlaceholders, includePlaceholders } from './placeholders';
 
 /**
  * 占位档案「默认隐藏 + 开关显示」与「占位产品类型为待定」单测
@@ -44,6 +44,48 @@ describe('占位档案默认隐藏（裁定②）', () => {
     expect(isPendingEntityName('未建档客户')).toBe(false);
     expect(isPendingEntityName(null)).toBe(false);
     expect(isPendingEntityName(undefined)).toBe(false);
+  });
+});
+
+/**
+ * 订单列表隐藏口径（甲方裁定 2026-10-05 · 收窄为「只看客户」）
+ * ------------------------------------------------------------------
+ * 现状（改前）：默认隐藏「客户是占位 或 任一产品行是占位」——云端 853 单只显示 561。
+ * 改后：默认只隐藏「客户是占位档案」；产品行挂占位产品的订单照常显示（界面加醒目标记）。
+ * 这里覆盖判定纯函数 hiddenCustomerIdForOrders —— 服务端 findAll 直接消费它的返回值。
+ */
+describe('订单列表隐藏口径「只看客户」（改后）', () => {
+  const PH_CUSTOMER_ID = 9001;
+
+  it('默认：只排除占位客户（返回其 id），产品行是否占位不参与判定', () => {
+    expect(hiddenCustomerIdForOrders(undefined, false, PH_CUSTOMER_ID)).toBe(PH_CUSTOMER_ID);
+    for (const v of ['', '0', 'false', 'no', null]) {
+      expect(hiddenCustomerIdForOrders(v, false, PH_CUSTOMER_ID)).toBe(PH_CUSTOMER_ID);
+    }
+  });
+
+  it('includePlaceholders=1（显示占位客户档案开关）→ 不隐藏任何单据', () => {
+    expect(hiddenCustomerIdForOrders('1', false, PH_CUSTOMER_ID)).toBeNull();
+    expect(hiddenCustomerIdForOrders('true', false, PH_CUSTOMER_ID)).toBeNull();
+    expect(hiddenCustomerIdForOrders(true, false, PH_CUSTOMER_ID)).toBeNull();
+  });
+
+  it('hasPending=1（仅看有未补全项的草稿单）→ 不隐藏任何单据（补全工作流不受开关限制）', () => {
+    expect(hiddenCustomerIdForOrders(undefined, true, PH_CUSTOMER_ID)).toBeNull();
+    expect(hiddenCustomerIdForOrders('0', true, PH_CUSTOMER_ID)).toBeNull();
+  });
+
+  it('占位客户档案不存在（库里还没惰性创建）→ 无单可藏', () => {
+    expect(hiddenCustomerIdForOrders(undefined, false, null)).toBeNull();
+    expect(hiddenCustomerIdForOrders(undefined, false, undefined)).toBeNull();
+  });
+
+  it('口径不含产品：删除「产品行占位」条件后，判定结果与产品无关（同入参恒等）', () => {
+    // 旧口径会因「任一产品行是占位产品」而隐藏；新口径下该因素**完全不进判定**，
+    // 因此对同一个 pendingCustomerId，无论订单里有几行占位产品，结果都一致。
+    const ids = [hiddenCustomerIdForOrders('0', false, PH_CUSTOMER_ID)];
+    expect(new Set(ids).size).toBe(1);
+    expect(ids[0]).toBe(PH_CUSTOMER_ID);
   });
 });
 

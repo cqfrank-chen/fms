@@ -9,6 +9,8 @@
  *      （orders.due_date NOT NULL → 哨兵日 2099-12-31 + due_date_tbd；缺客户/产品 → 惰性占位档案）
  *   4) 筛选与补全：GET /orders?hasPending=1 → 待补闸门拦截「确认」→ 一键从报价补价 → 补交期 → 标记清空 → 确认成功
  *   5) 向后兼容：有价的老表格不补价（quoteFilledCount=0）、POST /orders 老建单路行为不变
+ *   6) 订单列表隐藏口径「只看客户」（甲方裁定 2026-10-05 口径收窄）：三类单据 × 默认/开关/hasPending
+ *      —— 甲 客户真+产品真、乙 客户真+产品占位、丙 客户占位；并做 SQL 逐条对账
  *
  * 前置：一个连到**空库**的 API 实例（会自动建表 + 种子 admin/Fms@2026），例如：
  *   DB_HOST=localhost DB_PORT=15432 DB_NAME=fms_test JWT_SECRET=e2e PORT=3100 node dist/main
@@ -420,7 +422,7 @@ async function main() {
     noFolder.body.issues.some((i) => i.path === 'customer' && i.level === 'error'), noFolder.body.issues.map((i) => i.path));
 
   // ================= ⑥ 本轮 5 项甲方裁定 =================
-  console.log('\n【⑥ 甲方裁定 5 项】哨兵日 / 占位档案默认隐藏 / 占位产品待定 / .doc 补价 / 币种归一 CNY');
+  console.log('\n【⑥ 甲方裁定 5 项】哨兵日 / 占位档案默认隐藏（订单列表口径收窄为「只看客户」）/ 占位产品待定 / .doc 补价 / 币种归一 CNY');
 
   // ---- 裁定①：哨兵日 2099-12-31 + due_date_tbd 成对（不变），界面按标记显示「待定」 ----
   const inv = await db.query("select count(*)::int as n from orders where due_date_tbd <> (due_date::date = date '2099-12-31')");
@@ -454,25 +456,79 @@ async function main() {
     prodShow.body.some((p) => p.name === '（未建档产品·待补）' && p.type === 'tbd'),
     prodShow.body.filter((p) => p.name === '（未建档产品·待补）'));
 
-  // 造一张「挂占位客户 + 占位产品」的草稿，验证订单列表同样默认隐藏
+  // =====================================================================================
+  // 【本轮变更】订单列表隐藏口径收窄为「**只看客户**」（甲方裁定 2026-10-05）
+  // -------------------------------------------------------------------------------------
+  // 改前：默认隐藏「客户是占位档案 **或** 任一产品行是占位产品」→ 云端 853 单只剩 561 单；
+  // 改后：默认**只隐藏「客户是占位档案」**的订单；产品行挂占位产品的订单**照常显示**
+  //       （行上仍标「待补：产品未建档」，界面在单据上加红色「未建档产品行 N」标记）。
+  // 三类单据逐一断言：甲 客户真+产品真 / 乙 客户真+产品占位 / 丙 客户占位。
+  // =====================================================================================
+  const phCustId = phCust.rows[0].id;
+  const phProdId = phProd.rows[0].id;
+
+  // 丙类：挂占位客户（+ 占位产品）的草稿
   const phDraft = await req('POST', '/orders/draft', {
     folderCustomer: '裁定②占位客户',
     lines: [{ productName: '裁定②占位产品', quantity: 1, unitPrice: null }],
   }, token);
-  eq('裁定② 造占位草稿成功', phDraft.status, 201);
+  eq('口径收窄 丙类（客户占位）造单成功', phDraft.status, 201);
   // 裁定①：待定单据确实用哨兵日占位（NOT NULL 约束未被破坏），且标记与日期成对
   const sentinel = await db.query("select count(*)::int as n from orders where due_date::date = date '2099-12-31' and due_date_tbd");
   ok('裁定① SQL：待定单据确实用哨兵日占位（界面按 due_date_tbd 显示「待定」）', sentinel.rows[0].n >= 1, sentinel.rows[0].n);
   const inv2 = await db.query("select count(*)::int as n from orders where due_date_tbd <> (due_date::date = date '2099-12-31')");
   eq('裁定① SQL：造单后不变量仍成立', inv2.rows[0].n, 0);
+
+  // 乙类：客户真（安宝公司）+ 产品占位（未建档产品）
+  const unlisted = await req('POST', '/orders/draft', {
+    customerId,
+    lines: [{ productName: '本轮口径乙类·未建档产品', quantity: 2, unitPrice: 5 }],
+  }, token);
+  eq('口径收窄 乙类（客户真 + 产品占位）造单成功', unlisted.status, 201);
+  ok('乙类：客户指向真实档案（不是占位客户）', unlisted.body.customerId === customerId, unlisted.body.customerId);
+  ok('乙类：产品行确实挂在占位产品档案下',
+    unlisted.body.lines.length === 1 && unlisted.body.lines.every((l) => l.productId === phProdId),
+    unlisted.body.lines.map((l) => l.productId));
+  ok('乙类：行上仍标「产品未建档」待补（可见但明确标记，不是被藏起来）',
+    unlisted.body.lines.every((l) => (l.pendingItems ?? []).some((x) => x.code === 'product_not_filed')),
+    unlisted.body.lines.map((l) => l.pendingItems));
+
   const ordDefault = await req('GET', '/orders', undefined, token);
-  ok('裁定② 订单列表默认隐藏占位档案相关单据', !ordDefault.body.some((o) => o.id === phDraft.body.id), ordDefault.body.map((o) => o.id));
-  ok('裁定② 订单列表默认仍含普通订单（老路单）', ordDefault.body.some((o) => o.id === legacy.body.id), ordDefault.body.map((o) => o.id));
+  const defIds = ordDefault.body.map((o) => o.id);
+  ok('【改后】甲类（客户真 + 产品真）默认可见', defIds.includes(legacy.body.id), defIds);
+  ok('【改后】乙类（客户真 + 产品占位）默认**可见** —— 改前被隐藏，本轮改为显示 + 标记',
+    defIds.includes(unlisted.body.id), defIds);
+  ok('【改后】丙类（客户占位）默认隐藏', !defIds.includes(phDraft.body.id), defIds);
+
   const ordShow = await req('GET', '/orders?includePlaceholders=1', undefined, token);
-  ok('裁定② 开关打开后订单列表可见占位单', ordShow.body.some((o) => o.id === phDraft.body.id), ordShow.body.length);
+  const showIds = ordShow.body.map((o) => o.id);
+  ok('includePlaceholders=1 时三类单据**全部**可见（甲 / 乙 / 丙）',
+    [legacy.body.id, unlisted.body.id, phDraft.body.id].every((id) => showIds.includes(id)), showIds);
+
   const ordPending = await req('GET', '/orders?hasPending=1', undefined, token);
-  ok('裁定② 「仅看有未补全项的草稿单」不受开关限制（补全工作流必须能看到）',
-    ordPending.body.some((o) => o.id === phDraft.body.id), ordPending.body.map((o) => o.id));
+  ok('hasPending=1 不受影响：乙 / 丙 都在（补全工作流必须能看到这两类草稿）',
+    ordPending.body.some((o) => o.id === unlisted.body.id) && ordPending.body.some((o) => o.id === phDraft.body.id),
+    ordPending.body.map((o) => o.id));
+
+  // ---- SQL 核对（默认可见性逐条对账，不靠接口自证） ----
+  const sqlAll = await db.query('select count(*)::int as n from orders');
+  const sqlPhCustOrders = await db.query('select count(*)::int as n from orders where customer_id = $1', [phCustId]);
+  const sqlVisible = await db.query('select count(*)::int as n from orders where customer_id <> $1', [phCustId]);
+  const sqlPhProductOrders = await db.query(
+    'select count(distinct o.id)::int as n from orders o join order_lines ol on ol.order_id = o.id where ol.product_id = $1',
+    [phProdId]);
+  eq('SQL 核对：默认可见数 = 全量 − 占位客户单数', ordDefault.body.length, sqlAll.rows[0].n - sqlPhCustOrders.rows[0].n);
+  eq('SQL 核对：接口返回条数与「排除占位客户」的 SQL 计数一致', ordDefault.body.length, sqlVisible.rows[0].n);
+  ok('SQL 核对：存在「产品行挂占位产品但客户真实」的单据（本轮新口径下默认可见）',
+    sqlPhProductOrders.rows[0].n >= 1, { 含占位产品行的单数: sqlPhProductOrders.rows[0].n });
+  eq('SQL 核对：乙类单据确实有 1 行指向占位产品',
+    Number((await db.query('select count(*)::int as n from order_lines where order_id = $1 and product_id = $2',
+      [unlisted.body.id, phProdId])).rows[0].n), 1);
+  eq('SQL 核对：includePlaceholders=1 时返回条数 = 全量',
+    ordShow.body.length, sqlAll.rows[0].n);
+  ok('SQL 核对：乙类单据的 customer_id ≠ 占位客户 id（所以它不该被隐藏）',
+    Number((await db.query('select count(*)::int as n from orders where id = $1 and customer_id <> $2',
+      [unlisted.body.id, phCustId])).rows[0].n) === 1, unlisted.body.id);
 
   // ---- 甲方裁定 2（2026-10-05）：客户/产品的**选择下拉**始终显示两个占位档案 ----
   // 下拉口径 = 选项接口**显式**带 includePlaceholders=1 放行（服务端默认隐藏）；

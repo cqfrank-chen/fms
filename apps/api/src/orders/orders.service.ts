@@ -8,7 +8,7 @@ import {
 import type { Currency, NewOrderLine, OrderStatus, PendingItem } from '../db/schema';
 import { currentOperatorId } from '../common/operator-context';
 import { normalizeCurrency } from '../common/currency';
-import { includePlaceholders } from '../common/placeholders';
+import { hiddenCustomerIdForOrders } from '../common/placeholders';
 import { ensurePendingCustomer, ensurePendingProduct, findPendingCustomerId, findPendingProductId } from '../common/pending-entities';
 import { fromCents, sumLineCents, toCents } from '../common/money';
 import { InvoicesService } from '../invoices/invoices.service';
@@ -51,8 +51,10 @@ export interface OrderListQuery {
   /** '1' = 只看「有未补全项的草稿单」（识单落草稿后缺价/缺交期/未建档的单据） */
   hasPending?: string;
   /**
-   * '1' = 包含占位档案相关单据（未建档客户·待补 / 未建档产品·待补）。
-   * I17 裁定：**默认隐藏**占位档案相关的订单；打开「显示占位档案」开关（或按「有未补全项的草稿单」筛选）时显示。
+   * '1' = 包含占位档案相关单据。
+   * I17 裁定（2026-10-05 口径收窄）：**默认只隐藏「客户是占位档案」的订单**；
+   * 「产品行挂占位产品」的订单**照常显示**（行上仍标「待补：产品未建档」，界面加醒目标记），
+   * 打开「显示占位客户档案」开关（或按「有未补全项的草稿单」筛选）时连占位客户单也一并显示。
    */
   includePlaceholders?: string;
   /**
@@ -222,17 +224,16 @@ export class OrdersService {
     if (hasPendingOnly) {
       conds.push(sql`jsonb_array_length(coalesce(${orders.pendingItems}, '[]'::jsonb)) > 0`);
     }
-    // I17 甲方裁定：占位档案（未建档客户·待补 / 未建档产品·待补）相关单据**默认隐藏**。
-    // 例外：① 显式打开「显示占位档案」开关（includePlaceholders=1）→ 显示（排查用）；
-    //       ② 按「有未补全项的草稿单」筛选 → 属于补全工作流，必须能看到这些草稿，否则无从补全。
-    if (!includePlaceholders(q.includePlaceholders) && !hasPendingOnly) {
-      const pendingCustomerId = await findPendingCustomerId();
-      const pendingProductId = await findPendingProductId();
-      if (pendingCustomerId != null) conds.push(ne(orders.customerId, pendingCustomerId));
-      if (pendingProductId != null) {
-        conds.push(sql`not exists (select 1 from order_lines ol where ol.order_id = ${orders.id} and ol.product_id = ${pendingProductId})`);
-      }
-    }
+    // I17 甲方裁定【2026-10-05 口径收窄 · 只看客户】：订单列表默认**只隐藏「客户是占位档案」的订单**。
+    //   · 「产品行挂占位产品」的订单**照常显示** —— 隐藏它们等于把待补单藏起来，人工无从补全；
+    //     这类单据由界面在行上/单上加醒目标记（「未建档产品行 N」+ 行级「待补」）。
+    //   · 例外 ① 显式打开「显示占位客户档案」开关（includePlaceholders=1）→ 全显示（排查用）；
+    //     例外 ② 按「有未补全项的草稿单」筛选（hasPending=1）→ 全显示（补全工作流必须能看到）。
+    //   判定集中在一个纯函数里（common/placeholders.ts），单测直接覆盖该口径。
+    const hideCustomerId = hiddenCustomerIdForOrders(
+      q.includePlaceholders, hasPendingOnly, await findPendingCustomerId(),
+    );
+    if (hideCustomerId != null) conds.push(ne(orders.customerId, hideCustomerId));
     const base = db
       .select({
         order: orders,
